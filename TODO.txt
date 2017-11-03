@@ -1,0 +1,1 @@
+Check whether or not struct Point3D{T<:AbstractFloat}<:AbstractFloat needs the <:AbstractFloat
