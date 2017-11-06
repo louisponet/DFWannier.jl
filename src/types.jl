@@ -1,3 +1,4 @@
+using DFControl: form_directory,search_dir
 import Base: norm, getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 "Point of a wavefunction in 3D, holds the complex value of the wavefunction and the cartesian coordinate."
@@ -47,6 +48,14 @@ function norm(a::Wfc3D{T}) where T
   return sqrt(n)
 end
 
+function Base.normalize(wfc::Wfc3D{T}) where T
+  n1 = zero(Complex{T})
+  for point in wfc.points
+    n1 += norm(point.w)^2
+  end
+  return wfc/sqrt(n1)
+end
+
 function getindex(x::Wfc3D,i1::Int,i2::Int,i3::Int)
   return x.points[i1,i2,i3]
 end
@@ -63,7 +72,7 @@ end
 show(io::IO,x::Wfc3D)=print(io,"Wavefunction Mesh of size($(size(x.points)),\n Physatom = $(x.atom)")
 
 "Holds all the calculated values from a wannier model."
-mutable struct WannierBand{T<:AbstractFloat} <: Band{T}
+mutable struct WannierBand{T<:AbstractFloat} <: Band
   eigvals::Array{T,1}
   eigvec::Array{Array{Complex{T},1},1}
   cms::Array{Point3D{T},1}
@@ -79,22 +88,23 @@ mutable struct WannierModel{T<:AbstractFloat}
   dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}},1}
   wfcs::Array{Wfc3D{T},1}
   k_points::Array{Array{T,1},1}
-  bands::Array{TbBand{T},1}
+  bands::Array{WannierBand{T},1}
   atoms::Array{PhysAtom{T},1}
-  function WannierModel(dir::String, k_points, atoms::Array{<:PhysAtom}, T=Float32)
+  function WannierModel{T}(dir::String, k_points, atoms::Array{<:PhysAtom}) where T<:AbstractFloat
     dir = form_directory(dir)
-    wfc_files = search_dir(tb_dir,".xsf")
-    hami_file = search_dir(tb_dir,"_hr.dat")[1]
-    dip_file = search_dir(tb_dir,"_r.dat")[1]
+    wfc_files = search_dir(dir,".xsf")
+    hami_file = search_dir(dir,"_hr.dat")[1]
+    dip_file = search_dir(dir,"_r.dat")[1]
     wfcs = Array{Wfc3D{T},1}(length(wfc_files))
     Threads.@threads for i=1:length(wfcs)
-      wfcs[i] = read_xsf_file(tb_dir*wfc_files[i],atoms[i],T)
+      wfcs[i] = read_xsf_file(dir*wfc_files[i],atoms[i],T)
     end
-    hami_raw = read_hami_file(tb_dir*hami_file,T)
-    dip_raw = read_dipole_file(tb_dir*dip_file,T)
-    return new(hami_raw,dip_raw,wfcs,k_points,TbBand{T}[],atoms)
+    hami_raw = read_hami_file(dir*hami_file,T)
+    dip_raw = read_dipole_file(dir*dip_file,T)
+    return new(hami_raw,dip_raw,wfcs,k_points,WannierBand{T}[],atoms)
   end
 end
-function WannierModel(dir::String, k_point_file::String, atoms::Array{<:PhysAtom}, T=Float32)
-  k_points = read_ks_from_qe_bands_file(k_point_file,T)
+function WannierModel{T}(dir::String, k_point_file::String, atoms::Array{<:PhysAtom}) where T<:AbstractFloat
+  k_points = read_ks_from_qe_bands_file(k_point_file,T)[2]
+  return WannierModel{T}(dir,k_points,atoms)
 end

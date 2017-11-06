@@ -1,8 +1,11 @@
+function_names = ["calculate_eig_soc","calculate_eig_pot","calculate_eig_angmom","calculate_eig_pot_angmom","calculate_eig_pot_soc","calculate_eig_angmom_soc","calculate_eig_pot_angmom_soc",
+               "calculate_eig_cm","calculate_eig_cm_soc","calculate_eig_cm_pot","calculate_eig_cm_pot_soc","calculate_eig_cm_angmom","calculate_eig_cm_angmom_soc","calculate_eig_cm_pot_angmom","calculate_eig_cm_pot_angmom_soc"]
+
 begin
   cm_tcalc = :(tmp_cm = calculate_k_dips(model.dip_raw,k))
   pot_tcalc = :(tmp_pot = calculate_tmp_pot(model.wfcs,pot))
   angmom_precalc = quote tmp_angmom = calculate_angmoms(model.wfcs)::Array{Array{Complex{T},1},2}
-                       tmp_spin_x::Array{Complex{T},2},tmp_spin_y::Array{Complex{T},2},tmp_spin_z::Array{Complex{T},2} = calculate_tmp_spin(model.wfcs)
+                       tmp_spin_x::Array{Complex{T},2},tmp_spin_y::Array{Complex{T},2},tmp_spin_z::Array{Complex{T},2} = calculate_spins(model.wfcs)
                          end
   cm_cinit = quote eigcm_x = zero(Complex{T})
                    eigcm_y = zero(Complex{T})
@@ -27,20 +30,18 @@ begin
                             out_bands[i].spins[j][n] = Point3D{T}(real(eigspin[n][1]),real(eigspin[n][2]),real(eigspin[n][3]))
                           end
                         end
-
-  for name in ["calculate_eig_soc","calculate_eig_pot","calculate_eig_angmom","calculate_eig_pot_angmom","calculate_eig_pot_soc","calculate_eig_angmom_soc","calculate_eig_pot_angmom_soc",
-               "calculate_eig_cm","calculate_eig_cm_soc","calculate_eig_cm_pot","calculate_eig_cm_pot_soc","calculate_eig_cm_angmom","calculate_eig_cm_angmom_soc","calculate_eig_cm_pot_angmom","calculate_eig_cm_pot_angmom_soc"]
+  for name in function_names 
     func_vars = []
     tmp_calcs = quote end
     calc_init = quote end
     calcs     = quote end
     loop_end  = quote end
     if contains(name,"soc")
-      intro = quote out_bands = [TbBand(Array{T,1}(size(k_points)[1]),Array{Array{Complex{T},1},1}(length(k_points)),Array{Point3D{T},1}(size(k_points)[1]),Array{T,1}(size(k_points)[1]),[[Point3D{T}(0.0) for j=1:length(atoms)] for n=1:length(k_points)],[[Point3D{T}(0.0) for j=1:length(atoms)] for n=1:length(k_points)],k_points) for i=1:size(model.wfcs)[1]*2] end
+      intro = quote out_bands = [WannierBand(Array{T,1}(size(k_points)[1]),Array{Array{Complex{T},1},1}(length(k_points)),Array{Point3D{T},1}(size(k_points)[1]),[[Point3D{T}(0.0) for j=1:length(atoms)] for n=1:length(k_points)],[[Point3D{T}(0.0) for j=1:length(atoms)] for n=1:length(k_points)],k_points) for i=1:size(model.wfcs)[1]*2] end
       push!(intro.args,angmom_precalc)
-      ham_line = :(hami = construct_soc_hami(hami_from_k(model.hami_raw,k),tmp_angmom,map(x->x.atom,x.wfcs)))
+      ham_line = :(hami = construct_soc_hami(hami_from_k(model.hami_raw,k),tmp_angmom,map(x->x.atom,model.wfcs)))
     else
-      intro = quote out_bands = [TbBand(Array{T,1}(size(k_points)[1]),Array{Array{Complex{T},1},1}(length(k_points)),Array{Point3D{T},1}(size(k_points)[1]),Array{T,1}(size(k_points)[1]),[[Point3D{T}(0.0) for j=1:length(atoms)] for n=1:length(k_points)],[[Point3D{T}(0.0) for j=1:length(atoms)] for n=1:length(k_points)],k_points) for i=1:size(model.wfcs)[1]] end
+      intro = quote out_bands = [WannierBand(Array{T,1}(size(k_points)[1]),Array{Array{Complex{T},1},1}(length(k_points)),Array{Point3D{T},1}(size(k_points)[1]),[[Point3D{T}(0.0) for j=1:length(atoms)] for n=1:length(k_points)],[[Point3D{T}(0.0) for j=1:length(atoms)] for n=1:length(k_points)],k_points) for i=1:size(model.wfcs)[1]] end
       ham_line = :(hami = hami_from_k(model.hami_raw,k))
     end
     if contains(name,"pot")
@@ -65,10 +66,10 @@ begin
       push!(calcs.args,cm_calc)
       push!(loop_end.args,cm_loop_end)
     end
-    @eval function $(Symbol(name)){T<:AbstractFloat}(model::TbModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
+    @eval function $(Symbol(name)){T<:AbstractFloat}(model::WannierModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
             atoms = PhysAtom[]
             atom_indices = Int[]
-            for wfc in x.wfcs
+            for wfc in model.wfcs
               if !in(wfc.atom,atoms)
                 push!(atoms,wfc.atom)
                 push!(atom_indices,length(atoms))
@@ -123,14 +124,15 @@ begin
       k_points = [[kxs[i],kys[i],kzs[i]] for i=1:length(kxs)]
       return $(parse(name))(model,$(func_vars...),k_points)
     end
-    eval(:(export Symbol($name)))
+    func = Symbol(name)
+    eval(:(export $func))
   end
 end
 
 #Same as above but with bloch sums
 begin
   angmom_tcalc = quote tmp_angmom = calculate_angmoms(k_wfcs)
-                          tmp_spin_x,tmp_spin_y,tmp_spin_z = calculate_tmp_spin(model.wfcs)
+                          tmp_spin_x,tmp_spin_y,tmp_spin_z = calculate_spins(model.wfcs)
                          end
   cm_tcalc = quote tmp_cm = calculate_k_dips(model.dip_raw,k) end
   pot_tcalc = :(tmp_pot = calculate_tmp_pot(k_wfcs,pot))
@@ -157,18 +159,18 @@ angmom_loop_end = quote
              out_bands[i].spins[j][n] = Point3D{T}(real(eigspin[n][1]),real(eigspin[n][2]),real(eigspin[n][3]))
            end
          end
-  for name in ["calculate_eig_soc","calculate_eig_pot","calculate_eig_angmom","calculate_eig_pot_angmom","calculate_eig_pot_soc","calculate_eig_angmom_soc","calculate_eig_pot_angmom_soc",
-               "calculate_eig_cm","calculate_eig_cm_soc","calculate_eig_cm_pot","calculate_eig_cm_pot_soc","calculate_eig_cm_angmom","calculate_eig_cm_angmom_soc","calculate_eig_cm_pot_angmom","calculate_eig_cm_pot_angmom_soc"]
+  for name in function_names
+
     func_vars = []
     tmp_calcs = quote end
     calc_init = quote end
     calcs = quote end
     loop_end = quote end
     if contains(name,"soc")
-      intro = quote out_bands = [TbBand(Array{T,1}(size(k_points)[1]),Array{Array{Complex{T},1},1}(length(k_points)),Array{Point3D{T},1}(size(k_points)[1]),Array{T,1}(size(k_points)[1]),[[Point3D{T}(0.0),Point3D{T}(0.0)] for i=1:length(k_points)],[[Point3D{T}(0.0),Point3D{T}(0.0)] for i=1:length(k_points)],k_points) for i=1:size(model.wfcs)[1]*2] end
-      ham_line = :(hami = construct_soc_hami(hami_from_k(model.hami_raw,k),tmp_angmom,map(x->x.atom,x.wfcs)))
+      intro = quote out_bands = [WannierBand(Array{T,1}(size(k_points)[1]),Array{Array{Complex{T},1},1}(length(k_points)),Array{Point3D{T},1}(size(k_points)[1]),[[Point3D{T}(0.0),Point3D{T}(0.0)] for i=1:length(k_points)],[[Point3D{T}(0.0),Point3D{T}(0.0)] for i=1:length(k_points)],k_points) for i=1:size(model.wfcs)[1]*2] end
+      ham_line = :(hami = construct_soc_hami(hami_from_k(model.hami_raw,k),tmp_angmom,map(x->x.atom,model.wfcs)))
     else
-      intro = quote out_bands = [TbBand(Array{T,1}(size(k_points)[1]),Array{Array{Complex{T},1},1}(length(k_points)),Array{Point3D{T},1}(size(k_points)[1]),Array{T,1}(size(k_points)[1]),[[Point3D{T}(0.0),Point3D{T}(0.0)] for i=1:length(k_points)],[[Point3D{T}(0.0),Point3D{T}(0.0)] for i=1:length(k_points)],k_points) for i=1:size(model.wfcs)[1]] end
+      intro = quote out_bands = [WannierBand(Array{T,1}(size(k_points)[1]),Array{Array{Complex{T},1},1}(length(k_points)),Array{Point3D{T},1}(size(k_points)[1]),[[Point3D{T}(0.0),Point3D{T}(0.0)] for i=1:length(k_points)],[[Point3D{T}(0.0),Point3D{T}(0.0)] for i=1:length(k_points)],k_points) for i=1:size(model.wfcs)[1]] end
       ham_line = :(hami = hami_from_k(model.hami_raw,k))
     end
     if contains(name,"pot")
@@ -191,10 +193,10 @@ angmom_loop_end = quote
       push!(calcs.args,cm_calc)
       push!(loop_end.args,cm_loop_end)
     end
-    @eval function $(Symbol(name*"_bloch")){T<:AbstractFloat}(model::TbModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
+    @eval function $(Symbol(name*"_bloch")){T<:AbstractFloat}(model::WannierModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
             atoms = PhysAtom[]
             atom_indices = Int[]
-            for wfc in x.wfcs
+            for wfc in model.wfcs
               if !in(wfc.atom,atoms)
                 push!(atoms,wfc.atom)
                 push!(atom_indices,length(atoms))
@@ -254,6 +256,7 @@ angmom_loop_end = quote
       k_points = [[kxs[i],kys[i],kzs[i]] for i=1:length(kxs)]
       return $(parse(name*"_bloch"))(model,$(func_vars...),k_points)
     end
-    eval(:(export Symbol($name)))
+    func = Symbol(name*"_bloch")
+    eval(:(export $func))
   end
 end

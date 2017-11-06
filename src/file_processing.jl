@@ -32,7 +32,7 @@ function read_xsf_file(filename::String, atom::PhysAtom, T=Float32)
         a_array = collect(T,linspace(0, 1, nx))
         b_array = collect(T,linspace(0, 1, ny))
         c_array = collect(T,linspace(0, 1, nz))
-        out = Wfc3D(Array{WfPoint3D{T},3}(nx,ny,nz),[Point3D{T}(primCell[1,:]);Point3D{T}(primCell[2,:]);Point3D{T}(primCell[3,:])],atom)
+        out = Wfc3D(Array{WfcPoint3D{T},3}(nx,ny,nz),[Point3D{T}(primCell[1,:]);Point3D{T}(primCell[2,:]);Point3D{T}(primCell[3,:])],atom)
         line = readline(f)
         k=1
         k1=1
@@ -43,7 +43,7 @@ function read_xsf_file(filename::String, atom::PhysAtom, T=Float32)
             x = origin.x+(a_vec*a_array[k])[1]+(b_vec*b_array[k1])[1]+(c_vec*c_array[k2])[1]
             y = origin.y+(a_vec*a_array[k])[2]+(b_vec*b_array[k1])[2]+(c_vec*c_array[k2])[2]
             z = origin.z+(a_vec*a_array[k])[3]+(b_vec*b_array[k1])[3]+(c_vec*c_array[k2])[3]
-            out.points[k,k1,k2] = WfPoint3D{T}(t,Point3D{T}(x,y,z))
+            out.points[k,k1,k2] = WfcPoint3D{T}(t,Point3D{T}(x,y,z))
             if k<nx
               k+=1
             else
@@ -78,7 +78,7 @@ function read_xsf_file(filename::String, atom::PhysAtom, T=Float32)
         a_array = collect(T,linspace(0, 1, nx))
         b_array = collect(T,linspace(0, 1, ny))
         c_array = collect(T,linspace(0, 1, nz))
-        out = Wfc3D(Array{WfPoint3D{T},3}(nx,ny,nz),[Point3D(primCell[1,:]);Point3D(primCell[2,:]);Point3D(primCell[3,:])],atom)
+        out = Wfc3D(Array{WfcPoint3D{T},3}(nx,ny,nz),[Point3D(primCell[1,:]);Point3D(primCell[2,:]);Point3D(primCell[3,:])],atom)
         line = readline(f)
         k=1
         k1=1
@@ -90,7 +90,7 @@ function read_xsf_file(filename::String, atom::PhysAtom, T=Float32)
             x = origin.x+(a_vec*a_array[k])[1]+(b_vec*b_array[k1])[1]+(c_vec*c_array[k2])[1]
             y = origin.y+(a_vec*a_array[k])[2]+(b_vec*b_array[k1])[2]+(c_vec*c_array[k2])[2]
             z = origin.z+(a_vec*a_array[k])[3]+(b_vec*b_array[k1])[3]+(c_vec*c_array[k2])[3]
-            out.points[k,k1,k2] = WfPoint3D{T}(t,Point3D{T}(x,y,z))
+            out.points[k,k1,k2] = WfcPoint3D{T}(t,Point3D{T}(x,y,z))
             if k<nx
               k+=1
             else

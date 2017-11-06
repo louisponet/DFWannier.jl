@@ -29,11 +29,11 @@ function construct_bloch_sum(wfc::Wfc3D{T}, k::Array) where T<:AbstractFloat
       j3+=1
     end
   end
-  tmp_points=Array{WfPoint3D{T},3}(dim_a,dim_b,dim_c)
+  tmp_points=Array{WfcPoint3D{T},3}(dim_a,dim_b,dim_c)
   for i2=1:dim_c
     for i1=1:dim_b
       for i=1:dim_a
-        tmp_points[i,i1,i2] = WfPoint3D(points[i,i1,i2],wfc.points[i,i1,i2].p)
+        tmp_points[i,i1,i2] = WfcPoint3D(points[i,i1,i2],wfc.points[i,i1,i2].p)
       end
     end
   end
@@ -195,9 +195,9 @@ function calculate_k_dips(dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}}},
   for i=1:size(dip_raw)[1]
     d = dip_raw[i]
     complex_part = 2*pi*(k_points[1]*d[1]+k_points[2]*d[2]+k_points[3]*d[3])
-    tmp[d[4],d[5]][1] += d[6][1]*exp(-1im*complex_part)
-    tmp[d[4],d[5]][2] += d[6][2]*exp(-1im*complex_part)
-    tmp[d[4],d[5]][3] += d[6][3]*exp(-1im*complex_part)
+    tmp[d[4],d[5]][1] += d[6].x*exp(-1im*complex_part)
+    tmp[d[4],d[5]][2] += d[6].y*exp(-1im*complex_part)
+    tmp[d[4],d[5]][3] += d[6].z*exp(-1im*complex_part)
   end
   for i in eachindex(out)
     out[i]=Point3D(real(tmp[i][1]),real(tmp[i][2]),real(tmp[i][3]))
@@ -358,7 +358,7 @@ function add_overlap_cm!(overlaps::Wfc3D{T},wfc1::Wfc3D{T},wfc2::Wfc3D{T},prefac
         w1 = wfc1.points[i1,i2,i3].w
         w2 = wfc2.points[j1,j2,j3].w
         tmp = overlaps[i1,i2,i3].w
-        overlaps.points[i1,i2,i3] = WfPoint3D{T}(prefac*real(conj(w1)*w2)*wfc1.points[i1,i2,i3].p.z+tmp,wfc1.points[i1,i2,i3].p)
+        overlaps.points[i1,i2,i3] = WfcPoint3D{T}(prefac*real(conj(w1)*w2)*wfc1.points[i1,i2,i3].p.z+tmp,wfc1.points[i1,i2,i3].p)
         i1+=1
         j1+=1
       end
@@ -385,7 +385,7 @@ function add_distribution!(distribution::Wfc3D{T},wfc1::Wfc3D{T},R::Point3D{T}) 
       while i1<=dim_a && j1 <=dim_a
         w = wfc1.points[j1,j2,j3].w
         tmp = distribution.points[i1,i2,i3].w
-        distribution.points[i1,i2,i3] = WfPoint3D{T}(tmp+w,wfc1.points[i1,i2,i3].p)
+        distribution.points[i1,i2,i3] = WfcPoint3D{T}(tmp+w,wfc1.points[i1,i2,i3].p)
         i1+=1
         j1+=1
       end
@@ -429,7 +429,7 @@ function calculate_tmp_pot(k_wfcs,potential)
   return [out zeros(out);zeros(out) out]
 end
 
-function calculate_dip_mesh_soc(model::TbModel{T},k_point,band) where T
+function calculate_dip_mesh_soc(model::WannierModel{T},k_point,band) where T
   points = similar(model.wfcs[1].points,Tuple{Point3D{T},Point3D{T}})
   k_wfcs = Array{Wfc3D{T},1}(size(model.wfcs)[1])
   for (i,wfc) in enumerate(model.wfcs)
@@ -443,9 +443,9 @@ function calculate_dip_mesh_soc(model::TbModel{T},k_point,band) where T
       for ib=1:dim_b
         for ia=1:dim_a
           if ia <= dim_a/7 || ib <= dim_b/7 || ic <= dim_c/7
-            wfc.points[ia,ib,ic] = WfPoint3D(0.0im,wfc.points[ia,ib,ic].p)
+            wfc.points[ia,ib,ic] = WfcPoint3D(0.0im,wfc.points[ia,ib,ic].p)
           elseif ia>= dim_a*(1-1/7) || ib >= dim_b*(1-1/7) || ic >= dim_c*(1-1/7)
-            wfc.points[ia,ib,ic] = WfPoint3D(0.0im,wfc.points[ia,ib,ic].p)
+            wfc.points[ia,ib,ic] = WfcPoint3D(0.0im,wfc.points[ia,ib,ic].p)
           else
             continue
           end
@@ -481,7 +481,7 @@ end
 function calculate_density_wfc(wfc::Wfc3D{T}) where T
   density_wfc = deepcopy(wfc)
   for (i,wfc_p) in enumerate(wfc.points)
-    density_wfc.points[i] = WfPoint3D{T}(conj(wfc_p.w)*wfc_p.w,wfc_p.p)
+    density_wfc.points[i] = WfcPoint3D{T}(conj(wfc_p.w)*wfc_p.w,wfc_p.p)
   end
   return density_wfc
 end
@@ -490,7 +490,7 @@ function calculate_density_wfc_normalized(wfc::Wfc3D{T}) where T
   density_wfc = deepcopy(wfc)
   n=zero(Complex{T})
   for (i,wfc_p) in enumerate(wfc.points)
-    density_wfc.points[i] = WfPoint3D{T}(conj(wfc_p.w)*wfc_p.w,wfc_p.p)
+    density_wfc.points[i] = WfcPoint3D{T}(conj(wfc_p.w)*wfc_p.w,wfc_p.p)
     n+=norm(wfc_p.w)^2
   end
   return density_wfc/sqrt(n)

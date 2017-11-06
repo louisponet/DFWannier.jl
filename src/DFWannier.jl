@@ -3,7 +3,7 @@ module DFWannier
   using Reexport
   @reexport using DFControl
   using RecipesBase
-
+  using LaTeXStrings
   include("types.jl")
   export PhysAtom
   #---#
@@ -11,7 +11,8 @@ module DFWannier
   export Wfc3D
   export WannierBand
   export WannierModel
-  
+
+  include("utils.jl") 
   include("file_processing.jl")
   export read_xsf_file
   export write_xsf_file
@@ -26,4 +27,5 @@ module DFWannier
 
   include("hami_calcs.jl")
   include("model_calcs.jl")
+  include("plotting.jl")
 end
