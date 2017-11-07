@@ -250,3 +250,125 @@ function read_potential_file(filename::String, T=Float32)
     end
   end
 end
+
+#-------------------------Not currently used beyond here!------------------#
+function write_dip_file(filename::String,points,cell,atoms,names,direction)
+  open(filename,"w") do f
+    origin = points[1,1,1][1]
+    write(f,["# Generated from PhD calculations\n"])
+    write(f,["CRYSTAL\n","PRIMVEC\n"])
+    write(f,["$(cell[1].x)  $(cell[1].y) $(cell[1].z)\n"])
+    write(f,["$(cell[2].x)  $(cell[2].y) $(cell[2].z)\n"])
+    write(f,["$(cell[3].x)  $(cell[3].y) $(cell[3].z)\n"])
+    write(f,["CONVVEC\n"])
+    write(f,["$(cell[1].x)  $(cell[1].y) $(cell[1].z)\n"])
+    write(f,["$(cell[2].x)  $(cell[2].y) $(cell[2].z)\n"])
+    write(f,["$(cell[3].x)  $(cell[3].y) $(cell[3].z)\n"])
+    write(f,["PRIMCOORD\n"])
+    write(f,["  $(length(atoms)) 1\n"])
+    for (atom,name) in zip(atoms,names)
+      write(f,["$name  $(atom.center.x)  $(atom.center.y)  $(atom.center.z)\n"])
+    end
+
+    write(f,["", "BEGIN_BLOCK_DATAGRID_3D\n", "3D_FIELD\n",
+                      "BEGIN_DATAGRID_3D_UNKNOWN\n"])
+    write(f,"$(size(points)[1])    $(size(points)[2])     $(size(points)[3])\n")
+    write(f,"$(origin.x)   $(origin.y)   $(origin.z)\n")
+    write(f,"$(points[end,1,1][1].x-origin.x)   $(points[end,1,1][1].y-origin.y)   $(points[end,1,1][1].z-origin.z)\n")
+    write(f,"$(points[1,end,1][1].x-origin.x)   $(points[1,end,1][1].y-origin.y)   $(points[1,end,1][1].z-origin.z)\n")
+    write(f,"$(points[1,1,end][1].x-origin.x)   $(points[1,1,end][1].y-origin.y)   $(points[1,1,end][1].z-origin.z)\n")
+    for point in points
+      write(f,"$(point[2][direction]) ")
+    end
+    write(f,"\n")
+    write(f,["END_DATAGRID_3D\n", "END_BLOCK_DATAGRID_3D\n"])
+  end
+end
+
+function read_xsf_file_GPU(filename::String, T=Float32)
+  open(filename) do f
+    while !eof(f)
+      line = readline(f)
+      if line == " DATAGRID_3D_DENSITY"
+        line0 = split(readline(f))
+        line1 = split(readline(f))
+        line2 = split(readline(f))
+        line3 = split(readline(f))
+        line4 = split(readline(f))
+        nx = parse(Int,line0[1])
+        ny = parse(Int,line0[2])
+        nz = parse(Int,line0[3])
+        out = Complex(T,nx,ny,nz)
+        line = readline(f)
+        k=1
+        k1=1
+        k2=1
+        while line!= "END_DATAGRID_3D"
+          tmp = Array{Complex{T}}(map(x->(v = tryparse(T,x); isnull(v) ? Complex(0.0,0.0) : Complex{T}(get(v),0.0)),split(line)))
+          for t in tmp
+            out[k,k1,k2] = t
+            if k<nx
+              k+=1
+            else
+              k=1
+              k1+=1
+              if k1>ny
+                k1=1
+                k2+=1
+                if k2>nz
+                  k2=1
+                end
+              end
+            end
+          end
+          line = readline(f)
+        end
+        return out
+      end
+      if line == "BEGIN_DATAGRID_3D_UNKNOWN"
+        line0 = split(readline(f))
+        line1 = split(readline(f))
+        line2 = split(readline(f))
+        line3 = split(readline(f))
+        line4 = split(readline(f))
+        nx = parse(Int,line0[1])
+        ny = parse(Int,line0[2])
+        nz = parse(Int,line0[3])
+        out = Array(Complex{T},nx,ny,nz)
+        line = readline(f)
+        k=1
+        k1=1
+        k2=1
+        while line!= "END_DATAGRID_3D"
+          tmp = Array{Complex{T}}(map(x->(v = tryparse(T,x); isnull(v) ? Complex(0.0,0.0) : Complex{T}(get(v),0.0)),split(line)))
+          for t in tmp
+            out[k,k1,k2] = t
+            if k<nx
+              k+=1
+            else
+              k=1
+              k1+=1
+              if k1>ny
+                k1=1
+                k2+=1
+                if k2>nz
+                  k2=1
+                end
+              end
+            end
+          end
+          line = readline(f)
+        end
+        return out
+      end
+    end
+  end
+end
+
+function write_dipole_mesh(filename,mesh::Array{Tuple{Point3D{T},Point3D{T}},3},direction) where T
+  tmp_points = similar(mesh,WfPoint3D{T})
+  for (ip,p) in enumerate(mesh)
+    tmp_points[ip] = WfcPoint3D{T}(getfield(p[2],direction),p[1])
+  end
+  write_xsf_file(filename,Wfc3D(tmp_points,Point3D{T}[],PhysAtom()))
+end

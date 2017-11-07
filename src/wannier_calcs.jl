@@ -205,7 +205,7 @@ function calculate_k_dips(dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}}},
   return [out zeros(out);zeros(out) out]
 end
 
-#------------------------Not currently used---------------------------------#
+#------------------------Not currently used beyond here---------------------------------#
 function calculate_overlap_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T},n_overlaps::Int64) where T<:AbstractFloat
   if wfc1.atom!=wfc2.atom
     return [(zero(Complex{T}),zero(Complex{T}),zero(Complex{T})) for i=1:2*n_overlaps+1,i1=1:2*n_overlaps+1,i2=1:2*n_overlaps+1]
