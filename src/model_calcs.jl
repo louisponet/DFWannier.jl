@@ -167,6 +167,7 @@ angmom_loop_end = quote
     calcs = quote end
     loop_end = quote end
     if contains(name,"soc")
+      push!(tmp_calcs.args,angmom_tcalc)
       intro = quote out_bands = [WannierBand(Array{T,1}(size(k_points)[1]),Array{Array{Complex{T},1},1}(length(k_points)),Array{Point3D{T},1}(size(k_points)[1]),[[Point3D{T}(0.0),Point3D{T}(0.0)] for i=1:length(k_points)],[[Point3D{T}(0.0),Point3D{T}(0.0)] for i=1:length(k_points)],k_points) for i=1:size(model.wfcs)[1]*2] end
       ham_line = :(hami = construct_soc_hami(hami_from_k(model.hami_raw,k),tmp_angmom,map(x->x.atom,model.wfcs)))
     else
@@ -182,7 +183,9 @@ angmom_loop_end = quote
       push!(loop_end.args,pot_loop_end)
     end
     if contains(name,"angmom")
-      push!(tmp_calcs.args,angmom_tcalc)
+      if !contains(name,"soc")
+        push!(tmp_calcs.args,angmom_tcalc)
+      end
       push!(calc_init.args,angmom_cinit)
       push!(calcs.args,angmom_calc)
       push!(loop_end.args,angmom_loop_end)
