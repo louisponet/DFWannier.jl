@@ -1,3 +1,5 @@
+
+
 "Constructs the bloch sum at k for the wavefunction supplied"
 function construct_bloch_sum(wfc::Wfc3D{T}, k::Array) where T<:AbstractFloat
   points = zeros(Complex{T},size(wfc.points))
@@ -91,22 +93,22 @@ function calculate_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3D{T}) wh
   @inbounds for i2 = 2:size(wfc1.points)[3]-1
     @inbounds for i1 = 2:size(wfc1.points)[2]-1
       @inbounds for i = 2:size(wfc1.points)[1]-1
-      
+        
         ddax = (wfc2[i+1,i1,i2].w-wfc2[i-1,i1,i2].w)*dadx
         ddbx = (wfc2[i,i1+1,i2].w-wfc2[i,i1-1,i2].w)*dbdx
         ddcx = (wfc2[i,i1,i2+1].w-wfc2[i,i1,i2-1].w)*dcdx
         ddx = ddax+ddbx+ddcx
-
+        
         dday = (wfc2[i+1,i1,i2].w-wfc2[i-1,i1,i2].w)*dady
         ddby = (wfc2[i,i1+1,i2].w-wfc2[i,i1-1,i2].w)*dbdy
         ddcy = (wfc2[i,i1,i2+1].w-wfc2[i,i1,i2-1].w)*dcdy
         ddy = dday+ddby+ddcy
-
+        
         ddaz = (wfc2[i+1,i1,i2].w-wfc2[i-1,i1,i2].w)*dadz
         ddbz = (wfc2[i,i1+1,i2].w-wfc2[i,i1-1,i2].w)*dbdz
         ddcz = (wfc2[i,i1,i2+1].w-wfc2[i,i1,i2-1].w)*dcdz
         ddz = ddaz+ddbz+ddcz
-
+        
         Lx += conj(wfc1[i,i1,i2].w)*-1im*((wfc2[i,i1,i2].p.y-center_y)*ddz-(wfc2[i,i1,i2].p.z-center_z)*ddy)
         Ly += conj(wfc1[i,i1,i2].w)*-1im*((wfc2[i,i1,i2].p.z-center_z)*ddx-(wfc2[i,i1,i2].p.x-center_x)*ddz)
         Lz += conj(wfc1[i,i1,i2].w)*-1im*((wfc2[i,i1,i2].p.x-center_x)*ddy-(wfc2[i,i1,i2].p.y-center_y)*ddx)
@@ -252,12 +254,12 @@ function calculate_overlap_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T},n_overlaps::Int6
           ddbx = (wfc2[j,j1+1,j2].w-wfc2[j,j1-1,j2].w)*dbdx
           ddcx = (wfc2[j,j1,j2+1].w-wfc2[j,j1,j2-1].w)*dcdx
           ddx = ddax+ddbx+ddcx
-
+          
           dday = (wfc2[j+1,j1,j2].w-wfc2[j-1,j1,j2].w)*dady
           ddby = (wfc2[j,j1+1,j2].w-wfc2[j,j1-1,j2].w)*dbdy
           ddcy = (wfc2[j,j1,j2+1].w-wfc2[j,j1,j2-1].w)*dcdy
           ddy = dday+ddby+ddcy
-
+          
           ddaz = (wfc2[j+1,j1,j2].w-wfc2[j-1,j1,j2].w)*dadz
           ddbz = (wfc2[j,j1+1,j2].w-wfc2[j,j1-1,j2].w)*dbdz
           ddcz = (wfc2[j,j1,j2+1].w-wfc2[j,j1,j2-1].w)*dcdz
@@ -305,35 +307,35 @@ function calculate_angmoms(angmoms::Array{Tuple{Complex{T},Complex{T},Complex{T}
   R2 = -div(size(angmoms)[4],2):div(size(angmoms)[4],2)
   R3 = -div(size(angmoms)[5],2):div(size(angmoms)[5],2)
   for i6 = 1:size(angmoms)[5]
-  for i5 = 1:size(angmoms)[4]
-  for i4 = 1:size(angmoms)[3]
-  for i3=1:size(angmoms)[5]
-    R3_t = R3[i6]+R3[i3]
-    if R3_t < R3[1] | R3_t>R3[end]
-      continue
-    end
-    for i2=1:size(angmoms)[4]
-      R2_t = R2[i5]+R2[i2]
-      if R2_t < R2[1] | R2_t>R2[end]
-        continue
-      end
-      for i1=1:size(angmoms)[3]
-        R1_t = R3[i4]+R3[i1]
-        if R1_t < R1[1] | R1_t>R1[end]
-          continue
-        end
-        for n2=1:dim_wfcs
-          for n1=1:dim_wfcs
-            Lx_t,Ly_t,Lz_t = angmoms[n1,n2,i1,i2,i3][1],angmoms[n1,n2,i1,i2,i3][2],angmoms[n1,n2,i1,i2,i3][3]
-            c = exp(dot(-2*pi*k,[R1_t,R2_t,R3_t])*1im)
-            out[n1,n2] += [c*Lx_t,c*Ly_t,c*Lz_t]
+    for i5 = 1:size(angmoms)[4]
+      for i4 = 1:size(angmoms)[3]
+        for i3=1:size(angmoms)[5]
+          R3_t = R3[i6]+R3[i3]
+          if R3_t < R3[1] | R3_t>R3[end]
+            continue
+          end
+          for i2=1:size(angmoms)[4]
+            R2_t = R2[i5]+R2[i2]
+            if R2_t < R2[1] | R2_t>R2[end]
+              continue
+            end
+            for i1=1:size(angmoms)[3]
+              R1_t = R3[i4]+R3[i1]
+              if R1_t < R1[1] | R1_t>R1[end]
+                continue
+              end
+              for n2=1:dim_wfcs
+                for n1=1:dim_wfcs
+                  Lx_t,Ly_t,Lz_t = angmoms[n1,n2,i1,i2,i3][1],angmoms[n1,n2,i1,i2,i3][2],angmoms[n1,n2,i1,i2,i3][3]
+                  c = exp(dot(-2*pi*k,[R1_t,R2_t,R3_t])*1im)
+                  out[n1,n2] += [c*Lx_t,c*Ly_t,c*Lz_t]
+                end
+              end
+            end
           end
         end
       end
     end
-  end
-  end
-  end
   end
   tmp = [[zero(Complex{T}) for i=1:3] for i1=1:size(angmoms)[1],i2=1:size(angmoms)[2]]
   out1 = [[out[1:4,1:4] tmp[1:4,1:4];tmp[1:4,1:4] tmp[1:4,1:4]] tmp;tmp [out[1:4,1:4] tmp[1:4,1:4];tmp[1:4,1:4] tmp[1:4,1:4]]]
@@ -372,7 +374,7 @@ end
 
 function add_distribution!(distribution::Wfc3D{T},wfc1::Wfc3D{T},R::Point3D{T}) where T
   dim_a,dim_b,dim_c = size(wfc1.points)
-
+  
   ind1,ind2 = find_start(wfc1,R,27)
   i3 = ind1[3]
   j3 = ind2[3]
