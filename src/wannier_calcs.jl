@@ -119,8 +119,8 @@ function calculate_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3D{T}) wh
     end
   end
   n=sqrt(n1*n2)
-  return Lx,Ly,Lz
-  # return Lx/n,Ly/n,Lz/n
+  # return Lx,Ly,Lz
+  return Lx/n,Ly/n,Lz/n
 end
 
 

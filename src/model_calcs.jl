@@ -353,6 +353,7 @@ begin
             atom_indices = [atom_indices;atom_indices]
             $intro
             for j=1:size(k_points)[1]
+              println(j)
               coefficients = Array{Complex{T},1}(27)
               t = 1
               k = k_points[j]
