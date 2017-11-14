@@ -5,7 +5,7 @@ module DFWannier
   using RecipesBase
   using LaTeXStrings
   using CuArrays
-  using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK
+  using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
   using CUDAnative
   include("types.jl")
   export PhysAtom

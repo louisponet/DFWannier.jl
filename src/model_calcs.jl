@@ -264,7 +264,7 @@ angmom_loop_end = quote
 end
 
 begin
-  angmom_tcalc = quote tmp_angmom = calculate_angmoms(k_wfcs,Lx,Ly,Lz,n1,n2)
+  angmom_tcalc = quote tmp_angmom = calculate_angmoms(k_wfcs,V,Lx,Ly,Lz,n1,n2)
     tmp_spin_x,tmp_spin_y,tmp_spin_z = calculate_spins(k_wfcs)
   end
   cm_tcalc = quote tmp_cm = calculate_k_dips(model.dip_raw,k) end
@@ -330,15 +330,23 @@ begin
             push!(loop_end.args,cm_loop_end)
           end
           @eval function $(Symbol(name*"_bloch_gpu")){T<:AbstractFloat}(model::WannierModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
-            dev = CuDevice(0)
-            ctx = CuContext(dev)
+
             dims = size(model.wfcs[1].values)
             Lx = CuArray{Complex{T},3}(dims)
             Ly = CuArray{Complex{T},3}(dims)
             Lz = CuArray{Complex{T},3}(dims)
             n1 = CuArray{Complex{T},3}(dims)
             n2 = CuArray{Complex{T},3}(dims)
-
+            grid = Array(model.wfcs[1].grid)
+            origin = grid[1,1,1]
+            a = grid[2,1,1] .- origin
+            b = grid[1,2,1] .- origin
+            c = grid[1,1,2] .- origin
+            V = CuArray(inv([[a...] [b...] [c...]]))
+            k_wfcs = Array{Wfc3D_gpu{T},1}(size(model.wfcs)[1])
+            for (n,wfc) in enumerate(model.wfcs)
+              k_wfcs[n] = Wfc3D_gpu(wfc.grid,CuArray(zeros(Complex{T},size(wfc.values))),wfc.cell,wfc.atom)
+            end
             atoms = PhysAtom[]
             atom_indices = Int[]
             for wfc in model.wfcs
@@ -356,6 +364,7 @@ begin
               push!(indices,((Int32(ind1[1]),Int32(ind1[2]),Int32(ind1[3])),(Int32(ind1[1]-ind2[1]),Int32(ind1[2]-ind2[2]),Int32(ind1[3]-ind2[3]))))
             end
             atom_indices = [atom_indices;atom_indices]
+
             $intro
             for j=1:size(k_points)[1]
               coefficients = Array{Complex{T},1}(27)
@@ -366,7 +375,7 @@ begin
                 coefficients[t] = Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im))
                 t+=1
               end
-              k_wfcs = construct_bloch_sums_gpu(model.wfcs,k,indices,coefficients)
+              construct_bloch_sums_gpu(model.wfcs,k_wfcs,k,indices,coefficients)
               $tmp_calcs
               $ham_line
               eigvals,eigvectors = sorted_eig(hami)
@@ -385,8 +394,11 @@ begin
                 out_bands[i].eigvec[j]=eigvec
                 $loop_end
               end
+             
             end
+            CuArrays.clearpool()
             gc()
+            CuArrays.clearpool()
             return out_bands
           end
           @eval $(parse(name*"_bloch_gpu"))(model,$(func_vars...)) = $(parse(name*"_bloch_gpu"))(model,$(func_vars...),model.k_points)
