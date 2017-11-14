@@ -264,7 +264,7 @@ angmom_loop_end = quote
 end
 
 begin
-  angmom_tcalc = quote tmp_angmom = calculate_angmoms(k_wfcs)
+  angmom_tcalc = quote tmp_angmom = calculate_angmoms(k_wfcs,Lx,Ly,Lz,n1,n2)
     tmp_spin_x,tmp_spin_y,tmp_spin_z = calculate_spins(k_wfcs)
   end
   cm_tcalc = quote tmp_cm = calculate_k_dips(model.dip_raw,k) end
@@ -332,6 +332,13 @@ begin
           @eval function $(Symbol(name*"_bloch_gpu")){T<:AbstractFloat}(model::WannierModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
             dev = CuDevice(0)
             ctx = CuContext(dev)
+            dims = size(model.wfcs[1].values)
+            Lx = CuArray{Complex{T},3}(dims)
+            Ly = CuArray{Complex{T},3}(dims)
+            Lz = CuArray{Complex{T},3}(dims)
+            n1 = CuArray{Complex{T},3}(dims)
+            n2 = CuArray{Complex{T},3}(dims)
+
             atoms = PhysAtom[]
             atom_indices = Int[]
             for wfc in model.wfcs
@@ -351,7 +358,6 @@ begin
             atom_indices = [atom_indices;atom_indices]
             $intro
             for j=1:size(k_points)[1]
-              println(j)
               coefficients = Array{Complex{T},1}(27)
               t = 1
               k = k_points[j]
@@ -360,7 +366,7 @@ begin
                 coefficients[t] = Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im))
                 t+=1
               end
-              @time k_wfcs = construct_bloch_sums_gpu(model.wfcs,k,indices,coefficients)
+              k_wfcs = construct_bloch_sums_gpu(model.wfcs,k,indices,coefficients)
               $tmp_calcs
               $ham_line
               eigvals,eigvectors = sorted_eig(hami)
@@ -379,9 +385,8 @@ begin
                 out_bands[i].eigvec[j]=eigvec
                 $loop_end
               end
-              gc() 
             end
-          
+            gc()
             return out_bands
           end
           @eval $(parse(name*"_bloch_gpu"))(model,$(func_vars...)) = $(parse(name*"_bloch_gpu"))(model,$(func_vars...),model.k_points)

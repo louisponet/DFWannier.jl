@@ -1,12 +1,49 @@
 using DFWannier
 T= Float32
 x = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...],true);
-x2 = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...]);
+x2 = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...]);|
 
-@time bands = calculate_eig_angmom_soc_bloch_gpu(x,x.k_points[1:10]);
-@time test = calculate_eig_angmom_soc_bloch(x2,x2.k_points[1:10]);
+using ProfileView
+Profile.clear()
+function wrap(x)
+end
+@time calculate_eig_angmom_soc_bloch(x2,x2.k_points);
+@time calculate_eig_angmom_soc_bloch_gpu(x,x.k_points);
+wrap(x)
+
+Base.@profile DFWannier.construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1]);
+bands = calculate_eig_angmom_soc_bloch_gpu(x,x.k_points[1:10])
+test = calculate_eig_angmom_soc_bloch(x2,x2.k_points[1:10]);
 test= calculate_angmom(x.wfcs[3],x.wfcs[3])
 test1= calculate_angmom(x2.wfcs[3],x2.wfcs[3])
+
+mutable struct Wfc3D_gpu{T<:AbstractFloat}
+  grid::CuArray{Tuple{T,T,T},3}
+  values::CuArray{Complex{T},3}
+  # cell::CuArray{Tuple{T,T,T},1}
+  cell::Array{Point3D{T},1}
+  atom::PhysAtom{T}
+end
+
+using CuArrays
+mutable struct foo{T<:AbstractFloat}
+  values::CuArray{Complex{T},3}
+end
+
+function test(foo_t::foo{T}) where T
+  # indices,coefficients = calc_inds_coeffs(wfc,k) 
+  @time t = CuArray(zeros(Complex{T},size(foo_t.values)))
+  # out = Wfc3D_gpu(wfc.grid,t,wfc.cell,wfc.atom)
+  # blocks,threads = get_blocks_threads(out.values)
+  # @cuda (blocks,threads) bloch_kernel(wfc.values,CuArray(indices),CuArray(coefficients),CuArray(wfc.cell),CuArray(Int64[size(wfc.values)...]),out.values)
+  return t
+end
+function wrap()
+  foo_t = foo(CuArray(rand(Complex{Float32},(81,81,81))))
+  test(foo_t);
+end
+wrap();
+
 
 
 using CUDAdrv,CUDAnative
@@ -167,7 +204,7 @@ end
 
 using CuArrays, CUDAnative
 
-xs, ys, zs = CuArray(rand(100024)), CuArray(rand(100024)), CuArray(zeros(100024))
+xs, ys, zs = CuArray(rand(1000024)), CuArray(rand(1000024)), CuArray(zeros(1000024))
 
 function kernel_vadd(out, a, b)
   i = (blockIdx().x-1) * blockDim().x + threadIdx().x

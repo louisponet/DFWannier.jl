@@ -41,7 +41,7 @@ function construct_bloch_sum(wfc::Wfc3D{T}, k::Array) where T<:AbstractFloat
   return Wfc3D(tmp_points,wfc.cell,wfc.atom)
 end
 
-function find_start(wfc,R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tuple{Int64,Int64,Int64}}
+function find_start(wfc::Wfc3D,R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tuple{Int64,Int64,Int64}}
   part_1D = partitions^(1/3)
   # part_1D = partitions
   dim_a = size(wfc.points)[1]
@@ -126,7 +126,7 @@ end
 
 
 "Calculates the angular momenta between two wavefunctions, around the atom of the second wavefunction."
-function calculate_angmom(wfc1::Union{Wfc3D{T},Wfc3D_gpu{T}},wfc2::Union{Wfc3D{T},Wfc3D_gpu{T}}) where T<:AbstractFloat
+function calculate_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T}) where T<:AbstractFloat
   if wfc1.atom != wfc2.atom
     return zero(Complex{T}),zero(Complex{T}),zero(Complex{T})
   else
@@ -135,7 +135,7 @@ function calculate_angmom(wfc1::Union{Wfc3D{T},Wfc3D_gpu{T}},wfc2::Union{Wfc3D{T
 end
 
 "Calculates the angular momenta between all the supplied wavefunctions"
-function calculate_angmoms(wfcs::Union{Array{Wfc3D{T}},Array{Wfc3D_gpu{T}}}) where T<:AbstractFloat
+function calculate_angmoms(wfcs::Array{Wfc3D{T}}) where T<:AbstractFloat
   out = Array{Array{Complex{T},1},2}((size(wfcs)[1],size(wfcs)[1]))
   for (i,wfc1) in enumerate(wfcs)
     for (i1,wfc2) in enumerate(wfcs)
@@ -503,7 +503,7 @@ end
 
 #-----------------------------GPU STUFF------------------------#
 
-function bloch_kernel(wfc_orig, indices,coefficients,cell,dim, out)
+function bloch_kernel(wfc_orig::CuDeviceArray, indices,coefficients,cell,dim, out)
   dim_a = dim[1]
   dim_b = dim[2]
   dim_c = dim[3]
@@ -537,7 +537,6 @@ end
 #     t+=1
 #   end
 # end
-
 function find_start(wfc::Wfc3D_gpu,R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tuple{Int64,Int64,Int64}}
   part_1D = partitions^(1/3)
   # part_1D = partitions
@@ -563,16 +562,68 @@ function find_start(wfc::Wfc3D_gpu,R,partitions)::Tuple{Tuple{Int64,Int64,Int64}
   end
 end
 
-function construct_bloch_sums_gpu(wfcs::Array{Wfc3D_gpu{T},1}, k::Array{T},indices::Array{Tuple{Tuple{Int32,Int32,Int32},Tuple{Int32,Int32,Int32}},1},coefficients::Array{Complex{T},1}) where T <: AbstractFloat
-  k_wfcs = Array{Wfc3D_gpu{T},1}(size(wfcs)[1])
-  total_threads = min(length(wfcs[1].values),attribute(CuDevice(0),CUDAdrv.MAX_THREADS_PER_BLOCK))
-  threads_x     = floor(Int, total_threads^(1/3))
+function find_start(grid::Array{<:Point3D,3},R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tuple{Int64,Int64,Int64}}
+  part_1D = partitions^(1/3)
+  # part_1D = partitions
+  dim_a = size(grid)[1]
+  dim_b = size(grid)[2]
+  dim_c = size(grid)[3]
+  stride_a::Int64 = dim_a/part_1D
+  stride_b::Int64 = dim_b/part_1D
+  stride_c::Int64 = dim_c/part_1D
+  anchors = [grid[a,b,c] for a=1:stride_a:dim_a,b=1:stride_a:dim_b,c=1:stride_c:dim_c]
+  shifted_anchors = [grid[a,b,c]-R for a=1:stride_a:dim_a,b=1:stride_a:dim_b,c=1:stride_c:dim_c]
+  for i in eachindex(anchors)
+    for j in eachindex(shifted_anchors)
+      if norm(anchors[i]-shifted_anchors[j])<0.00001
+        tmp1 = ind2sub(anchors,i)
+        tmp2 = ind2sub(shifted_anchors,j)
+        ind1 = ((tmp1[1]-1)*stride_a+1,(tmp1[2]-1)*stride_b+1,(tmp1[3]-1)*stride_c+1)
+        ind2 = ((tmp2[1]-1)*stride_a+1,(tmp2[2]-1)*stride_b+1,(tmp2[3]-1)*stride_c+1)
+        return ind1,ind2
+      end
+    end
+  end
+end
+
+function calc_inds_coeffs(wfc::Wfc3D_gpu{T},k) where T
+  grid = [Point3D(g...) for g in Array(wfc.grid)]
+  indices = Array{Tuple{Tuple{Int32,Int32,Int32},Tuple{Int32,Int32,Int32}},1}()
+  coefficients = Array{Complex{T},1}()
+  for R1=-1:1,R2=-1:1,R3=-1:1
+    R= R1*wfc.cell[1]+R2*wfc.cell[2]+R3*wfc.cell[3]
+    ind1,ind2 = find_start(grid,R,27)
+    push!(coefficients,Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im)))
+    push!(indices,((Int32(ind1[1]),Int32(ind1[2]),Int32(ind1[3])),(Int32(ind1[1]-ind2[1]),Int32(ind1[2]-ind2[2]),Int32(ind1[3]-ind2[3]))))
+  end
+  return indices,coefficients
+end
+
+function construct_bloch_sum_gpu(wfc::Wfc3D_gpu{T}, k::Array{T}) where T
+  indices,coefficients = calc_inds_coeffs(wfc,k) 
+  t = CuArray(zeros(Complex{T},size(wfc.values)))
+  out = Wfc3D_gpu(wfc.grid,t,wfc.cell,wfc.atom)
+  blocks,threads = get_blocks_threads(out.values)
+  @cuda (blocks,threads) bloch_kernel(wfc.values,CuArray(indices),CuArray(coefficients),CuArray(wfc.cell),CuArray(Int64[size(wfc.values)...]),out.values)
+  return out
+end
+
+function get_blocks_threads(arr::CuArray)
+  total_threads = min(length(arr),attribute(CuDevice(0),MAX_THREADS_PER_BLOCK))
+  # total_threads = min(length(wfcs[1].values),attribute(CuDevice(0),CUDAdrv.MAX_THREADS_PER_BLOCK))
+  threads_x     = floor(Int, total_threads^(1/ndims(arr)))
   threads_y     = threads_x
   threads_z     = threads_x
   threads       = (threads_x,threads_y,threads_z)
-  blocks        = Int.(ceil.(size(wfcs[1].values)./threads))
+  blocks        = Int.(ceil.(size(arr)./threads))
+  return blocks,threads
+end
+
+function construct_bloch_sums_gpu(wfcs::Array{Wfc3D_gpu{T},1}, k::Array{T},indices::Array{Tuple{Tuple{Int32,Int32,Int32},Tuple{Int32,Int32,Int32}},1},coefficients::Array{Complex{T},1}) where T <: AbstractFloat
+  k_wfcs = Array{Wfc3D_gpu{T},1}(size(wfcs)[1])
+  blocks,threads = get_blocks_threads(wfcs[1].values)
   for (n,wfc) in enumerate(wfcs)
-    k_wfcs[n] = Wfc3D_gpu(wfc.grid,similar(wfc.values),wfc.cell,wfc.atom)
+    k_wfcs[n] = Wfc3D_gpu(wfc.grid,CuArray(zeros(Complex{T},size(wfc.values))),wfc.cell,wfc.atom)
     @cuda (blocks,threads) bloch_kernel(wfc.values,CuArray(indices),CuArray(coefficients),CuArray(wfc.cell),CuArray(Int64[size(wfc.values)...]),k_wfcs[n].values)
   end
   return k_wfcs
@@ -626,8 +677,9 @@ function calculate_angmom_kernel(wfc1,wfc2,points,dim,center,V,out_x,out_y,out_z
 end
 
 "Calculates the angular momenta between two wavefunctions, around the atom of the second wavefunction."
-function calculate_angmom(wfc1::Wfc3D_gpu{T},wfc2::Wfc3D_gpu{T},center) where T<:AbstractFloat
-  num_threads = attribute(CuDevice(0),CUDAdrv.MAX_THREADS_PER_BLOCK)
+function calculate_angmom(wfc1::Wfc3D_gpu{T},wfc2::Wfc3D_gpu{T},center,Lx::CuArray{Complex{T},3},Ly::CuArray{Complex{T},3},Lz::CuArray{Complex{T},3},n1::CuArray{Complex{T},3},n2::CuArray{Complex{T},3}) where T<:AbstractFloat
+  num_threads = attribute(CuDevice(0),MAX_THREADS_PER_BLOCK)
+  # num_threads = attribute(CuDevice(0),CUDAdrv.MAX_THREADS_PER_BLOCK)
   total_threads = min(length(wfc1.values),num_threads)
   threads_x     = floor(Int, total_threads^(1/3))
   threads_y     = threads_x
@@ -641,16 +693,29 @@ function calculate_angmom(wfc1::Wfc3D_gpu{T},wfc2::Wfc3D_gpu{T},center) where T<
   b = grid[1,2,1] .- origin
   c = grid[1,1,2] .- origin
   V = CuArray(inv([[a...] [b...] [c...]]))
-  Lx = similar(wfc1.values)
-  Ly = similar(wfc1.values)
-  Lz = similar(wfc1.values)
-  n1 = similar(wfc1.values)
-  n2 = similar(wfc1.values)
+  dims = size(wfc1.values)
   
   dim = CuArray(UInt32[size(wfc1.grid)...])
   @cuda (blocks,threads) calculate_angmom_kernel(wfc1.values,wfc2.values,wfc2.grid,dim,CuArray([center.x,center.y,center.z]),CuArray(V),Lx,Ly,Lz,n1,n2)
   
-  n= sqrt(sum(Array(n1))*sum(Array(n2)))
-  return (sum(Array(Lx))/n,sum(Array(Ly))/n,sum(Array(Lz))/n)
+  n= sqrt(sum(n1)*sum(n2))
+  return (sum(Lx)/n,sum(Ly)/n,sum(Lz)/n)
+  
+end
 
+function calculate_angmoms(wfcs::Array{Wfc3D_gpu{T}},Lx,Ly,Lz,n1,n2) where T<:AbstractFloat
+  out = Array{Array{Complex{T},1},2}((size(wfcs)[1],size(wfcs)[1]))
+  
+  for (i,wfc1) in enumerate(wfcs)
+    center1 = wfc1.atom.center
+    for (i1,wfc2) in enumerate(wfcs)
+      center2 = wfc2.atom.center
+      if center1 == center2
+        out[i,i1]=[calculate_angmom(wfc1,wfc2,center1,Lx,Ly,Lz,n1,n2)...]
+      else
+        out[i,i1]=[zero(Complex{T}) for i =1:3]
+      end
+    end
+  end
+  return [out fill([zero(Complex{T}) for i=1:3],size(out));fill([zero(Complex{T}) for i=1:3],size(out)) out]
 end

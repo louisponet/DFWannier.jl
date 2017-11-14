@@ -4,8 +4,8 @@ module DFWannier
   @reexport using DFControl
   using RecipesBase
   using LaTeXStrings
-  # using CuArrays
-  using CUDAdrv
+  using CuArrays
+  using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK
   using CUDAnative
   include("types.jl")
   export PhysAtom
