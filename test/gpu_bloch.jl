@@ -1,138 +1,180 @@
 using DFWannier
 T= Float32
-x = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...]);
-using CUDAdrv
+x = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...],true);
+x2 = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...]);
+
+@time bands = calculate_eig_angmom_soc_bloch_gpu(x,x.k_points[1:10]);
+@time test = calculate_eig_angmom_soc_bloch(x2,x2.k_points[1:10]);
+test= calculate_angmom(x.wfcs[3],x.wfcs[3])
+test1= calculate_angmom(x2.wfcs[3],x2.wfcs[3])
+
+
+using CUDAdrv,CUDAnative
 CUDAdrv.version()
 dev = CuDevice(0)
+
 ctx = CuContext(dev)
-test= DFWannier.calculate_angmom_gpu(x.wfcs[1],x.wfcs[2],1024)
-test1= calculate_angmom(x.wfcs[1],x.wfcs[2])
-bands = calculate_eig_angmom_bloch_gpu(x,x.k_points)
-test = calculate_eig_angmom_bloch(x,x.k_points)
-
-# EXCLUDE FROM TESTING
-# this file doesn't have an entry point, see `verify.jl` instead
-
-# Fast parallel reduction for Kepler hardware
-# - uses shuffle and shared memory to reduce efficiently
-# - support for large arrays
-#
-# Based on devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/
-
-using CUDAdrv, CUDAnative
-
-
-#
-# Main implementation
-#
-
-# Reduce a value across a warp
-@inline function reduce_warp(op::Function, val::T)::T where {T}
-    offset = CUDAnative.warpsize() ÷ UInt32(2)
-    # TODO: this can be unrolled if warpsize is known...
-    while offset > 0
-        val = op(val, shfl_down(val, offset))
-        offset ÷= UInt32(2)
-    end
-    return val
+function Lx(wfc1,wfc2,point1,point2,center,V,Lx)
+  dady = V[1,2]
+  dbdy = V[2,2]
+  dcdy = V[3,2]
+  dadz = V[1,3]
+  dbdz = V[2,3]
+  dcdz = V[3,3]
+  dday = (wfc2[1])*dady
+  ddby = (wfc2[2])*dbdy
+  ddcy = (wfc2[3])*dcdy
+  ddy = dday+ddby+ddcy
+  
+  ddaz = (wfc2[1])*dadz
+  ddbz = (wfc2[2])*dbdz
+  ddcz = (wfc2[3])*dcdz
+  ddz = ddaz+ddbz+ddcz
+  return CUDAnative.conj(wfc1)*-1im*((point1[2]-center[2])*ddz-(point1[3]-center[3])*ddy)
 end
 
-# Reduce a value across a block, using shared memory for communication
-@inline function reduce_block(op::Function, val::T)::T where {T}
-    # shared mem for 32 partial sums
-    shared = @cuStaticSharedMem(T, 32)
-
-    # TODO: use fldmod1 (JuliaGPU/CUDAnative.jl#28)
-    wid  = div(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
-    lane = rem(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
-
-    # each warp performs partial reduction
-    val = reduce_warp(op, val)
-
-    # write reduced value to shared memory
-    if lane == 1
-        @inbounds shared[wid] = val
+function angmom_grid(wfc1::CuDeviceArry{Complex{T}},wfc2::CuDeviceArry{Complex{T}},points,dim,center,V,out,n1,n2) where {T}
+  Lx = zero(Complex{T})
+  Ly = zero(Complex{T})
+  Lz = zero(Complex{T})
+  dim_a = dim[1]
+  dim_b = dim[2]
+  dim_c = dim[3]
+  center_x = center[1]
+  center_y = center[2]
+  center_z = center[3]
+  dadx = V[1,1]
+  dbdx = V[2,1]
+  dcdx = V[3,1]
+  dady = V[1,2]
+  dbdy = V[2,2]
+  dcdy = V[3,2]
+  dadz = V[1,3]
+  dbdz = V[2,3]
+  dcdz = V[3,3]
+  
+  i1 = (blockIdx().x-UInt32(1)) * blockDim().x + threadIdx().x
+  i2 = (blockIdx().y-UInt32(1)) * blockDim().y + threadIdx().y
+  i3 = (blockIdx().z-UInt32(1)) * blockDim().z + threadIdx().z
+  step1 = blockDim().x * gridDim().x
+  step2 = blockDim().y * gridDim().y
+  step3 = blockDim().z * gridDim().z
+  
+  while i1 <= dim_a
+    while i2 <= dim_b
+      while i3 <= dim_c
+        @inbounds Lx += 
+      end
     end
-
-    # wait for all partial reductions
-    sync_threads()
-
-    # read from shared memory only if that warp existed
-    @inbounds val = (threadIdx().x <= fld(blockDim().x, CUDAnative.warpsize())) ? shared[lane] : zero(T)
-
-    # final reduce within first warp
-    if wid == 1
-        val = reduce_warp(op, val)
-    end
-
-    return val
+  end
 end
 
-# Reduce an array across a complete grid
-function reduce_grid(op::Function, input::CuDeviceVector{T}, output::CuDeviceVector{T},
-                     len::Integer) where {T}
 
-    # TODO: neutral element depends on the operator (see Base's 2 and 3 argument `reduce`)
-    val = zero(T)
 
-    # reduce multiple elements per thread (grid-stride loop)
-    # TODO: step range (see JuliaGPU/CUDAnative.jl#12)
-    i = (blockIdx().x-UInt32(1)) * blockDim().x + threadIdx().x
-    step = blockDim().x * gridDim().x
-    while i <= len
-        @inbounds val = op(val, input[i])
-        i += step
+
+function calculate_angmom_kernel(wfc1,wfc2,points,dim,center,V,out_x,out_y,out_z,n1,n2)
+  dim_a = dim[1]
+  dim_b = dim[2]
+  dim_c = dim[3]
+  center_x = center[1]
+  center_y = center[2]
+  center_z = center[3]
+  dadx = V[1,1]
+  dbdx = V[2,1]
+  dcdx = V[3,1]
+  dady = V[1,2]
+  dbdy = V[2,2]
+  dcdy = V[3,2]
+  dadz = V[1,3]
+  dbdz = V[2,3]
+  dcdz = V[3,3]
+  i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+  i1 = (blockIdx().y-1) * blockDim().y + threadIdx().y
+  i2 = (blockIdx().z-1) * blockDim().z + threadIdx().z
+  
+  if i > 1 && i1 > 1 && i2 > 1
+    if i < dim_a && i1 < dim_b && i2 < dim_c 
+      ddax = (wfc2[i+1,i1,i2]-wfc2[i-1,i1,i2])*dadx
+      ddbx = (wfc2[i,i1+1,i2]-wfc2[i,i1-1,i2])*dbdx
+      ddcx = (wfc2[i,i1,i2+1]-wfc2[i,i1,i2-1])*dcdx
+      ddx = ddax+ddbx+ddcx
+      
+      dday = (wfc2[i+1,i1,i2]-wfc2[i-1,i1,i2])*dady
+      ddby = (wfc2[i,i1+1,i2]-wfc2[i,i1-1,i2])*dbdy
+      ddcy = (wfc2[i,i1,i2+1]-wfc2[i,i1,i2-1])*dcdy
+      ddy = dday+ddby+ddcy
+      
+      ddaz = (wfc2[i+1,i1,i2]-wfc2[i-1,i1,i2])*dadz
+      ddbz = (wfc2[i,i1+1,i2]-wfc2[i,i1-1,i2])*dbdz
+      ddcz = (wfc2[i,i1,i2+1]-wfc2[i,i1,i2-1])*dcdz
+      ddz = ddaz+ddbz+ddcz
+      
+      out_x[i,i1,i2] = CUDAnative.conj(wfc1[i,i1,i2])*-1im*((points[i,i1,i2][2]-center_y)*ddz-(points[i,i1,i2][3]-center_z)*ddy)
+      out_y[i,i1,i2] = CUDAnative.conj(wfc1[i,i1,i2])*-1im*((points[i,i1,i2][3]-center_z)*ddx-(points[i,i1,i2][1]-center_x)*ddz)
+      out_z[i,i1,i2] = CUDAnative.conj(wfc1[i,i1,i2])*-1im*((points[i,i1,i2][1]-center_x)*ddy-(points[i,i1,i2][2]-center_y)*ddx)
+      n1[i,i1,i2]    = CUDAnative.conj(wfc1[i,i1,i2])*wfc1[i,i1,i2]
+      n2[i,i1,i2]    = CUDAnative.conj(wfc2[i,i1,i2])*wfc2[i,i1,i2]
     end
+  end
+  return nothing
+end
+"Calculates the angular momenta between two wavefunctions, around the atom of the second wavefunction."
+function calculate_angmom_gpu(wfc1::CuArray{Complex{T},3},wfc2::CuArray{Complex{T},3},points,center,V,num_threads) where T<:AbstractFloat
 
-    val = reduce_block(op, val)
-
-    if threadIdx().x == UInt32(1)
-        @inbounds output[blockIdx().x] = val
-    end
-
-    return
+  total_threads = min(length(wfc1),num_threads)
+  threads_x     = floor(Int, total_threads^(1/3))
+  threads_y     = threads_x
+  threads_z     = threads_x
+  threads       = (threads_x,threads_y,threads_z)
+  blocks        = Int.(ceil.(size(wfc1)./threads))
+  
+  Lx = similar(wfc1)
+  Ly = similar(wfc1)
+  Lz = similar(wfc1)
+  n1 = similar(wfc1)
+  n2 = similar(wfc1)
+  # Lx_ = similar(wfc1)
+  # Ly_ = similar(wfc1)
+  # Lz_ = similar(wfc1)
+  # n1_ = similar(wfc1)
+  # n2_ = similar(wfc1)
+  dim = CuArray(Int32[size(wfc1)...])
+  @cuda (blocks,threads) calculate_angmom_kernel(wfc1,wfc2,points,dim,center,CuArray(V),Lx,Ly,Lz,n1,n2)
+  # gpu_reduce(+,Lx,Lx_)
+  # gpu_reduce(+,Ly,Ly_)
+  # gpu_reduce(+,Lz,Lz_)
+  # gpu_reduce(+,n1,n1_)
+  # gpu_reduce(+,n2,n2_)
+  # n= sqrt(Array(n1)[1]*Array(n2)[1])
+  n= sqrt(sum(Array(n1))*sum(Array(n2)))
+  return (sum(Array(Lx))/n,sum(Array(Ly))/n,sum(Array(Lz))/n)
+  # return (Array(Lx)[1]/n,Array(Ly)[1]/n,Array(Lz)[1]/n)
 end
 
-"""
-Reduce a large array.
-Kepler-specific implementation, ie. you need sm_30 or higher to run this code.
-"""
-function gpu_reduce(op::Function, input::CuVector{T}, output::CuVector{T}) where {T}
-    len = length(input)
-
-    # TODO: these values are hardware-dependent, with recent GPUs supporting more threads
-    threads = 512
-    blocks = min((len + threads - 1) ÷ threads, 1024)
-
-    # the output array must have a size equal to or larger than the number of thread blocks
-    # in the grid because each block writes to a unique location within the array.
-    if length(output) < blocks
-        throw(ArgumentError("output array too small, should be at least $blocks elements"))
-    end
-
-    @cuda (blocks,threads) reduce_grid(op, input, output, Int32(len))
-    @cuda (1,1024) reduce_grid(op, output, output, Int32(blocks))
-
-    return
-end
-ctx = CuCurrentContext()
-dev = device(ctx)
-if capability(dev) < v"3.0"
-    warn("this example requires a newer GPU")
-    exit(0)
+function calculate_angmom_gpu(wfc1::Wfc3D{T},wfc2::Wfc3D{T},num_threads) where T<:AbstractFloat
+  if wfc1.atom != wfc2.atom
+    return zero(Complex{T}),zero(Complex{T}),zero(Complex{T})
+  else
+    origin = wfc1[1,1,1].p
+    a = wfc1[2,1,1].p - origin
+    b = wfc1[1,2,1].p - origin
+    c = wfc1[1,1,2].p - origin
+    V = inv([convert(Array,a) convert(Array,b) convert(Array,c)])
+  
+    return calculate_angmom_gpu(CuArray([p.w for p in wfc1.points]),CuArray([p.w for p in wfc2.points]),CuArray([(p.p.x,p.p.y,p.p.z) for p in wfc1.points]),CuArray([wfc2.atom.center.x,wfc2.atom.center.y,wfc2.atom.center.z]),V,num_threads)
+  end
 end
 
-len = 10^7
-input = ones(Int32, len)
+using CuArrays, CUDAnative
 
-# CPU
-cpu_val = reduce(+, input)
+xs, ys, zs = CuArray(rand(100024)), CuArray(rand(100024)), CuArray(zeros(100024))
 
-# CUDAnative
-let
-    gpu_input = CuArray(input)
-    gpu_output = similar(gpu_input)
-    gpu_reduce(+, gpu_input, gpu_output)
-    gpu_val = Array(gpu_output)[1]
-    @assert cpu_val == gpu_val
+function kernel_vadd(out, a, b)
+  i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+  out[i] = a[i] + b[i]
+  return
 end
+
+@time @cuda (Int(ceil(length(xs)/1024)), 1024) kernel_vadd(zs, xs, ys)
+
+@assert zs == xs + ys

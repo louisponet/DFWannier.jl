@@ -4,6 +4,9 @@ module DFWannier
   @reexport using DFControl
   using RecipesBase
   using LaTeXStrings
+  # using CuArrays
+  using CUDAdrv
+  using CUDAnative
   include("types.jl")
   export PhysAtom
   #---#
@@ -28,4 +31,6 @@ module DFWannier
   include("hami_calcs.jl")
   include("model_calcs.jl")
   include("plotting.jl")
+  dev = CuDevice(0)
+  ctx = CuContext(dev)
 end

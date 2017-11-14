@@ -334,7 +334,6 @@ begin
             ctx = CuContext(dev)
             atoms = PhysAtom[]
             atom_indices = Int[]
-            cu_wfcs = CuArray{Complex{T},3}[]
             for wfc in model.wfcs
               if !in(wfc.atom,atoms)
                 push!(atoms,wfc.atom)
@@ -342,12 +341,11 @@ begin
               else
                 push!(atom_indices,findfirst(atoms,wfc.atom))
               end
-              push!(cu_wfcs,CuArray([p.w for p in wfc.points]))
             end
             indices = Array{Tuple{Tuple{Int32,Int32,Int32},Tuple{Int32,Int32,Int32}},1}()
             for R1=-1:1,R2=-1:1,R3=-1:1
               R= R1*model.wfcs[1].cell[1]+R2*model.wfcs[1].cell[2]+R3*model.wfcs[1].cell[3]
-              ind1,ind2 = DFWannier.find_start(model.wfcs[1],R,27)
+              ind1,ind2 = find_start(model.wfcs[1],R,27)
               push!(indices,((Int32(ind1[1]),Int32(ind1[2]),Int32(ind1[3])),(Int32(ind1[1]-ind2[1]),Int32(ind1[2]-ind2[2]),Int32(ind1[3]-ind2[3]))))
             end
             atom_indices = [atom_indices;atom_indices]
@@ -362,7 +360,7 @@ begin
                 coefficients[t] = Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im))
                 t+=1
               end
-              k_wfcs = construct_bloch_sums_gpu(cu_wfcs,k,model.wfcs[1],indices,coefficients,ctx,dev)::Array{Wfc3D{T},1}
+              @time k_wfcs = construct_bloch_sums_gpu(model.wfcs,k,indices,coefficients)
               $tmp_calcs
               $ham_line
               eigvals,eigvectors = sorted_eig(hami)
@@ -381,8 +379,9 @@ begin
                 out_bands[i].eigvec[j]=eigvec
                 $loop_end
               end
+              gc() 
             end
-            destroy!(ctx)
+          
             return out_bands
           end
           @eval $(parse(name*"_bloch_gpu"))(model,$(func_vars...)) = $(parse(name*"_bloch_gpu"))(model,$(func_vars...),model.k_points)

@@ -82,15 +82,22 @@ mutable struct WannierBand{T<:AbstractFloat} <: Band
   k_points::Array{Array{T,1},1}
 end
 
+mutable struct Wfc3D_gpu{T<:AbstractFloat}
+  grid::CuArray{Tuple{T,T,T},3}
+  values::CuArray{Complex{T},3}
+  # cell::CuArray{Tuple{T,T,T},1}
+  cell::Array{Point3D{T},1}
+  atom::PhysAtom{T}
+end
 "Start of any Wannier calculation. Gets constructed by reading the Wannier Hamiltonian and wavefunctions, and gets used in Wannier calculations."
 mutable struct WannierModel{T<:AbstractFloat}
   hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}},1}
   dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}},1}
-  wfcs::Array{Wfc3D{T},1}
+  wfcs::Union{Array{Wfc3D{T},1},Array{Wfc3D_gpu{T},1}}
   k_points::Array{Array{T,1},1}
   bands::Array{WannierBand{T},1}
   atoms::Array{PhysAtom{T},1}
-  function WannierModel{T}(dir::String, k_points, atoms::Array{<:PhysAtom}) where T<:AbstractFloat
+  function WannierModel{T}(dir::String, k_points, atoms::Array{<:PhysAtom},gpu=false) where T<:AbstractFloat
     dir = form_directory(dir)
     wfc_files = search_dir(dir,".xsf")
     hami_file = search_dir(dir,"_hr.dat")[1]
@@ -101,10 +108,13 @@ mutable struct WannierModel{T<:AbstractFloat}
     end
     hami_raw = read_hami_file(dir*hami_file,T)
     dip_raw = read_dipole_file(dir*dip_file,T)
+    if gpu
+      wfcs = wfcs .|> convert2gpu
+    end
     return new(hami_raw,dip_raw,wfcs,k_points,WannierBand{T}[],atoms)
   end
 end
-function WannierModel{T}(dir::String, k_point_file::String, atoms::Array{<:PhysAtom}) where T<:AbstractFloat
+function WannierModel{T}(dir::String, k_point_file::String, atoms::Array{<:PhysAtom},args...) where T<:AbstractFloat
   k_points = read_ks_from_qe_bands_file(k_point_file,T)[2]
-  return WannierModel{T}(dir,k_points,atoms)
+  return WannierModel{T}(dir,k_points,atoms,args...)
 end
