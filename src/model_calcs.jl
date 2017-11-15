@@ -264,7 +264,7 @@ angmom_loop_end = quote
 end
 
 begin
-  angmom_tcalc = quote tmp_angmom = calculate_angmoms(k_wfcs,V,Lx,Ly,Lz,n1,n2)
+  angmom_tcalc = quote tmp_angmom = calculate_angmoms(k_wfcs,V,centers,cu_dims,Lx,Ly,Lz,n1,n2)
     tmp_spin_x,tmp_spin_y,tmp_spin_z = calculate_spins(k_wfcs)
   end
   cm_tcalc = quote tmp_cm = calculate_k_dips(model.dip_raw,k) end
@@ -332,11 +332,12 @@ begin
           @eval function $(Symbol(name*"_bloch_gpu")){T<:AbstractFloat}(model::WannierModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
 
             dims = size(model.wfcs[1].values)
-            Lx = CuArray{Complex{T},3}(dims)
-            Ly = CuArray{Complex{T},3}(dims)
-            Lz = CuArray{Complex{T},3}(dims)
-            n1 = CuArray{Complex{T},3}(dims)
-            n2 = CuArray{Complex{T},3}(dims)
+            cu_dims = CuArray(UInt32[dims...])
+            Lx = CuArray(zeros(Complex{T},dims))
+            Ly = CuArray(zeros(Complex{T},dims))
+            Lz = CuArray(zeros(Complex{T},dims))
+            n1 = CuArray(zeros(Complex{T},dims))
+            n2 = CuArray(zeros(Complex{T},dims))
             grid = Array(model.wfcs[1].grid)
             origin = grid[1,1,1]
             a = grid[2,1,1] .- origin
@@ -344,8 +345,11 @@ begin
             c = grid[1,1,2] .- origin
             V = CuArray(inv([[a...] [b...] [c...]]))
             k_wfcs = Array{Wfc3D_gpu{T},1}(size(model.wfcs)[1])
+            #HACK put centers in the wfc already
+            centers = Array{CuArray,1}()
             for (n,wfc) in enumerate(model.wfcs)
               k_wfcs[n] = Wfc3D_gpu(wfc.grid,CuArray(zeros(Complex{T},size(wfc.values))),wfc.cell,wfc.atom)
+              push!(centers,CuArray([wfc.atom.center.x,wfc.atom.center.y,wfc.atom.center.z]))
             end
             atoms = PhysAtom[]
             atom_indices = Int[]
@@ -363,19 +367,22 @@ begin
               ind1,ind2 = find_start(model.wfcs[1],R,27)
               push!(indices,((Int32(ind1[1]),Int32(ind1[2]),Int32(ind1[3])),(Int32(ind1[1]-ind2[1]),Int32(ind1[2]-ind2[2]),Int32(ind1[3]-ind2[3]))))
             end
+            cu_indices = CuArray(indices)
             atom_indices = [atom_indices;atom_indices]
 
+            coefficients = CuArray{Complex{T},1}(27)
             $intro
             for j=1:size(k_points)[1]
-              coefficients = Array{Complex{T},1}(27)
               t = 1
               k = k_points[j]
+              t_coeff = Array{Complex{T}}(27)
               for R1=-1:1,R2=-1:1,R3=-1:1
                 R= R1*model.wfcs[1].cell[1]+R2*model.wfcs[1].cell[2]+R3*model.wfcs[1].cell[3]
-                coefficients[t] = Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im))
+                t_coeff[t] = Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im))
                 t+=1
               end
-              construct_bloch_sums_gpu(model.wfcs,k_wfcs,k,indices,coefficients)
+              coefficients = CuArray(t_coeff)
+              construct_bloch_sums_gpu(model.wfcs,k_wfcs,k,cu_indices,coefficients)
               $tmp_calcs
               $ham_line
               eigvals,eigvectors = sorted_eig(hami)
