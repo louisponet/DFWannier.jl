@@ -332,7 +332,7 @@ begin
           @eval function $(Symbol(name*"_bloch_gpu")){T<:AbstractFloat}(model::WannierModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
 
             dims = size(model.wfcs[1].values)
-            cu_dims = CuArray(UInt32[dims...])
+            cu_dims = CuArray(Int32[dims...])
             Lx = CuArray(zeros(Complex{T},dims))
             Ly = CuArray(zeros(Complex{T},dims))
             Lz = CuArray(zeros(Complex{T},dims))
@@ -362,27 +362,55 @@ begin
               end
             end
             indices = Array{Tuple{Tuple{Int32,Int32,Int32},Tuple{Int32,Int32,Int32}},1}()
+            # indices = CuArray{Tuple{UInt32,UInt32,UInt32}}[]
+            # for R1=-1:0,R2=-1:0,R3=-1:0
+            # # for R1=0:1,R2=0:1,R3=0:1
+            #     if R1+R2+R3 == 0
+            #       continue
+            #     end
+            #   R= R1*model.wfcs[1].cell[1]+R2*model.wfcs[1].cell[2]+R3*model.wfcs[1].cell[3]
+            #   ind2 = find_start(model.wfcs[1],R,27)
+            #   push!(indices,CuArray([ind2]))
+            # end
             for R1=-1:1,R2=-1:1,R3=-1:1
+            # for R1=0:1,R2=0:1,R3=0:1
+                if R1+R2+R3 == 0
+                  continue
+                end
               R= R1*model.wfcs[1].cell[1]+R2*model.wfcs[1].cell[2]+R3*model.wfcs[1].cell[3]
               ind1,ind2 = find_start(model.wfcs[1],R,27)
-              push!(indices,((Int32(ind1[1]),Int32(ind1[2]),Int32(ind1[3])),(Int32(ind1[1]-ind2[1]),Int32(ind1[2]-ind2[2]),Int32(ind1[3]-ind2[3]))))
+
+              push!(indices,(Int32.(ind1),Int32.(ind2)))
             end
             cu_indices = CuArray(indices)
             atom_indices = [atom_indices;atom_indices]
-
+            # coefficients = Array{CuArray{Complex{T}},1}(7)
             coefficients = CuArray{Complex{T},1}(27)
             $intro
             for j=1:size(k_points)[1]
               t = 1
               k = k_points[j]
-              t_coeff = Array{Complex{T}}(27)
-              for R1=-1:1,R2=-1:1,R3=-1:1
+              # for R1=-1:0,R2=-1:0,R3=-1:0
+              #   if R1+R2+R3 == 0
+              #     continue
+              #   end
+              #   R= R1*model.wfcs[1].cell[1]+R2*model.wfcs[1].cell[2]+R3*model.wfcs[1].cell[3]
+              #   coefficients[t] = CuArray([Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im))])
+              #   t+=1
+              # end
+              t_coeff = Array{Complex{T},1}(27)
+              for R1=-1:0,R2=-1:0,R3=-1:0
+                if R1+R2+R3 == 0
+                  continue
+                end
                 R= R1*model.wfcs[1].cell[1]+R2*model.wfcs[1].cell[2]+R3*model.wfcs[1].cell[3]
-                t_coeff[t] = Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im))
+                t_coeff[t] =Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im))
                 t+=1
               end
-              coefficients = CuArray(t_coeff)
-              construct_bloch_sums_gpu(model.wfcs,k_wfcs,k,cu_indices,coefficients)
+              
+              # construct_bloch_sums_gpu(model.wfcs,k_wfcs,k,indices,CuArray(coefficients))
+              construct_bloch_sums_gpu(model.wfcs,k_wfcs,k,cu_indices,CuArray(coefficients))
+              
               $tmp_calcs
               $ham_line
               eigvals,eigvectors = sorted_eig(hami)

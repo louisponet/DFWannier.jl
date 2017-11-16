@@ -502,33 +502,6 @@ function calculate_density_wfc_normalized(wfc::Wfc3D{T}) where T
 end
 
 #-----------------------------GPU STUFF------------------------#
-
-function bloch_kernel(wfc_orig::CuDeviceArray{Complex{T},3}, indices,coefficients,dim, out) where T
-  
-  dim_a = dim[1]
-  dim_b = dim[2]
-  dim_c = dim[3]
-  i1 = (blockIdx().x-1) * blockDim().x + threadIdx().x
-  i2 = (blockIdx().y-1) * blockDim().y + threadIdx().y
-  i3 = (blockIdx().z-1) * blockDim().z + threadIdx().z
-  if i1 <= dim_a && i2<= dim_b && i3<=dim_c
-    out[i1,i2,i3]=zero(T)
-    for (c,(ind1,ind2)) in zip(coefficients,indices)
-      j1 = i1-ind2[1]
-      j2 = i2-ind2[2]
-      j3 = i3-ind2[3]
-      if i1>= ind1[1] && j1 <= dim_a && j1 > 0
-        if i2>= ind1[2] && j2 <= dim_b && j2 > 0
-          if i3>= ind1[3] && j3 <= dim_c && j3 > 0
-            out[i1,i2,i3] += c*wfc_orig[j1,j2,j3]
-          end
-        end
-      end
-    end 
-  end
-  return nothing
-end
-
 function find_start(wfc::Wfc3D_gpu,R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tuple{Int64,Int64,Int64}}
   part_1D = partitions^(1/3)
   # part_1D = partitions
@@ -553,6 +526,34 @@ function find_start(wfc::Wfc3D_gpu,R,partitions)::Tuple{Tuple{Int64,Int64,Int64}
     end
   end
 end
+# function find_start(wfc::Wfc3D_gpu,R,partitions)::Tuple{Int64,Int64,Int64}
+#   part_1D = partitions^(1/3)
+#   # part_1D = partitions
+#   grid = Array(wfc.grid)
+#   dim_a = size(grid)[1]
+#   dim_b = size(grid)[2]
+#   dim_c = size(grid)[3]
+#   stride_a::Int64 = dim_a/part_1D
+#   stride_b::Int64 = dim_b/part_1D
+#   stride_c::Int64 = dim_c/part_1D
+#   # anchors = [[grid[a,b,c]...] for a=1:stride_a:dim_a,b=1:stride_a:dim_b,c=1:stride_c:dim_c]
+#   #hack 
+#   shifted_anchors_neg = [[grid[a,b,c]...]+Array(R) for a=1:stride_a:dim_a,b=1:stride_a:dim_b,c=1:stride_c:dim_c]
+#   shifted_anchors_pos = [[grid[a,b,c]...]-Array(R) for a=1:stride_a:dim_a,b=1:stride_a:dim_b,c=1:stride_c:dim_c]
+#   # for i in eachindex(anchors)
+#   for j in eachindex(shifted_anchors_pos)
+#     #hack
+#     if norm([grid[1]...]-shifted_anchors_neg[j])<0.01
+#       tmp2 = ind2sub(shifted_anchors_neg,j)
+#       ind2 = ((tmp2[1]-1)*stride_a+1,(tmp2[2]-1)*stride_b+1,(tmp2[3]-1)*stride_c+1)
+#       return ind2
+#     elseif  norm([grid[1]...]-shifted_anchors_pos[j])<0.01
+#       tmp2 = ind2sub(shifted_anchors_pos,j)
+#       ind2 = ((tmp2[1]-1)*stride_a+1,(tmp2[2]-1)*stride_b+1,(tmp2[3]-1)*stride_c+1)
+#       return ind2
+#     end
+#   end
+# end
 
 function find_start(grid::Array{<:Point3D,3},R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tuple{Int64,Int64,Int64}}
   part_1D = partitions^(1/3)
@@ -583,6 +584,9 @@ function calc_inds_coeffs(wfc::Wfc3D_gpu{T},k) where T
   indices = Array{Tuple{Tuple{Int32,Int32,Int32},Tuple{Int32,Int32,Int32}},1}()
   coefficients = Array{Complex{T},1}()
   for R1=-1:1,R2=-1:1,R3=-1:1
+    if R1==0 && R2==0 && R3==0
+      continue
+    end
     R= R1*wfc.cell[1]+R2*wfc.cell[2]+R3*wfc.cell[3]
     ind1,ind2 = find_start(grid,R,27)
     push!(coefficients,Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im)))
@@ -591,40 +595,132 @@ function calc_inds_coeffs(wfc::Wfc3D_gpu{T},k) where T
   return indices,coefficients
 end
 
-function construct_bloch_sum_gpu(wfc::Wfc3D_gpu{T}, k::Array{T}) where T
-  indices,coefficients = calc_inds_coeffs(wfc,k) 
-  t = CuArray(zeros(Complex{T},size(wfc.values)))
-  out = Wfc3D_gpu(wfc.grid,t,wfc.cell,wfc.atom)
-  blocks,threads = get_blocks_threads(out.values)
-  @cuda (blocks,threads) bloch_kernel(wfc.values,CuArray(indices),CuArray(coefficients),CuArray(Int64[size(wfc.values)...]),out.values)
-  return out
-end
-
 function get_blocks_threads(arr::CuArray)
   total_threads = min(length(arr),attribute(CuDevice(0),MAX_THREADS_PER_BLOCK))
-  # total_threads = min(length(wfcs[1].values),attribute(CuDevice(0),CUDAdrv.MAX_THREADS_PER_BLOCK))
-  threads_x     = floor(Int, total_threads^(1/ndims(arr)))
-  threads_y     = threads_x
-  threads_z     = threads_x
-  threads       = (threads_x,threads_y,threads_z)
-  blocks        = Int.(ceil.(size(arr)./threads))
+  max_threads_per_dim = floor(Int, total_threads^(1/ndims(arr)))
+  blocks  = Int.(ceil.(size(arr)./max_threads_per_dim))
+  threads = Int.(ceil.(size(arr)./blocks))
   return blocks,threads
 end
 
-function construct_bloch_sums_gpu(orig_wfcs::Array{Wfc3D_gpu{T},1},k_wfcs::Array{Wfc3D_gpu{T},1}, k::Array{T},indices::CuArray{Tuple{Tuple{Int32,Int32,Int32},Tuple{Int32,Int32,Int32}},1},coefficients::CuArray{Complex{T},1}) where T <: AbstractFloat
-  blocks,threads = get_blocks_threads(orig_wfcs[1].values)
-  dims   = CuArray(UInt32[size(orig_wfcs[1].values)...])
-  for (n,wfc) in enumerate(orig_wfcs)
-    @cuda (blocks,threads) bloch_kernel(wfc.values,indices,coefficients,dims,k_wfcs[n].values)
-  end
-end
-
-@inline function threadID3D()
+@inline function threadID3D()::Tuple{UInt32,UInt32,UInt32}
   i = (blockIdx().x-UInt32(1)) * blockDim().x + threadIdx().x
   i1 = (blockIdx().y-UInt32(1)) * blockDim().y + threadIdx().y
   i2 = (blockIdx().z-UInt32(1)) * blockDim().z + threadIdx().z
   return i,i1,i2
 end
+function simple_bloch_kernel(wfc_orig::CuDeviceArray{Complex{T},3},ind,c,dim,out::CuDeviceArray{Complex{T},3}) where T
+  dim_a = dim[1]
+  dim_b = dim[2]
+  dim_c = dim[3]
+  ind1 = ind[1]
+  ind2 = ind[2]
+  i1= (blockIdx().x-UInt32(1)) * blockDim().x + threadIdx().x
+  i2 = (blockIdx().y-UInt32(1)) * blockDim().y + threadIdx().y
+  i3 = (blockIdx().z-UInt32(1)) * blockDim().z + threadIdx().z
+  j1 = i1-ind2[1]
+  j2 = i2-ind2[2]
+  j3 = i3-ind2[3]
+  # if i1 <= dim_a && i2<= dim_b && i3<=dim_c
+  # if i1>= ind1[1] && j1 <= dim_a && j1 > 0
+  #   if i2>= ind1[2] && j2 <= dim_b && j2 > 0
+  #     if i3>= ind1[3] && j3 <= dim_c && j3 > 0
+  if i1>= ind1[1] && j1 <= dim_a 
+    if i2>= ind1[2] && j2 <= dim_b 
+      if i3>= ind1[3] && j3 <= dim_c
+        out[i1,i2,i3] += c[1]*wfc_orig[j1,j2,j3]
+        # out[j1,j2,j3] = conj(c[1])*wfc_orig[i1,i2,i3]
+        # end
+      end
+    end
+  end
+  return nothing
+end
+# function simple_bloch_kernel(wfc_orig::CuDeviceArray{Complex{T},3},ind,c,dim,out::CuDeviceArray{Complex{T},3}) where T
+#   dim_a = dim[1]
+#   dim_b = dim[2]
+#   dim_c = dim[3]
+#   i1= (blockIdx().x-UInt32(1)) * blockDim().x + threadIdx().x
+#   i2 = (blockIdx().y-UInt32(1)) * blockDim().y + threadIdx().y
+#   i3 = (blockIdx().z-UInt32(1)) * blockDim().z + threadIdx().z
+#   j1 = i1+ind[1][1]
+#   j2 = i2+ind[1][2]
+#   j3 = i3+ind[1][3]
+#   if j1 <= dim_a && j2<= dim_b && j3<=dim_c 
+#     out[i1,i2,i3] += c[1]*wfc_orig[j1,j2,j3]
+#     # out[j1,j2,j3] += conj(c[1])*wfc_orig[i1,i2,i3]
+#   end
+#   return nothing
+# end
+function bloch_kernel(wfc_orig::CuDeviceArray{Complex{T},3}, indices,coefficients,dim, out) where T
+  dim_a = dim[1]
+  dim_b = dim[2]
+  dim_c = dim[3]
+  i1 = (blockIdx().x-1) * blockDim().x + threadIdx().x
+  i2 = (blockIdx().y-1) * blockDim().y + threadIdx().y
+  i3 = (blockIdx().z-1) * blockDim().z + threadIdx().z
+  for (c,(ind1,ind2)) in zip(coefficients,indices)
+    j1 = i1-ind2[1]
+    j2 = i2-ind2[2]
+    j3 = i3-ind2[3]
+    if i1>= ind1[1] && j1 <= dim_a
+      if i2>= ind1[2] && j2 <= dim_b
+        if i3>= ind1[3] && j3 <= dim_c
+          out[i1,i2,i3] += c*wfc_orig[j1,j2,j3]
+        end
+      end
+    end
+  end
+  return nothing
+end
+
+function bloch_kernel(wfc_orig::CuDeviceArray{Complex{T},3}, indices,coefficients,dim, out) where T
+  dim_a = dim[1]
+  dim_b = dim[2]
+  dim_c = dim[3]
+  i1 = (blockIdx().x-1) * blockDim().x + threadIdx().x
+  i2 = (blockIdx().y-1) * blockDim().y + threadIdx().y
+  i3 = (blockIdx().z-1) * blockDim().z + threadIdx().z
+  for (c,(ind1,ind2)) in zip(coefficients,indices)
+    j1 = i1-ind2[1]
+    j2 = i2-ind2[2]
+    j3 = i3-ind2[3]
+    if i1>= ind1[1] && j1 <= dim_a
+      if i2>= ind1[2] && j2 <= dim_b
+        if i3>= ind1[3] && j3 <= dim_c
+          out[i1,i2,i3] += c*wfc_orig[j1,j2,j3]
+        end
+      end
+    end
+  end
+  return nothing
+end
+
+function construct_bloch_sum_gpu(wfc::Wfc3D_gpu{T}, k::Array{T}) where T
+  indices,coefficients = calc_inds_coeffs(wfc,k) 
+  out = Wfc3D_gpu(wfc.grid,copy(wfc.values),wfc.cell,wfc.atom)
+  @time for i=1:200
+    blocks,threads = get_blocks_threads(out.values)
+    @cuda (blocks,threads) bloch_kernel(wfc.values,CuArray(indices),CuArray(coefficients),CuArray(Int64[size(wfc.values)...]),out.values)
+  end
+  
+  blocks,threads = get_blocks_threads(out.values)
+  out = Wfc3D_gpu(wfc.grid,copy(wfc.values),wfc.cell,wfc.atom)
+  
+  @cuda (blocks,threads) bloch_kernel(wfc.values,CuArray(indices),CuArray(coefficients),CuArray(Int64[size(wfc.values)...]),out.values)
+  return out
+end
+
+function construct_bloch_sums_gpu(orig_wfcs::Array{Wfc3D_gpu{T},1},k_wfcs::Array{Wfc3D_gpu{T},1}, k::Array{T},indices,coefficients) where T <: AbstractFloat
+  blocks,threads = get_blocks_threads(orig_wfcs[1].values)
+  dims   = CuArray(UInt32[size(orig_wfcs[1].values)...])
+  for (n,wfc) in enumerate(orig_wfcs)
+    k_wfcs[n].values = copy(wfc.values)
+    # @cuda (blocks,threads,prod(threads)*sizeof(Complex{T})) bloch_kernel_shared(wfc.values,indices,coefficients,dims,k_wfcs[n].values)
+    @cuda (blocks,threads) bloch_kernel(wfc.values,indices,coefficients,dims,k_wfcs[n].values)
+  end
+end
+
 
 function calculate_angmom_kernel(wfc1::CuDeviceArray{T,3},wfc2::CuDeviceArray{T,3},points,dim,center,V,out_x,out_y,out_z,n1,n2) where T
   i,i1,i2 = threadID3D()
@@ -652,7 +748,7 @@ function calculate_angmom_kernel(wfc1::CuDeviceArray{T,3},wfc2::CuDeviceArray{T,
     diff_x = wfc2[i+1,i1,i2]-wfc2[i-1,i1,i2]
     diff_y = wfc2[i,i1+1,i2]-wfc2[i,i1-1,i2]
     diff_z = wfc2[i,i1,i2+1]-wfc2[i,i1,i2-1]
-
+    
     ddx = diff_x*dadx+diff_y*dbdx+diff_z*dcdx
     
     ddy = diff_x*dady+diff_y*dbdy+diff_z*dcdy

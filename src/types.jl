@@ -23,8 +23,9 @@ struct PhysAtom{T<:AbstractFloat}
   center::Point3D{T}
   l_soc::T
 end
-PhysAtom(x,y,z,l_soc)                                  = PhysAtom(Point3D(x,y,z),l_soc)
+PhysAtom(x,y,z,l_soc)        = PhysAtom(Point3D(x,y,z),l_soc)
 PhysAtom(::Type{T},x,y,z,l_soc) where T<:AbstractFloat = PhysAtom(T(x),T(y),T(z),T(l_soc))
+PhysAtom{T}(x,y,z,l_soc) where T<:AbstractFloat = PhysAtom(T,x,y,z,l_soc)
 PhysAtom(::Type{T}) where T<:AbstractFloat             = PhysAtom(Point3D(T,0.0),T(0.0))
 
 "Wavefunction in 3D, holds an array of WfcPoint3D, the superlattice unit cell and the atom around which it lives."
@@ -109,7 +110,7 @@ mutable struct WannierModel{T<:AbstractFloat}
     hami_raw = read_hami_file(dir*hami_file,T)
     dip_raw = read_dipole_file(dir*dip_file,T)
     if gpu
-      wfcs = wfcs .|> convert2gpu
+      wfcs = wfcs .|> host2gpu
     end
     return new(hami_raw,dip_raw,wfcs,k_points,WannierBand{T}[],atoms)
   end

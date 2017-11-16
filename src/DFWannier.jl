@@ -12,6 +12,7 @@ module DFWannier
   #---#
   export WfcPoint3D
   export Wfc3D
+  export Wfc3D_gpu
   export WannierBand
   export WannierModel
 

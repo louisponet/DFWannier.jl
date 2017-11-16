@@ -29,7 +29,10 @@ function get_pauli(T::Type,dir::Symbol, dim::Int64)
   return out
 end
 
-function convert2gpu(wfc::Wfc3D)
+function host2gpu(wfc::Wfc3D)
   cell=wfc.cell
   return Wfc3D_gpu(CuArray([(p.p.x,p.p.y,p.p.z) for p in wfc.points]),CuArray([p.w for p in wfc.points]),wfc.cell,wfc.atom)
+end
+function gpu2host(wfc::Wfc3D_gpu)
+  return Wfc3D([WfcPoint3D(w,Point3D(p...)) for (w,p) in zip(wfc.values,wfc.grid)],Array(wfc.cell),wfc.atom)
 end
