@@ -1,10 +1,12 @@
 using DFWannier
 T= Float32
-x = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...],true);
+x = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-2*0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,2*0.318205]...) for i=1:4]...],true);
 x2 = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...]);
-
+using Plots
 @time test = calculate_eig_angmom_soc_bloch_gpu(x,90:0.1:110.);
+@time test1 = calculate_eig_angmom_soc_bloch_gpu(x,90:0.1:110.);
 @time test1 = calculate_eig_angmom_soc_bloch(x2,90:0.1:110.);
+plot(plot(test1[8],:angmom2_x),plot(test[8],:angmom2_x))
 
 @time benchmark = construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1]);
 
@@ -12,7 +14,6 @@ begin
 test1 = construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1])
 assert(Array(test1.values)==Array(benchmark.values))
 end
-plot(test[8],:angmom2_x)
 
 test2 = calculate_eig_angmom_soc_bloch(x2,90:110.);
 using Plots
