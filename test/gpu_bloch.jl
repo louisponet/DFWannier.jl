@@ -4,6 +4,7 @@ x = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet
 x2 = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...]);
 
 @time test = calculate_eig_angmom_soc_bloch_gpu(x,90:0.1:110.);
+@time test1 = calculate_eig_angmom_soc_bloch(x2,90:0.1:110.);
 
 @time benchmark = construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1]);
 

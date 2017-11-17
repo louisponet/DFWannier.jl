@@ -2,7 +2,7 @@
 using DFWannier
 using CUDAnative
 using CuArrays 
-begin
+CUDAnative.@profile begin
   T=Float32
   test_wfc1 =  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00003.xsf",PhysAtom{T}(0.0,0.0,0.1,0.1),T))
   test_wfc2=  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00004.xsf",PhysAtom{T}(0.0,0.0,0.1,0.1),T))
@@ -36,9 +36,15 @@ begin
   for (n,wfc) in enumerate([test_wfc1,test_wfc2])
     k_wfcs[n] = Wfc3D_gpu(wfc.grid,CuArray(zeros(Complex{T},size(wfc.values))),wfc.cell,wfc.atom)
   end
-  DFWannier.construct_bloch_sums_gpu([test_wfc1,test_wfc2],k_wfcs,k,cu_indices,coefficients)
-  for i =1:200
-    calculate_angmom(test_wfc1,test_wfc2,V,CuArray([test_wfc1.atom.center.x,test_wfc1.atom.center.y,test_wfc1.atom.center.z]),dims,Lx,Ly,Lz,n2,n2)
+  # DFWannier.construct_bloch_sums_gpu([test_wfc1,test_wfc2],k_wfcs,k,cu_indices,coefficients)
+  begin
+  correct = calculate_angmom(test_wfc1,test_wfc2,V,CuArray([test_wfc1.atom.center.x,test_wfc1.atom.center.y,test_wfc1.atom.center.z]),dims,Lx,Ly,Lz,n2,n2)
+  test = calculate_angmom(test_wfc1,test_wfc2,V,CuArray([test_wfc1.atom.center.x,test_wfc1.atom.center.y,test_wfc1.atom.center.z]),dims,Lx,Ly,Lz,n2,n2)
+  @time for i =1:2000
+    test = calculate_angmom(test_wfc1,test_wfc2,V,CuArray([test_wfc1.atom.center.x,test_wfc1.atom.center.y,test_wfc1.atom.center.z]),dims,Lx,Ly,Lz,n2,n2)
+
+  end
+  assert(test==correct)
   end
 end
   
