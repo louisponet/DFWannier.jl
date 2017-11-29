@@ -146,7 +146,7 @@ function calculate_angmoms(wfcs::Array{Wfc3D{T}}) where T<:AbstractFloat
 end
 
 "Calculates the spins between the supplied wavefunctions"
-function calculate_spins(wfcs::Union{Array{Wfc3D{T}},Array{Wfc3D_gpu{T}}}) where T<:AbstractFloat
+function calculate_spins(wfcs::Array{<:Wfc{T},1}) where T<:AbstractFloat
   dim = length(wfcs)
   dim_2 = div(dim,2)
   s_x = get_pauli(T,:x,2*dim)
