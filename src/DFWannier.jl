@@ -33,7 +33,10 @@ module DFWannier
   export read_xsf_file
   export write_xsf_file
 
-  include("wannier_calcs.jl")
+  include("wan_calcs.jl")
+  if gpu_enabled
+    include("wan_calcs_gpu.jl")
+  end
   export construct_bloch_sum
   export calculate_angmom
   export calculate_angmoms
