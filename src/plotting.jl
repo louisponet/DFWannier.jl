@@ -166,6 +166,14 @@ end
   end
 end
 
+@recipe function f(bands::Array{<:WannierBand,1},data::Symbol)
+  for band in bands 
+    @series begin
+      band,data
+    end
+  end
+end
+
 @recipe function f(bands::Array{<:WannierBand,1})
   for band in bands 
     @series begin
