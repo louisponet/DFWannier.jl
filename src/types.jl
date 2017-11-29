@@ -28,8 +28,9 @@ PhysAtom(::Type{T},x,y,z,l_soc) where T<:AbstractFloat = PhysAtom(T(x),T(y),T(z)
 PhysAtom{T}(x,y,z,l_soc) where T<:AbstractFloat = PhysAtom(T,x,y,z,l_soc)
 PhysAtom(::Type{T}) where T<:AbstractFloat             = PhysAtom(Point3D(T,0.0),T(0.0))
 
+abstract type Wfc{T<:AbstractFloat} end
 "Wavefunction in 3D, holds an array of WfcPoint3D, the superlattice unit cell and the atom around which it lives."
-mutable struct Wfc3D{T<:AbstractFloat}
+mutable struct Wfc3D{T} <: Wfc{T}
   points::Array{WfcPoint3D{T},3}
   cell::Array{Point3D{T},1}
   atom::PhysAtom{T}
@@ -83,22 +84,24 @@ mutable struct WannierBand{T<:AbstractFloat} <: Band
   k_points::Array{Array{T,1},1}
 end
 
-mutable struct Wfc3D_gpu{T<:AbstractFloat}
-  grid::CuArray{Tuple{T,T,T},3}
-  values::CuArray{Complex{T},3}
-  # cell::CuArray{Tuple{T,T,T},1}
-  cell::Array{Point3D{T},1}
-  atom::PhysAtom{T}
+if gpu_enabled
+  mutable struct Wfc3D_gpu{T} <: Wfc{T}
+    grid::CuArray{Tuple{T,T,T},3}
+    values::CuArray{Complex{T},3}
+    # cell::CuArray{Tuple{T,T,T},1}
+    cell::Array{Point3D{T},1}
+    atom::PhysAtom{T}
+  end
 end
 "Start of any Wannier calculation. Gets constructed by reading the Wannier Hamiltonian and wavefunctions, and gets used in Wannier calculations."
 mutable struct WannierModel{T<:AbstractFloat}
   hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}},1}
   dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}},1}
-  wfcs::Union{Array{Wfc3D{T},1},Array{Wfc3D_gpu{T},1}}
+  wfcs::Array{<:Wfc{T},1}
   k_points::Array{Array{T,1},1}
   bands::Array{WannierBand{T},1}
   atoms::Array{PhysAtom{T},1}
-  function WannierModel{T}(dir::String, k_points, atoms::Array{<:PhysAtom},gpu=false) where T<:AbstractFloat
+  function WannierModel{T}(dir::String, k_points, atoms::Array{<:PhysAtom}) where T<:AbstractFloat
     dir = form_directory(dir)
     wfc_files = search_dir(dir,".xsf")
     hami_file = search_dir(dir,"_hr.dat")[1]
@@ -109,7 +112,7 @@ mutable struct WannierModel{T<:AbstractFloat}
     end
     hami_raw = read_hami_file(dir*hami_file,T)
     dip_raw = read_dipole_file(dir*dip_file,T)
-    if gpu
+    if gpu_enabled
       wfcs = wfcs .|> host2gpu
     end
     return new(hami_raw,dip_raw,wfcs,k_points,WannierBand{T}[],atoms)

@@ -13,7 +13,7 @@ tbbandssoc = calculate_eig_cm_angmom_soc(x);
 plot(tbbandssoc,[:cm_x,:cm_y,:cm_z])
 ENV["TRACE"]=true
 using CUDAdrv, CUDAnative
-function construct_bloch_sum_gpu(wfc::Wfc3D{T}, k::Array) where T <: AbstractFloat
+function construct_bloch_sum(wfc::Wfc3D{T}, k::Array) where T <: AbstractFloat
   function bloch_kernel(wfc_orig, indices,coefficients,cell, out)
     dim_a = size(wfc_orig)[1]
     dim_b = size(wfc_orig)[2]
@@ -62,4 +62,4 @@ function construct_bloch_sum_gpu(wfc::Wfc3D{T}, k::Array) where T <: AbstractFlo
   return out
 end
 
-test = construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1])
+test = construct_bloch_sum(x.wfcs[1],x.k_points[1])

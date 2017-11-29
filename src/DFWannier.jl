@@ -1,18 +1,30 @@
 #Cleanup don't export everything that doesn't have to be exported
 module DFWannier
+  if Pkg.installed.(["CUDAdrv","CuArrays","CUDAnative"]) != [nothing for _=1:3]
+    gpu_enabled = true
+  else
+    gpu_enabled = false
+  end
   using Reexport
   @reexport using DFControl
   using RecipesBase
   using LaTeXStrings
-  using CuArrays
-  using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
-  using CUDAnative
+  if gpu_enabled 
+    using CuArrays
+    using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
+    using CUDAnative
+
+    dev = CuDevice(0)
+    ctx = CuContext(dev)
+  end
   include("types.jl")
   export PhysAtom
   #---#
   export WfcPoint3D
   export Wfc3D
-  export Wfc3D_gpu
+  if gpu_enabled
+    export Wfc3D_gpu
+  end
   export WannierBand
   export WannierModel
 
@@ -32,6 +44,4 @@ module DFWannier
   include("hami_calcs.jl")
   include("model_calcs.jl")
   include("plotting.jl")
-  dev = CuDevice(0)
-  ctx = CuContext(dev)
 end

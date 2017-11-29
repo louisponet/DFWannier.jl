@@ -8,16 +8,16 @@ using Plots
 @time test1 = calculate_eig_angmom_soc_bloch(x2,90:0.1:110.);
 plot(plot(test1[8],:angmom2_x),plot(test[8],:angmom2_x))
 
-@time benchmark = construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1]);
+@time benchmark = construct_bloch_sum(x.wfcs[1],x.k_points[1]);
 
 begin 
-test1 = construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1])
+test1 = construct_bloch_sum(x.wfcs[1],x.k_points[1])
 assert(Array(test1.values)==Array(benchmark.values))
 end
 
 test2 = calculate_eig_angmom_soc_bloch(x2,90:110.);
 using Plots
-test = construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1])
+test = construct_bloch_sum(x.wfcs[1],x.k_points[1])
 Array(test.values)
 test = construct_bloch_sum(x2.wfcs[1],x2.k_points[1])
 T=Float32
@@ -61,7 +61,7 @@ begin
   end
 end
 @time  for i =1:2000
-  construct_bloch_sums_gpu([test_wfc1,test_wfc2],k_wfcs,k,CuArray(indices),CuArray(coeff))
+  construct_bloch_sums([test_wfc1,test_wfc2],k_wfcs,k,CuArray(indices),CuArray(coeff))
 end
 calculate_angmom(test_wfc1,test_wfc2,V,CuArray([test_wfc1.atom.center.x,test_wfc1.atom.center.y,test_wfc1.atom.center.z]),dims,Lx,Ly,Lz,n2,n2)
 

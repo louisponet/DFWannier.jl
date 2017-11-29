@@ -502,6 +502,7 @@ function calculate_density_wfc_normalized(wfc::Wfc3D{T}) where T
 end
 
 #-----------------------------GPU STUFF------------------------#
+if gpu_enabled
 function find_start(wfc::Wfc3D_gpu,R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tuple{Int64,Int64,Int64}}
   part_1D = partitions^(1/3)
   # part_1D = partitions
@@ -605,7 +606,7 @@ function bloch_kernel(wfc_orig::CuDeviceArray{Complex{T},3}, indices,coefficient
   return nothing
 end
 
-function construct_bloch_sum_gpu(wfc::Wfc3D_gpu{T}, k::Array{T}) where T
+function construct_bloch_sum(wfc::Wfc3D_gpu{T}, k::Array{T}) where T
   indices,coefficients = calc_inds_coeffs(wfc,k) 
   out = Wfc3D_gpu(wfc.grid,copy(wfc.values),wfc.cell,wfc.atom)
   blocks,threads = get_blocks_threads(out.values)
@@ -614,7 +615,7 @@ function construct_bloch_sum_gpu(wfc::Wfc3D_gpu{T}, k::Array{T}) where T
   return out
 end
 
-function construct_bloch_sums_gpu(orig_wfcs::Array{Wfc3D_gpu{T},1},k_wfcs::Array{Wfc3D_gpu{T},1}, k::Array{T},indices,coefficients) where T <: AbstractFloat
+function construct_bloch_sums(orig_wfcs::Array{Wfc3D_gpu{T},1},k_wfcs::Array{Wfc3D_gpu{T},1}, k::Array{T},indices,coefficients) where T <: AbstractFloat
   blocks,threads = get_blocks_threads(orig_wfcs[1].values)
   dims   = CuArray(UInt32[size(orig_wfcs[1].values)...])
   for (n,wfc) in enumerate(orig_wfcs)
@@ -1017,7 +1018,7 @@ end
 #   return nothing
 # end
 
-# function construct_bloch_sums_gpu(orig_wfcs::Array{Wfc3D_gpu{T},1},k_wfcs::Array{Wfc3D_gpu{T},1}, k::Array{T},indices,coefficients) where T <: AbstractFloat
+# function construct_bloch_sums(orig_wfcs::Array{Wfc3D_gpu{T},1},k_wfcs::Array{Wfc3D_gpu{T},1}, k::Array{T},indices,coefficients) where T <: AbstractFloat
 #   blocks,threads = get_blocks_threads(orig_wfcs[1].values)
 #   # dims   = CuArray(UInt32[size(orig_wfcs[1].values)...])
 #   # per_thread = CuArray(UInt32[2,2,2])
@@ -1028,3 +1029,4 @@ end
 #   end
 # end
 
+end
