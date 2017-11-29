@@ -4,11 +4,15 @@ module DFWannier
   @reexport using DFControl
   using RecipesBase
   using LaTeXStrings
+  using CuArrays
+  using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
+  using CUDAnative
   include("types.jl")
   export PhysAtom
   #---#
   export WfcPoint3D
   export Wfc3D
+  export Wfc3D_gpu
   export WannierBand
   export WannierModel
 
@@ -28,4 +32,6 @@ module DFWannier
   include("hami_calcs.jl")
   include("model_calcs.jl")
   include("plotting.jl")
+  dev = CuDevice(0)
+  ctx = CuContext(dev)
 end

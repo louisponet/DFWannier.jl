@@ -1,138 +1,178 @@
 using DFWannier
 T= Float32
-x = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...]);
-using CUDAdrv
-CUDAdrv.version()
-dev = CuDevice(0)
-ctx = CuContext(dev)
-test= DFWannier.calculate_angmom_gpu(x.wfcs[1],x.wfcs[2],1024)
-test1= calculate_angmom(x.wfcs[1],x.wfcs[2])
-bands = calculate_eig_angmom_bloch_gpu(x,x.k_points)
-test = calculate_eig_angmom_bloch(x,x.k_points)
+x = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-2*0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,2*0.318205]...) for i=1:4]...],true);
+x2 = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...]);
+using Plots
+@time test = calculate_eig_angmom_soc_bloch_gpu(x,90:0.1:110.);
+@time test1 = calculate_eig_angmom_soc_bloch_gpu(x,90:0.1:110.);
+@time test1 = calculate_eig_angmom_soc_bloch(x2,90:0.1:110.);
+plot(plot(test1[8],:angmom2_x),plot(test[8],:angmom2_x))
 
-# EXCLUDE FROM TESTING
-# this file doesn't have an entry point, see `verify.jl` instead
+@time benchmark = construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1]);
 
-# Fast parallel reduction for Kepler hardware
-# - uses shuffle and shared memory to reduce efficiently
-# - support for large arrays
-#
-# Based on devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/
-
-using CUDAdrv, CUDAnative
-
-
-#
-# Main implementation
-#
-
-# Reduce a value across a warp
-@inline function reduce_warp(op::Function, val::T)::T where {T}
-    offset = CUDAnative.warpsize() ÷ UInt32(2)
-    # TODO: this can be unrolled if warpsize is known...
-    while offset > 0
-        val = op(val, shfl_down(val, offset))
-        offset ÷= UInt32(2)
-    end
-    return val
+begin 
+test1 = construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1])
+assert(Array(test1.values)==Array(benchmark.values))
 end
 
-# Reduce a value across a block, using shared memory for communication
-@inline function reduce_block(op::Function, val::T)::T where {T}
-    # shared mem for 32 partial sums
-    shared = @cuStaticSharedMem(T, 32)
-
-    # TODO: use fldmod1 (JuliaGPU/CUDAnative.jl#28)
-    wid  = div(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
-    lane = rem(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
-
-    # each warp performs partial reduction
-    val = reduce_warp(op, val)
-
-    # write reduced value to shared memory
-    if lane == 1
-        @inbounds shared[wid] = val
+test2 = calculate_eig_angmom_soc_bloch(x2,90:110.);
+using Plots
+test = construct_bloch_sum_gpu(x.wfcs[1],x.k_points[1])
+Array(test.values)
+test = construct_bloch_sum(x2.wfcs[1],x2.k_points[1])
+T=Float32
+test_wfc1 =  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00003.xsf",PhysAtom{T}(0.0,0.0,0.1,0.1),T))
+test_wfc2=  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00004.xsf",PhysAtom{T}(0.0,0.0,0.1,0.1),T))
+dims = size(test_wfc1.values)
+cu_dims = CuArray(UInt32[dims...])
+Lx = CuArray(zeros(Complex{T},dims))
+Ly = CuArray(zeros(Complex{T},dims))
+Lz = CuArray(zeros(Complex{T},dims))
+n1 = CuArray(zeros(Complex{T},dims))
+n2 = CuArray(zeros(Complex{T},dims))
+grid = Array(test_wfc1.grid)
+origin = grid[1,1,1]
+a = grid[2,1,1] .- origin
+b = grid[1,2,1] .- origin
+c = grid[1,1,2] .- origin
+V = CuArray(inv([[a...] [b...] [c...]]))
+begin
+  # indices = Array{Tuple{Tuple{Int32,Int32,Int32},Tuple{Int32,Int32,Int32}},1}()
+  # coeff = Array{Complex{T},1}()
+  indices = Array{Tuple{CuArray{Int32,1},CuArray{Int32,1}},1}()
+  coeff = Array{CuArray{Complex{T},1},1}()
+  k=T[0.2,0.2,0.3]
+  for R1=-1:0,R2=-1:0,R3=-1:0
+    if R1+R2+R3 == 0
+      continue
     end
+    R= R1*test_wfc1.cell[1]+R2*test_wfc1.cell[2]+R3*test_wfc1.cell[3]
+    ind1,ind2 = DFWannier.find_start(test_wfc1,R,27)
+    # push!(indices,((Int32(ind1[1]),Int32(ind1[2]),Int32(ind1[3])),(Int32(ind1[1]-ind2[1]),Int32(ind1[2]-ind2[2]),Int32(ind1[3]-ind2[3]))))
+    push!(indices,(CuArray{Int32}([ind1...]),CuArray{Int32}([ind2...])))
+    # push!(coeff,Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im)))
+    push!(coeff,CuArray(Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im))))
+  end
+  println(length(indices),length(coeff))
+  k_wfcs = Array{Wfc3D_gpu{T},1}()
+  #optimize so we dont redo the zero index ...
+  for wfc in [test_wfc1,test_wfc2]
+    push!(k_wfcs,Wfc3D_gpu(wfc.grid,CuArray(zeros(Complex{T},size(wfc.values))),wfc.cell,wfc.atom))
+  end
+end
+@time  for i =1:2000
+  construct_bloch_sums_gpu([test_wfc1,test_wfc2],k_wfcs,k,CuArray(indices),CuArray(coeff))
+end
+calculate_angmom(test_wfc1,test_wfc2,V,CuArray([test_wfc1.atom.center.x,test_wfc1.atom.center.y,test_wfc1.atom.center.z]),dims,Lx,Ly,Lz,n2,n2)
 
-    # wait for all partial reductions
+using CUDAnative, CUDAdrv
+
+
+function haversine_cpu(lat1::Float32, lon1::Float32, lat2::Float32, lon2::Float32, radius::Float32)
+  c1 = cospi(lat1 / 180.0f0)
+  c2 = cospi(lat2 / 180.0f0)
+  dlat = lat2 - lat1
+  dlon = lon2 - lon1
+  d1 = sinpi(dlat / 360.0f0)
+  d2 = sinpi(dlon / 360.0f0)
+  t = d2 * d2 * c1 * c2
+  a = d1 * d1 + t
+  c = 2.0f0 * asin(min(1.0f0, sqrt(a)))
+  return radius * c
+end
+
+function pairwise_dist_cpu(lat::Vector{Float32}, lon::Vector{Float32})
+  # allocate
+  n = length(lat)
+  rowresult = Array{Float32}(n, n)
+  
+  # brute force fill in each cell
+  for i in 1:n, j in 1:n
+    @inbounds rowresult[i, j] = haversine_cpu(lat[i], lon[i], lat[j], lon[j] , 6372.8f0)
+  end
+  
+  return rowresult    
+end
+
+# from https://devblogs.nvidia.com/parallelforall/fast-great-circle-distance-calculation-cuda-c/
+function haversine_gpu(lat1::Float32, lon1::Float32, lat2::Float32, lon2::Float32, radius::Float32)
+  # XXX: need to prefix math intrinsics with CUDAnative
+  c1 = CUDAnative.cospi(lat1 / 180.0f0)
+  c2 = CUDAnative.cospi(lat2 / 180.0f0)
+  dlat = lat2 - lat1
+  dlon = lon2 - lon1
+  d1 = CUDAnative.sinpi(dlat / 360.0f0)
+  d2 = CUDAnative.sinpi(dlon / 360.0f0)
+  t = d2 * d2 * c1 * c2
+  a = d1 * d1 + t
+  c = 2.0f0 * CUDAnative.asin(CUDAnative.min(1.0f0, CUDAnative.sqrt(a)))
+  return radius * c
+end
+
+# pairwise distance calculation kernel
+function pairwise_dist_kernel(lat::CuDeviceVector{Float32}, lon::CuDeviceVector{Float32},
+  rowresult::CuDeviceMatrix{Float32}, n)
+  i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+  j = (blockIdx().y-1) * blockDim().y + threadIdx().y
+  
+  if i <= n && j <= n
+    # store to shared memory
+    shmem = @cuDynamicSharedMem(Float32, 2*blockDim().x + 2*blockDim().y)
+    if threadIdx().y == 1
+      shmem[threadIdx().x] = lat[i]
+      shmem[blockDim().x + threadIdx().x] = lon[i]
+    end
+    if threadIdx().x == 1
+      shmem[2*blockDim().x + threadIdx().y] = lat[j]
+      shmem[2*blockDim().x + blockDim().y + threadIdx().y] = lon[j]
+    end
     sync_threads()
-
-    # read from shared memory only if that warp existed
-    @inbounds val = (threadIdx().x <= fld(blockDim().x, CUDAnative.warpsize())) ? shared[lane] : zero(T)
-
-    # final reduce within first warp
-    if wid == 1
-        val = reduce_warp(op, val)
-    end
-
-    return val
+    
+    # load from shared memory
+    lat_i = shmem[threadIdx().x]
+    lon_i = shmem[blockDim().x + threadIdx().x]
+    lat_j = shmem[2*blockDim().x + threadIdx().y]
+    lon_j = shmem[2*blockDim().x + blockDim().y + threadIdx().y]
+    
+    @inbounds rowresult[i, j] = haversine_gpu(lat_i, lon_i, lat_j, lon_j, 6372.8f0)
+  end
 end
 
-# Reduce an array across a complete grid
-function reduce_grid(op::Function, input::CuDeviceVector{T}, output::CuDeviceVector{T},
-                     len::Integer) where {T}
-
-    # TODO: neutral element depends on the operator (see Base's 2 and 3 argument `reduce`)
-    val = zero(T)
-
-    # reduce multiple elements per thread (grid-stride loop)
-    # TODO: step range (see JuliaGPU/CUDAnative.jl#12)
-    i = (blockIdx().x-UInt32(1)) * blockDim().x + threadIdx().x
-    step = blockDim().x * gridDim().x
-    while i <= len
-        @inbounds val = op(val, input[i])
-        i += step
-    end
-
-    val = reduce_block(op, val)
-
-    if threadIdx().x == UInt32(1)
-        @inbounds output[blockIdx().x] = val
-    end
-
-    return
+function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
+  # upload
+  lat_gpu = CuArray(lat)
+  lon_gpu = CuArray(lon)
+  
+  # allocate
+  n = length(lat)
+  rowresult_gpu = CuArray{Float32}(n, n)
+  
+  # calculate launch configuration
+  # NOTE: we want our launch configuration to be as square as possible,
+  #       because that minimizes shared memory usage
+  ctx = CuCurrentContext()
+  dev = device(ctx)
+  total_threads = min(n, attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK))
+  threads_x = floor(Int, sqrt(total_threads))
+  threads_y = total_threads ÷ threads_x
+  threads = (threads_x, threads_y)
+  blocks = ceil.(Int, n ./ threads)
+  
+  # calculate size of dynamic shared memory
+  shmem = 2 * sum(threads) * sizeof(Float32)
+  println(shmem)
+  @cuda (blocks, threads, shmem) pairwise_dist_kernel(lat_gpu, lon_gpu, rowresult_gpu, n)
+  
+  return Array(rowresult_gpu)
 end
 
-"""
-Reduce a large array.
-Kepler-specific implementation, ie. you need sm_30 or higher to run this code.
-"""
-function gpu_reduce(op::Function, input::CuVector{T}, output::CuVector{T}) where {T}
-    len = length(input)
 
-    # TODO: these values are hardware-dependent, with recent GPUs supporting more threads
-    threads = 512
-    blocks = min((len + threads - 1) ÷ threads, 1024)
+# generate reasonable data
+const n = 10000
+const lat = rand(Float32, n) .* 45
+const lon = rand(Float32, n) .* -120
 
-    # the output array must have a size equal to or larger than the number of thread blocks
-    # in the grid because each block writes to a unique location within the array.
-    if length(output) < blocks
-        throw(ArgumentError("output array too small, should be at least $blocks elements"))
-    end
+using Compat
+using Compat.Test
 
-    @cuda (blocks,threads) reduce_grid(op, input, output, Int32(len))
-    @cuda (1,1024) reduce_grid(op, output, output, Int32(blocks))
-
-    return
-end
-ctx = CuCurrentContext()
-dev = device(ctx)
-if capability(dev) < v"3.0"
-    warn("this example requires a newer GPU")
-    exit(0)
-end
-
-len = 10^7
-input = ones(Int32, len)
-
-# CPU
-cpu_val = reduce(+, input)
-
-# CUDAnative
-let
-    gpu_input = CuArray(input)
-    gpu_output = similar(gpu_input)
-    gpu_reduce(+, gpu_input, gpu_output)
-    gpu_val = Array(gpu_output)[1]
-    @assert cpu_val == gpu_val
-end
+@test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon)

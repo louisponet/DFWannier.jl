@@ -1,0 +1,23 @@
+Adventures of learning CUDA from within Julia.
+
+Intro
+
+What did I want to achieve
+
+First nontrivial success
+  Rewriting the bloch sum construction was not so bad. Things went rather smooth and there were no obvious hickups.
+  This was greatly due to the nature of the problem. This was basically a complicated map from one array together with some indices and coefficients to another.
+  give some hints etc.
+
+  It turned out that memory was the biggest bottleneck. However, for now everything worked and with some fiddling there was already some speedup(very marginally)
+
+Ups and Downs of memory
+  fiddle around with the bloch sums to minimize memory transfer.
+
+Reduction
+  Now that the bloch sum construction worked ok, I wanted to implement a way to also calculated stuff between wavefunctions.
+  This implied that some kind of integral/reduction over the wavefunctions would happen. 
+
+  It turns out that indices are not really stable, if you have more total threads than the dimensions of your data!
+
+  end
