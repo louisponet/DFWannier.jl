@@ -62,7 +62,7 @@ function read_xsf_file(filename::String, atom::PhysAtom, T=Float32)
         end
         return out
       end
-      if line == "BEGIN_DATAGRID_3D_UNKNOWN"
+      if contains(line, "DATAGRID_3D_UNKNOWN")
         line0 = split(readline(f))
         line1 = split(readline(f))
         line2 = split(readline(f))
