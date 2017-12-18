@@ -1,95 +1,38 @@
+#does this really need the checking for corruption stuff?
 """
     read_xsf_file(filename::String, atom::PhysAtom, T=Float32)
 
 Returns a Wfc3D{T} upon reading a Wannier wavefunction file. The atom specified is used in calculations such as angular momentum calculations.
 """
-function read_xsf_file(filename::String, atom::PhysAtom, T=Float32)
+function read_xsf_file(filename::String, atom::PhysAtom{T}) where T
   open(filename) do f
-    primCell = zeros(T,3,3)
     while !eof(f)
       line = readline(f)
       if line == "PRIMVEC"
-        line0 = split(readline(f))
-        line1 = split(readline(f))
-        line2 = split(readline(f))
-        primCell[1,:] = map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),line0)
-        primCell[2,:] = map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),line1)
-        primCell[3,:] = map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),line2)
+        cell  = [Point3D{T}(map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),split(readline(f)))) for i=1:3]
       end
-      if line == " DATAGRID_3D_DENSITY"
-        line0 = split(readline(f))
-        line1 = split(readline(f))
-        line2 = split(readline(f))
-        line3 = split(readline(f))
-        line4 = split(readline(f))
-        nx = parse(Int,line0[1])
-        ny = parse(Int,line0[2])
-        nz = parse(Int,line0[3])
-        origin = Point3D{T}(parse(T,line1[1]),parse(T,line1[2]),parse(T,line1[3]))
-        a_vec = [parse(T,line2[1]),parse(T,line2[2]),parse(T,line2[3])]
-        b_vec = [parse(T,line3[1]),parse(T,line3[2]),parse(T,line3[3])]
-        c_vec = [parse(T,line4[1]),parse(T,line4[2]),parse(T,line4[3])]
-        a_array = collect(T,linspace(0, 1, nx))
-        b_array = collect(T,linspace(0, 1, ny))
-        c_array = collect(T,linspace(0, 1, nz))
-        out = Wfc3D(Array{WfcPoint3D{T},3}(nx,ny,nz),[Point3D{T}(primCell[1,:]);Point3D{T}(primCell[2,:]);Point3D{T}(primCell[3,:])],atom)
-        line = readline(f)
-        k=1
-        k1=1
-        k2=1
-        while line!= "END_DATAGRID_3D"
-          tmp = Array{Complex{T}}(map(x->(v = tryparse(T,x); isnull(v) ? Complex(0.0,0.0) : Complex{T}(get(v),0.0)),split(line)))
-          for t in tmp
-            x = origin.x+(a_vec*a_array[k])[1]+(b_vec*b_array[k1])[1]+(c_vec*c_array[k2])[1]
-            y = origin.y+(a_vec*a_array[k])[2]+(b_vec*b_array[k1])[2]+(c_vec*c_array[k2])[2]
-            z = origin.z+(a_vec*a_array[k])[3]+(b_vec*b_array[k1])[3]+(c_vec*c_array[k2])[3]
-            out.points[k,k1,k2] = WfcPoint3D{T}(t,Point3D{T}(x,y,z))
-            if k<nx
-              k+=1
-            else
-              k=1
-              k1+=1
-              if k1>ny
-                k1=1
-                k2+=1
-                if k2>nz
-                  k2=1
-                end
-              end
-            end
-          end
-          line = readline(f)
-        end
-        return out
-      end
-      if contains(line, "DATAGRID_3D_UNKNOWN")
-        line0 = split(readline(f))
-        line1 = split(readline(f))
-        line2 = split(readline(f))
-        line3 = split(readline(f))
-        line4 = split(readline(f))
-        nx = parse(Int,line0[1])
-        ny = parse(Int,line0[2])
-        nz = parse(Int,line0[3])
-        origin = Point3D{T}(parse(T,line1[1]),parse(T,line1[2]),parse(T,line1[3]))
-        a_vec = [parse(T,line2[1]),parse(T,line2[2]),parse(T,line2[3])]
-        b_vec = [parse(T,line3[1]),parse(T,line3[2]),parse(T,line3[3])]
-        c_vec = [parse(T,line4[1]),parse(T,line4[2]),parse(T,line4[3])]
-        a_array = collect(T,linspace(0, 1, nx))
-        b_array = collect(T,linspace(0, 1, ny))
-        c_array = collect(T,linspace(0, 1, nz))
-        out = Wfc3D(Array{WfcPoint3D{T},3}(nx,ny,nz),[Point3D(primCell[1,:]);Point3D(primCell[2,:]);Point3D(primCell[3,:])],atom)
-        line = readline(f)
-        k=1
-        k1=1
-        k2=1
-        while line!= "END_DATAGRID_3D"
-          tmp = Array{Complex{T}}(map(x->(v = tryparse(T,x); isnull(v) ? Complex(0.0,0.0) : Complex{T}(get(v),0.0)),split(line)))
-          for t in tmp
-            
-            x = origin.x+(a_vec*a_array[k])[1]+(b_vec*b_array[k1])[1]+(c_vec*c_array[k2])[1]
-            y = origin.y+(a_vec*a_array[k])[2]+(b_vec*b_array[k1])[2]+(c_vec*c_array[k2])[2]
-            z = origin.z+(a_vec*a_array[k])[3]+(b_vec*b_array[k1])[3]+(c_vec*c_array[k2])[3]
+
+      if line == " DATAGRID_3D_DENSITY" || contains(line, "DATAGRID_3D_UNKNOWN") 
+        nx, ny, nz = parse.(Int,split(readline(f)))
+        origin     = Point3D{T}(parse.(T,split(readline(f))))
+        a_vec      = parse.(T,split(readline(f)))
+        b_vec      = parse.(T,split(readline(f)))
+        c_vec      = parse.(T,split(readline(f)))
+        a_array    = collect(T,linspace(0, 1, nx))
+        b_array    = collect(T,linspace(0, 1, ny))
+        c_array    = collect(T,linspace(0, 1, nz))
+        out        = Wfc3D(Array{WfcPoint3D{T},3}(nx,ny,nz),cell,atom)
+        line       = readline(f)
+        k  = 1
+        k1 = 1
+        k2 = 1
+        while line != "END_DATAGRID_3D"
+          #uncomment this line if there is data corruption 
+          # tmp = Array{Complex{T}}(map(x->(v = tryparse(T,x); isnull(v) ? Complex(0.0,0.0) : Complex{T}(get(v),0.0)),split(line)))
+          for t in map(x->Complex{T}(x,zero(T)),parse.(T,split(line)))
+            x = origin.x + (a_vec * a_array[k])[1] + (b_vec * b_array[k1])[1] + (c_vec * c_array[k2])[1]
+            y = origin.y + (a_vec * a_array[k])[2] + (b_vec * b_array[k1])[2] + (c_vec * c_array[k2])[2]
+            z = origin.z + (a_vec * a_array[k])[3] + (b_vec * b_array[k1])[3] + (c_vec * c_array[k2])[3]
             out.points[k,k1,k2] = WfcPoint3D{T}(t,Point3D{T}(x,y,z))
             if k<nx
               k+=1
@@ -114,7 +57,7 @@ function read_xsf_file(filename::String, atom::PhysAtom, T=Float32)
 end
 
 "Returns a Wfc3D{T} that is centered around an atom at the origin with 0 soc strength."
-read_xsf_file(filename::String, T=Float32) = read_xsf_file(filename,PhysAtom(),T)
+read_xsf_file(filename::String, T=Float32) = read_xsf_file(filename,PhysAtom{T}())
 
 """
     write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
