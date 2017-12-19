@@ -101,14 +101,14 @@ mutable struct WannierModel{T<:AbstractFloat}
   k_points::Array{Array{T,1},1}
   bands::Array{WannierBand{T},1}
   atoms::Array{PhysAtom{T},1}
-  function WannierModel{T}(dir::String, k_points, atoms::Array{<:PhysAtom}) where T<:AbstractFloat
+  function WannierModel{T}(dir::String, k_points, atoms::Array{PhysAtom{T},1}) where T<:AbstractFloat
     dir = form_directory(dir)
     wfc_files = search_dir(dir,".xsf")
     hami_file = search_dir(dir,"_hr.dat")[1]
     dip_file = search_dir(dir,"_r.dat")[1]
     wfcs = Array{Wfc3D{T},1}(length(wfc_files))
     Threads.@threads for i=1:length(wfcs)
-      wfcs[i] = read_xsf_file(dir*wfc_files[i],atoms[i],T)
+      wfcs[i] = read_xsf_file(dir*wfc_files[i],atoms[i])
     end
     hami_raw = read_hami_file(dir*hami_file,T)
     dip_raw = read_dipole_file(dir*dip_file,T)
@@ -118,7 +118,7 @@ mutable struct WannierModel{T<:AbstractFloat}
     return new(hami_raw,dip_raw,wfcs,k_points,WannierBand{T}[],atoms)
   end
 end
-function WannierModel{T}(dir::String, k_point_file::String, atoms::Array{<:PhysAtom},args...) where T<:AbstractFloat
+function WannierModel{T}(dir::String, k_point_file::String, atoms::Array{PhysAtom{T},1},args...) where T<:AbstractFloat
   k_points = read_ks_from_qe_bands_file(k_point_file,T)[2]
   return WannierModel{T}(dir,k_points,atoms,args...)
 end

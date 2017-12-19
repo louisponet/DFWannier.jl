@@ -65,8 +65,6 @@ function find_start(wfc::Wfc3D,R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tup
   end
 end
 
-
-
 "Calculates the angular momentum between two wavefunctions and around the center."
 function calculate_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3D{T}) where T<:AbstractFloat
   origin = wfc1[1,1,1].p
@@ -95,35 +93,40 @@ function calculate_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3D{T}) wh
     @inbounds for i1 = 2:size(wfc1.points)[2]-1
       @inbounds for i = 2:size(wfc1.points)[1]-1
         
-        ddax = (wfc2[i+1,i1,i2].w-wfc2[i-1,i1,i2].w)*dadx
-        ddbx = (wfc2[i,i1+1,i2].w-wfc2[i,i1-1,i2].w)*dbdx
-        ddcx = (wfc2[i,i1,i2+1].w-wfc2[i,i1,i2-1].w)*dcdx
+        dwx = wfc2[i+1,i1,i2].w-wfc2[i-1,i1,i2].w
+        dwy = wfc2[i,i1+1,i2].w-wfc2[i,i1-1,i2].w
+        dwz = wfc2[i,i1,i2+1].w-wfc2[i,i1,i2-1].w
+        rx = wfc2[i,i1,i2].p.x-center_x
+        ry = wfc2[i,i1,i2].p.y-center_y
+        rz = wfc2[i,i1,i2].p.z-center_z
+        
+        ddax = dwx*dadx
+        ddbx = dwy*dbdx
+        ddcx = dwz*dcdx
         ddx = ddax+ddbx+ddcx
         
-        dday = (wfc2[i+1,i1,i2].w-wfc2[i-1,i1,i2].w)*dady
-        ddby = (wfc2[i,i1+1,i2].w-wfc2[i,i1-1,i2].w)*dbdy
-        ddcy = (wfc2[i,i1,i2+1].w-wfc2[i,i1,i2-1].w)*dcdy
+        dday = dwx*dady
+        ddby = dwy*dbdy
+        ddcy = dwz*dcdy
         ddy = dday+ddby+ddcy
         
-        ddaz = (wfc2[i+1,i1,i2].w-wfc2[i-1,i1,i2].w)*dadz
-        ddbz = (wfc2[i,i1+1,i2].w-wfc2[i,i1-1,i2].w)*dbdz
-        ddcz = (wfc2[i,i1,i2+1].w-wfc2[i,i1,i2-1].w)*dcdz
+        ddaz = dwx*dadz
+        ddbz = dwy*dbdz
+        ddcz = dwz*dcdz
         ddz = ddaz+ddbz+ddcz
-        
-        Lx += conj(wfc1[i,i1,i2].w)*-1im*((wfc2[i,i1,i2].p.y-center_y)*ddz-(wfc2[i,i1,i2].p.z-center_z)*ddy)
-        Ly += conj(wfc1[i,i1,i2].w)*-1im*((wfc2[i,i1,i2].p.z-center_z)*ddx-(wfc2[i,i1,i2].p.x-center_x)*ddz)
-        Lz += conj(wfc1[i,i1,i2].w)*-1im*((wfc2[i,i1,i2].p.x-center_x)*ddy-(wfc2[i,i1,i2].p.y-center_y)*ddx)
-        n1+= norm(wfc1[i,i1,i2].w)^2
-        n2+= norm(wfc2[i,i1,i2].w)^2
+
+        Lx += conj(wfc1[i,i1,i2].w) * (ry*ddz - rz*ddy)
+        Ly += conj(wfc1[i,i1,i2].w) * (rz*ddx - rx*ddz)
+        Lz += conj(wfc1[i,i1,i2].w) * (rx*ddy - ry*ddx)
+        n1 += abs2(wfc1[i,i1,i2].w)
+        n2 += abs2(wfc2[i,i1,i2].w)
       end
     end
   end
   n=sqrt(n1*n2)
   # return Lx,Ly,Lz
-  return Lx/n,Ly/n,Lz/n
+  return -1im*Lx/n,-1im*Ly/n,-1im*Lz/n
 end
-
-
 
 "Calculates the angular momenta between two wavefunctions, around the atom of the second wavefunction."
 function calculate_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T}) where T<:AbstractFloat
