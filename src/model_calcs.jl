@@ -1,9 +1,5 @@
 function_names = ["calculate_eig_soc","calculate_eig_pot","calculate_eig_angmom","calculate_eig_pot_angmom","calculate_eig_pot_soc","calculate_eig_angmom_soc","calculate_eig_pot_angmom_soc",
 "calculate_eig_cm","calculate_eig_cm_soc","calculate_eig_cm_pot","calculate_eig_cm_pot_soc","calculate_eig_cm_angmom","calculate_eig_cm_angmom_soc","calculate_eig_cm_pot_angmom","calculate_eig_cm_pot_angmom_soc"]
-
-
-
-
 #make this more flexible
 if gpu_enabled
   begin
@@ -606,3 +602,84 @@ else
     end
   end
 end
+
+type KPoint
+  k::Array{Float64,1}
+  hk::Array{Complex{Float64},2}
+  eigvec::Array{Complex{Float64},2}
+  eigval::Array{Complex{Float64},1}
+end
+
+function calculate()
+nK_1 = 10
+nK_2 = 10
+nK_3 = 10
+nWan = 16
+orbSize=[nWan,nWan]
+n1 = 300
+n2 = 50
+R = [0.0,0.0,2.]
+orb = [1,1]
+
+k_grid_up = [KPoint([kx,ky,kz], zeros(nWan,nWan), zeros(nWan,nWan),[0.]) for kx = 0.5/nK_1:1/nK_1:1, ky = 0.5/nK_2:1/nK_2:1, kz = 0.5/nK_3:1/nK_3:1]
+k_grid_dn = [KPoint([kx,ky,kz], zeros(nWan,nWan), zeros(nWan,nWan),[0.]) for kx = 0.5/nK_1:1/nK_1:1, ky = 0.5/nK_2:1/nK_2:1, kz = 0.5/nK_3:1/nK_3:1]
+
+ham_up = readHamiFile("/home/ponet/Documents/PhD/random/06NiO_up_hr.dat")
+ham_dn = readHamiFile("/home/ponet/Documents/PhD/random/06NiO_dn_hr.dat")
+
+occ    = 0
+ekin1  = 0
+totocc = 0
+μ = 11.7868
+eT = 0.01
+D = zeros(Complex{Float64}, nWan, nWan)
+for (i,k) in enumerate(k_grid_up)
+  k_grid_up[i].hk     = hamiFromK(ham_up,k.k)
+  eigval, eigvec      = eig(k_grid_up[i].hk)
+  k_grid_up[i].eigval = eigval
+  k_grid_up[i].eigvec = eigvec
+  for eig in k_grid_up[i].eigval
+    occ     =1. / (exp((eig - μ) / eT) + 1.)
+    ekin1  += eig * occ
+    totocc += occ
+  end
+  D += k_grid_up[i].hk
+end
+for (i,k) in enumerate(k_grid_dn)
+  k_grid_dn[i].hk     = hamiFromK(ham_dn,k.k)
+  eigval, eigvec      = eig(k_grid_dn[i].hk)
+  k_grid_dn[i].eigval = eigval
+  k_grid_dn[i].eigvec = eigvec
+  for eig in k_grid_dn[i].eigval
+    occ     = 1. / (exp((eig - μ) / eT) + 1.)
+    ekin1  += eig * occ
+    totocc += occ
+  end
+  D -= k_grid_dn[i].hk
+end
+println(totocc/1000)
+
+D /= (nK_1 * nK_2 * nK_3)
+ω_grid = [ω + 0.5im for ω = -30:30/n1:0]
+ω_grid = vcat(ω_grid, [ω * 1im for ω = 0.5:-0.5/n2:-0.01])
+k_grid_up[1,1,1].eigval
+k_grid_up[1,1,1].hk[1:5,1:5]
+j=0
+for (i1, ω) in enumerate(ω_grid[1:end - 1])
+  g_up = zeros(Complex{Float64}, nWan, nWan)
+  g_dn = zeros(Complex{Float64}, nWan, nWan)
+  for (i,k) in enumerate(k_grid_up)
+    g_up +=  k.eigvec * diagm([1/(μ + ω - k.eigval[i]) for i=1:16]) * k.eigvec' * exp(2im * π * dot(-R, k.k))
+  end
+  for (i,k) in enumerate(k_grid_dn)
+    π
+    g_dn +=  k.eigvec * diagm([1/(μ + ω - k.eigval[i]) for i=1:16]) * k.eigvec' * exp(2im * π * dot(R, k.k))
+  end
+  # g_up = g_up'
+  # g_dn = g_dn'
+  j += imag(trace(D[1:5, 1:5] * g_up[1:5, 6:10] * D[6:10, 6:10] * g_dn[6:10, 1:5]) * (ω_grid[i1 + 1] - ω_grid[i1]))
+end
+println(j /= (2 * π * nK_1^2 * nK_2^2 * nK_3^2))
+end
+
+@time calculate()

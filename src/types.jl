@@ -78,7 +78,6 @@ mutable struct WannierBand{T<:AbstractFloat} <: Band
   eigvals::Array{T,1}
   eigvec::Array{Array{Complex{T},1},1}
   cms::Array{Point3D{T},1}
-  # epots::Array{T,1}
   angmoms::Array{Array{Point3D{T},1},1}
   spins::Array{Array{Point3D{T},1},1}
   k_points::Array{Array{T,1},1}
@@ -93,6 +92,7 @@ if gpu_enabled
     atom::PhysAtom{T}
   end
 end
+
 "Start of any Wannier calculation. Gets constructed by reading the Wannier Hamiltonian and wavefunctions, and gets used in Wannier calculations."
 mutable struct WannierModel{T<:AbstractFloat}
   hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}},1}
@@ -103,15 +103,15 @@ mutable struct WannierModel{T<:AbstractFloat}
   atoms::Array{PhysAtom{T},1}
   function WannierModel{T}(dir::String, k_points, atoms::Array{PhysAtom{T},1}) where T<:AbstractFloat
     dir = form_directory(dir)
-    wfc_files = search_dir(dir,".xsf")
-    hami_file = search_dir(dir,"_hr.dat")[1]
-    dip_file = search_dir(dir,"_r.dat")[1]
+    wfc_files = search_dir(dir, ".xsf")
+    hami_file = search_dir(dir, "_hr.dat")[1]
+    dip_file  = search_dir(dir, "_r.dat")[1]
     wfcs = Array{Wfc3D{T},1}(length(wfc_files))
     Threads.@threads for i=1:length(wfcs)
       wfcs[i] = read_xsf_file(dir*wfc_files[i],atoms[i])
     end
     hami_raw = read_hami_file(dir*hami_file,T)
-    dip_raw = read_dipole_file(dir*dip_file,T)
+    dip_raw  = read_dipole_file(dir*dip_file,T)
     if gpu_enabled
       wfcs = wfcs .|> host2gpu
     end
