@@ -53,7 +53,7 @@ begin
     # push!(coeff,Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im)))
     push!(coeff,CuArray(Complex{T}(exp(dot(-2*pi*k,[R1,R2,R3])*1im))))
   end
-  println(length(indices),length(coeff))
+  dfprintln(length(indices),length(coeff))
   k_wfcs = Array{Wfc3D_gpu{T},1}()
   #optimize so we dont redo the zero index ...
   for wfc in [test_wfc1,test_wfc2]
@@ -160,7 +160,7 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
   
   # calculate size of dynamic shared memory
   shmem = 2 * sum(threads) * sizeof(Float32)
-  println(shmem)
+  dfprintln(shmem)
   @cuda (blocks, threads, shmem) pairwise_dist_kernel(lat_gpu, lon_gpu, rowresult_gpu, n)
   
   return Array(rowresult_gpu)

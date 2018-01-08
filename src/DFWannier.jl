@@ -1,6 +1,6 @@
 #Cleanup don't export everything that doesn't have to be exported
 module DFWannier
-  if Pkg.installed.(["CUDAdrv","CuArrays","CUDAnative"]) != [nothing for _=1:3]
+  if (Pkg.installed.(["CUDAdrv","CuArrays","CUDAnative"]) .!= [nothing for _=1:3])==[true for __=1:3]
     gpu_enabled = true
   else
     gpu_enabled = false
@@ -9,6 +9,7 @@ module DFWannier
   @reexport using DFControl
   using RecipesBase
   using LaTeXStrings
+  using StaticArrays
   if gpu_enabled 
     using CuArrays
     using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
@@ -32,7 +33,7 @@ module DFWannier
   include("file_processing.jl")
   export read_xsf_file
   export write_xsf_file
-
+  
   include("wan_calcs.jl")
   if gpu_enabled
     include("wan_calcs_gpu.jl")
@@ -47,4 +48,9 @@ module DFWannier
   include("hami_calcs.jl")
   include("model_calcs.jl")
   include("plotting.jl")
+  include("exchange.jl")
+  export AtomOrbInfo
+  export WannExchanges
+  export exchange_between
+  export calculate_exchanges
 end
