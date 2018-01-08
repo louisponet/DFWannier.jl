@@ -165,7 +165,6 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
                 g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(2im * π * dot(sign * R, k))
             end
         end
-        Jmn = Jmn_threads[Threads.threadid()]
         i = 1
         for m = 1:n_orb_infos
             s_m = orb_infos[m].start
