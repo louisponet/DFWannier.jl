@@ -132,7 +132,6 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
                 Threads.lock(mutex)
                 D -= hami_k
                 Threads.unlock(mutex)
-            else
             end
         end
     end
