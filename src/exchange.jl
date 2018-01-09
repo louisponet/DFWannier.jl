@@ -118,8 +118,8 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     D      = zeros(Complex{Float64}, n_orb, n_orb)
     j=1
     for  hami in [hami_raw_up, hami_raw_dn]
-        # Threads.@threads for i=1:length(k_grid)
-        for i=1:length(k_grid)
+        Threads.@threads for i=1:length(k_grid)
+        # for i=1:length(k_grid)
             k = k_grid[i]
             hami_k         = hami_from_k(hami, k)
             eigval, eigvec = sorted_eig(hami_k)
@@ -142,8 +142,8 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
                 D -= hami_k
                 Threads.unlock(mutex)
             end
-            j+=1
         end
+        j+=1
     end
     k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
 
@@ -163,8 +163,8 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     end
     # Jmn_threads = fill(t_Jmn, Threads.nthreads())
     # Threads.@threads for i=1:length(Jmn)
-    for j=1:length(ω_grid[1:end-1])
-    # Threads.@threads for j=1:length(ω_grid[1:end-1])
+    # for j=1:length(ω_grid[1:end-1])
+    Threads.@threads for j=1:length(ω_grid[1:end-1])
         ω  = ω_grid[j]
         dω = ω_grid[j + 1] - ω
 
