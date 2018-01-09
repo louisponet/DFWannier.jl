@@ -184,7 +184,7 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
                 l_n = orb_infos[n].last
                 Threads.lock(mutex)
                 Jmn[i] += imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
-                threads.unlock(mutex)
+                Threads.unlock(mutex)
                 i += 1
             end
         end
