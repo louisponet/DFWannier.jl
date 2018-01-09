@@ -203,7 +203,7 @@ end
 end
 
 exchange_between(atom1::Int, atom2::Int, exchanges::WannExchanges) =
-    trace(exchanges.Jmn[Jmn_index(atom1, atom2, length(exchanges.orb_infos))])
+    trace(exchanges.Jmn[Jmn_index(atom1, atom2, length(exchanges.infos))])
     
 all_exchanges(exchanges::WannExchanges) = [trace(j) for j in exchanges.Jmn]
 
