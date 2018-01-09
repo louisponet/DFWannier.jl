@@ -85,25 +85,19 @@ Projections and atom datablocks are to be found in the corresponding wannier inp
 It turns out the ordering is first projections, then atom order in the atoms datablock.
 """
 struct WannExchanges{T <: AbstractFloat}
-    Jmn       ::Array{Array{T,2},1}
-    orb_infos ::Array{AtomOrbInfo,1}
+    Jmn    ::Array{Array{T,2},1}
+    infos  ::Array{AtomOrbInfo,1}
+    totocc ::T
 end
-function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array{AtomOrbInfo,1}, fermi::T) where T <:AbstractFloat
-                             nk = (10, 10, 10)
-                             R    = [0, 0, 0]
-                             ωh   = T(-30.) #starting energy
-                             ωv   = T(0.5) #height of vertical contour
-                             n_ωh = 300
-                             n_ωv = 50
-                             temp = T(0.01)
-# function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array{AtomOrbInfo,1}, fermi::T; 
-#                              nk::NTuple{3, Int} = (10, 10, 10),
-#                              R::Array{Int,1}    = [0, 0, 0],
-#                              ωh::T              = T(-30.), #starting energy
-#                              ωv::T              = T(0.5), #height of vertical contour
-#                              n_ωh::Int          = 300,
-#                              n_ωv::Int          = 50,
-#                              temp::T            = T(0.01)) where T <: AbstractFloat
+
+function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array{AtomOrbInfo,1}, fermi::T; 
+                             nk::NTuple{3, Int} = (10, 10, 10),
+                             R::Array{Int,1}    = [0, 0, 0],
+                             ωh::T              = T(-30.), #starting energy
+                             ωv::T              = T(0.5), #height of vertical contour
+                             n_ωh::Int          = 300,
+                             n_ωv::Int          = 50,
+                             temp::T            = T(0.01)) where T <: AbstractFloat
 
     k_grid      = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
     n_orb       = size(hami_from_k(hami_raw_up, k_grid[1]))[1]
@@ -113,7 +107,7 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     k_eigvec_dn = fill(Array{Complex{T}}(n_orb, n_orb), length(k_grid))
     # ekin1  = 0 #not used
     mutex = Threads.Mutex() 
-    # totocc = zero(Complex{T})
+    totocc = zero(Complex{T})
     μ      = fermi
     D      = zeros(Complex{Float64}, n_orb, n_orb)
     j=1
@@ -123,10 +117,10 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
             k = k_grid[i]
             hami_k         = hami_from_k(hami, k)
             eigval, eigvec = sorted_eig(hami_k)
-            # for val in eigval
-            #     # ekin1  += eig * occ
-            #     totocc += 1. / (exp((val - μ) / temp) + 1.)
-            # end
+            for val in eigval
+                # ekin1  += eig * occ
+                totocc += 1. / (exp((val - μ) / temp) + 1.)
+            end
 
             if j == 1
                 k_eigval_up[i] = eigval
@@ -192,7 +186,7 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
 
     Jmn ./= 2π*prod(nk)^2
     Jmn .*= 1e3
-    return WannExchanges(Jmn, orb_infos)
+    return WannExchanges(Jmn, orb_infos, totocc)
 end
 function WannExchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, args...; kwargs...)
     tmp = orbs_info(wannier_input_file)
@@ -201,17 +195,18 @@ end
 
 @inline function Jmn_index(atom1::Int, atom2::Int, total::Int)
     index = -1
-    for i=1:atom1-1
-        index+=total-i-1
+    for i = 1:atom1 - 1 
+        index += total - i - 1
     end
-    index+=atom2
+    index += atom2
     return index
 end
 
 exchange_between(atom1::Int, atom2::Int, exchanges::WannExchanges) =
     trace(exchanges.Jmn[Jmn_index(atom1, atom2, length(exchanges.orb_infos))])
     
-
+all_exchanges(exchanges::WannExchanges) = [trace(j) for j in exchanges.Jmn]
 
                              
+
 
