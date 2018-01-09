@@ -147,7 +147,7 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     end
     k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
 
-    D /= prod(nk)
+    D /= prod(nk)::Int
     
     # ω_grid = [ω * 1im for ω = 0.0:ωv/n_ωv:ωv]
     # ω_grid = vcat(ω_grid, [ω + ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.])
