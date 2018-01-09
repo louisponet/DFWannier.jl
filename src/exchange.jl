@@ -14,7 +14,7 @@ end
 orbsize(orbital::Orbital) = Int(orbital) * 2 + 1
 orbsize(orbital::Symbol)  = Orbital(orbital) * 2 + 1 
 
-struct AtomOrbInfo{T <: AbstractFloat}
+struct WannProjection{T <: AbstractFloat}
     orb::Symbol
     atom::Symbol
     start::Int
@@ -23,7 +23,7 @@ struct AtomOrbInfo{T <: AbstractFloat}
     position::Point3D{T}
 end
 
-function orbs_info(filename::String, T=Float64)
+function get_wan_projections(filename::String, T=Float64)
     projections = Tuple[]
     atoms       = Tuple[]
     open(filename, "r") do f
@@ -60,16 +60,16 @@ function orbs_info(filename::String, T=Float64)
         end
     end
 
-    out = Array{AtomOrbInfo, 1}()
+    out = Array{WannProjection, 1}(length(atoms))
     t_start = 1
     for (proj_at, projs) in projections
         for proj in projs
-            for (pos_at, pos) in atoms
+            for (i, (pos_at, pos)) in enumerate(atoms)
                 if proj_at != pos_at
                     continue
                 end
                 size = orbsize(proj)
-                push!(out, AtomOrbInfo(proj, pos_at, t_start, size, t_start + size - 1, pos))
+                out[i] = WannProjection(proj, pos_at, t_start, size, t_start + size - 1, pos)
                 t_start += size
             end
         end
@@ -86,11 +86,11 @@ It turns out the ordering is first projections, then atom order in the atoms dat
 """
 struct WannExchanges{T <: AbstractFloat}
     Jmn    ::Array{Array{T,2},1}
-    infos  ::Array{AtomOrbInfo,1}
+    infos  ::Array{WannProjection,1}
     totocc ::T
 end
 
-function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array{AtomOrbInfo,1}, fermi::T; 
+function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array{WannProjection,1}, fermi::T; 
                              nk::NTuple{3, Int} = (10, 10, 10),
                              R::Array{Int,1}    = [0, 0, 0],
                              ωh::T              = T(-30.), #starting energy
