@@ -88,14 +88,22 @@ struct WannExchanges{T <: AbstractFloat}
     Jmn       ::Array{Array{T,2},1}
     orb_infos ::Array{AtomOrbInfo,1}
 end
-function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array{AtomOrbInfo,1}, fermi::T; 
-                             nk::NTuple{3, Int} = (10, 10, 10),
-                             R::Array{Int,1}    = [0, 0, 0],
-                             ωh::T              = T(-30.), #starting energy
-                             ωv::T              = T(0.5), #height of vertical contour
-                             n_ωh::Int          = 300,
-                             n_ωv::Int          = 50,
-                             temp::T            = T(0.01)) where T <: AbstractFloat
+function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array{AtomOrbInfo,1}, fermi::T) where T <:AbstractFloat
+                             nk = (10, 10, 10)
+                             R    = [0, 0, 0]
+                             ωh   = T(-30.) #starting energy
+                             ωv   = T(0.5) #height of vertical contour
+                             n_ωh = 300
+                             n_ωv = 50
+                             temp = T(0.01)
+# function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array{AtomOrbInfo,1}, fermi::T; 
+#                              nk::NTuple{3, Int} = (10, 10, 10),
+#                              R::Array{Int,1}    = [0, 0, 0],
+#                              ωh::T              = T(-30.), #starting energy
+#                              ωv::T              = T(0.5), #height of vertical contour
+#                              n_ωh::Int          = 300,
+#                              n_ωv::Int          = 50,
+#                              temp::T            = T(0.01)) where T <: AbstractFloat
 
     k_grid      = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
     n_orb       = size(hami_from_k(hami_raw_up, k_grid[1]))[1]
