@@ -145,8 +145,8 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     
     # ω_grid = [ωh + ω * 1im for ω = -0.6/n_ωv:ωv/n_ωv:ωv]
     # ω_grid = vcat(ω_grid, [ω + ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.])
-    ω_grid = [ω + ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
-    ω_grid = vcat(ω_grid, [ω * 1im for ω = ωv:-ωv/n_ωv:-0.6/n_ωv])
+    ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
+    ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:-ωv/n_ωv:-0.00001])
 
     n_orb_infos = length(orb_infos)
     Jmn = Array{Matrix{T},1}()
@@ -184,7 +184,7 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
         end
     end
 
-    Jmn ./= 2π*prod(nk)^2
+    Jmn ./= -2π*prod(nk)^2
     Jmn .*= 1e3
     return WannExchanges(Jmn, orb_infos, real(totocc))
 end
