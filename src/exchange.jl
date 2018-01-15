@@ -32,7 +32,7 @@ function get_wan_projections(filename::String, T=Float64)
             if contains(line, "begin projections")
                 line = readline(f)
                 while !contains(line, "end")
-                    if contains(line, "!") || line == ""
+                    if contains(line, "!") || isempty(line)
                         line = lowercase(readline(f))
                     end
                     if contains(line, "random")
