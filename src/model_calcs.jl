@@ -71,7 +71,7 @@ if gpu_enabled
         push!(loop_end.args,cm_loop_end)
       end
       @eval function $(Symbol(name)){T<:AbstractFloat}(model::WannierModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
-        atoms = PhysAtom[]
+        atoms = Atom[]
         atom_indices = Int[]
         for wfc in model.wfcs
           if !in(wfc.atom,atoms)
@@ -244,7 +244,7 @@ if gpu_enabled
           k_wfcs[n] = Wfc3D_gpu(wfc.grid,CuArray(zeros(Complex{T},size(wfc.values))),wfc.cell,wfc.atom)
           push!(centers,CuArray([wfc.atom.center.x,wfc.atom.center.y,wfc.atom.center.z]))
         end
-        atoms = PhysAtom[]
+        atoms = Atom[]
         atom_indices = Int[]
         for wfc in model.wfcs
           if !in(wfc.atom,atoms)
@@ -405,7 +405,7 @@ else
         push!(loop_end.args,cm_loop_end)
       end
       @eval function $(Symbol(name)){T<:AbstractFloat}(model::WannierModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
-        atoms = PhysAtom[]
+        atoms = Atom[]
         atom_indices = Int[]
         for wfc in model.wfcs
           if !in(wfc.atom,atoms)
@@ -536,7 +536,7 @@ else
         push!(loop_end.args,cm_loop_end)
       end
       @eval function $(Symbol(name*"_bloch")){T<:AbstractFloat}(model::WannierModel{T},$(func_vars...),k_points::Array{Array{T,1},1})
-        atoms = PhysAtom[]
+        atoms = Atom[]
         atom_indices = Int[]
         for wfc in model.wfcs
           if !in(wfc.atom,atoms)

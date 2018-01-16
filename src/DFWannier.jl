@@ -19,7 +19,7 @@ module DFWannier
     ctx = CuContext(dev)
   end
   include("types.jl")
-  export PhysAtom
+  export Atom
   #---#
   export WfcPoint3D
   export Wfc3D
@@ -30,7 +30,7 @@ module DFWannier
   export WannierModel
 
   include("utils.jl") 
-  include("file_processing.jl")
+  include("fileio.jl")
   export read_xsf_file
   export write_xsf_file
   

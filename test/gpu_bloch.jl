@@ -1,7 +1,7 @@
 using DFWannier
 T= Float32
-x = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-2*0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,2*0.318205]...) for i=1:4]...],true);
-x2 = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[PhysAtom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[PhysAtom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...]);
+x = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[Atom(T[0.0,0.0,-0.0239129,-2*0.155854]...) for i=1:4]...,[Atom(T[0.0,0.0,5.5540692,2*0.318205]...) for i=1:4]...],true);
+x2 = WannierModel{T}("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/","/home/ponet/Documents/PhD/GeTe/SOC/GeTe_bands.out",[[Atom(T[0.0,0.0,-0.0239129,-0.155854]...) for i=1:4]...,[Atom(T[0.0,0.0,5.5540692,0.318205]...) for i=1:4]...]);
 using Plots
 @time test = calculate_eig_angmom_soc_bloch_gpu(x,90:0.1:110.);
 @time test1 = calculate_eig_angmom_soc_bloch_gpu(x,90:0.1:110.);
@@ -21,8 +21,8 @@ test = construct_bloch_sum(x.wfcs[1],x.k_points[1])
 Array(test.values)
 test = construct_bloch_sum(x2.wfcs[1],x2.k_points[1])
 T=Float32
-test_wfc1 =  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00003.xsf",PhysAtom{T}(0.0,0.0,0.1,0.1),T))
-test_wfc2=  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00004.xsf",PhysAtom{T}(0.0,0.0,0.1,0.1),T))
+test_wfc1 =  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00003.xsf",Atom{T}(0.0,0.0,0.1,0.1),T))
+test_wfc2=  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00004.xsf",Atom{T}(0.0,0.0,0.1,0.1),T))
 dims = size(test_wfc1.values)
 cu_dims = CuArray(UInt32[dims...])
 Lx = CuArray(zeros(Complex{T},dims))
