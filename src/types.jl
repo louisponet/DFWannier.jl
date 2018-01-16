@@ -22,7 +22,7 @@ zero(::Type{WfcPoint3D{T}}) where T<:AbstractFloat = WfcPoint3D(zero(Complex{T})
 struct Atom{T<:AbstractFloat}
     center    ::Point3D{T}
     l_soc     ::T
-    mag_moment::T
+    mag_moment::Array{T,1} #this should be Point3D or Vec but ok
 end
 Atom(x, y, z, l_soc::T) where T<:AbstractFloat = 
     Atom(Point3D(x, y, z), l_soc, T(0.0))
