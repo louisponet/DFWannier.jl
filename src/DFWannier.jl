@@ -30,10 +30,7 @@ module DFWannier
   export WannierModel
 
   include("utils.jl") 
-  include("fileio.jl")
-  export read_xsf_file
-  export write_xsf_file
-  
+
   include("wan_calcs.jl")
   if gpu_enabled
     include("wan_calcs_gpu.jl")
@@ -53,4 +50,9 @@ module DFWannier
   export WannExchanges
   export exchange_between
   export calculate_exchanges
+  include("fileio.jl")
+  export read_xsf_file
+  export write_xsf_file
+  export read_exchanges
+  export write_exchanges
 end
