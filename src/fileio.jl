@@ -319,7 +319,7 @@ end
 
 function write_exchanges(filename::String, exchanges::WannExchanges)
     open(filename, "w") do f
-        write(f, "$(length(exchanges.infos))\n"
+        write(f, "$(length(exchanges.infos))\n")
         for i = 1:length(exchanges.infos)
             info1 = exchanges.infos[i]
             for j = i+1:length(exchanges.infos)
