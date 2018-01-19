@@ -40,6 +40,7 @@ function get_wan_projections(filename::String, T=Float64)
                         error("Can't read the atomic info when projections are random!")
                     end
                     split_line   = DFControl.strip_split(line, ':')
+                    println(split_line)
                     atom         = Symbol(split_line[1])
                     _projections = [Symbol(proj) for proj in DFControl.strip_split(split_line[2], ';')]
                     push!(projections, (atom, _projections)) 
