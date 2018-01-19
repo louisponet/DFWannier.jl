@@ -131,14 +131,14 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
                 k_eigval_up[i] = eigval
                 k_eigvec_up[i] = eigvec
                 # Threads.lock(mutex)
-                D             += hami_k 
+                D             -= hami_k 
                 # Threads.unlock(mutex)
             else
                 k_eigval_dn[i] = eigval
                 k_eigvec_dn[i] = eigvec
                 
                 # Threads.lock(mutex)
-                D -= hami_k
+                D += hami_k
                 # Threads.unlock(mutex)
             end
         end
