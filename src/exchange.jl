@@ -62,8 +62,6 @@ function get_wan_projections(filename::String, T=Float64)
         end
     end
 
-    println(atoms)
-    println(projections)
     out = Array{WannProjection, 1}(length(atoms))
     t_start = 1
     for (proj_at, projs) in projections
@@ -146,7 +144,7 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
 
     D /= prod(nk)::Int
-    
+    totocc /= prod(nk)::Int 
     # ω_grid = [ωh + ω * 1im for ω = -0.6/n_ωv:ωv/n_ωv:ωv]
     # ω_grid = vcat(ω_grid, [ω + ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.])
     ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
