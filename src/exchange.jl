@@ -115,31 +115,31 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     D      = zeros(Complex{Float64}, n_orb, n_orb)
     j=1
     for  hami in [hami_raw_up, hami_raw_dn]
-        # Threads.@threads for i=1:length(k_grid)
-        for i=1:length(k_grid)
+        Threads.@threads for i=1:length(k_grid)
+        # for i=1:length(k_grid)
             k = k_grid[i]
             hami_k         = hami_from_k(hami, k)
             eigval, eigvec = sorted_eig(hami_k)
             for val in eigval
                 # ekin1  += eig * occ
-                # Threads.lock(mutex)
+                Threads.lock(mutex)
                 totocc += 1. / (exp((val - μ) / temp) + 1.)
-                # Threads.unlock(mutex)
+                Threads.unlock(mutex)
             end
 
             if j == 1
                 k_eigval_up[i] = eigval
                 k_eigvec_up[i] = eigvec
-                # Threads.lock(mutex)
-                D             -= hami_k 
-                # Threads.unlock(mutex)
+                Threads.lock(mutex)
+                D             += hami_k 
+                Threads.unlock(mutex)
             else
                 k_eigval_dn[i] = eigval
                 k_eigvec_dn[i] = eigvec
                 
-                # Threads.lock(mutex)
-                D += hami_k
-                # Threads.unlock(mutex)
+                Threads.lock(mutex)
+                D -= hami_k
+                Threads.unlock(mutex)
             end
         end
         j+=1
@@ -147,14 +147,12 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
 
     D /= prod(nk)::Int
-    println(D[1:3,1:3])
     totocc /= prod(nk)::Int 
     # ω_grid = [ωh + ω * 1im for ω = -0.6/n_ωv:ωv/n_ωv:ωv]
     # ω_grid = vcat(ω_grid, [ω + ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.])
     ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
-    ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:0.00001])
+    ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:-ωv/10/n_ω])
     println(length(ω_grid))
-
     n_orb_infos = length(orb_infos)
     Jmn = Array{Matrix{T},1}()
     for i = 1:n_orb_infos
@@ -164,8 +162,8 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     end
     # Jmn_threads = fill(t_Jmn, Threads.nthreads())
     # Threads.@threads for i=1:length(Jmn)
-    for j=1:length(ω_grid[1:end-1])
-    # Threads.@threads for j=1:length(ω_grid[1:end-1])
+    # for j=1:length(ω_grid[1:end-1])
+    Threads.@threads for j=1:length(ω_grid[1:end-1])
         ω  = ω_grid[j]
         dω = ω_grid[j + 1] - ω
 
@@ -183,9 +181,9 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
             for n = m + 1:n_orb_infos
                 s_n = orb_infos[n].start
                 l_n = orb_infos[n].last
-                # Threads.lock(mutex)
+                Threads.lock(mutex)
                 Jmn[i] += imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
-                # Threads.unlock(mutex)
+                Threads.unlock(mutex)
                 i += 1
             end
         end
