@@ -102,7 +102,6 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
                              temp::T            = T(0.01)) where T <: AbstractFloat
 
     k_grid      = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
-    println(size(k_grid))
     n_orb       = size(hami_from_k(hami_raw_up, k_grid[1]))[1]
     k_eigval_up = fill(Array{Complex{T}}(n_orb), length(k_grid))
     k_eigvec_up = fill(Array{Complex{T}}(n_orb, n_orb), length(k_grid))
@@ -152,7 +151,8 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     # ω_grid = vcat(ω_grid, [ω + ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.])
     ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
     ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:-ωv/10/n_ωv])
-    println(length(ω_grid))
+    println(ω_grid[1])
+    println(ω_grid[end])
     n_orb_infos = length(orb_infos)
     Jmn = Array{Matrix{T},1}()
     for i = 1:n_orb_infos
@@ -194,8 +194,6 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     return WannExchanges(Jmn, orb_infos, real(totocc))
 end
 function WannExchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, args...; kwargs...)
-    println(hami_up_file)
-    println(hami_down_file)
     tmp = get_wan_projections(wannier_input_file)
     WannExchanges(read_hami_file(hami_up_file), read_hami_file(hami_down_file), tmp, args...; kwargs...)
 end
