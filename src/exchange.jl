@@ -188,7 +188,7 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
         end
     end
 
-    Jmn ./= -2π*prod(nk)^2
+    Jmn ./= 2π*prod(nk)^2
     Jmn .*= 1e3
     return WannExchanges(Jmn, orb_infos, real(totocc))
 end
