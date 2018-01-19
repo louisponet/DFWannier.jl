@@ -62,7 +62,8 @@ function get_wan_projections(filename::String, T=Float64)
         end
     end
 
-    println(length(atoms))
+    println(atoms)
+    println(projections)
     out = Array{WannProjection, 1}(length(atoms))
     t_start = 1
     for (proj_at, projs) in projections
