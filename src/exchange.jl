@@ -195,6 +195,8 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
 end
 function WannExchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, args...; kwargs...)
     tmp = get_wan_projections(wannier_input_file)
+    println(tmp[13].start)
+    println(tmp[18].start)
     WannExchanges(read_hami_file(hami_up_file), read_hami_file(hami_down_file), tmp, args...; kwargs...)
 end
 
