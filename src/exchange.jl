@@ -48,7 +48,7 @@ function get_wan_projections(filename::String, T=Float64)
             elseif contains(line, "begin") && contains(line, "atoms")
                 line = readline(f)
                 println(line)
-                while !contains(line, "end")
+                while !contains(lowercase(line), "end")
                     if contains(line, "!")
                         line = readline(f)
                         continue
