@@ -31,9 +31,9 @@ function get_wan_projections(filename::String, T=Float64)
             line = lowercase(readline(f))
             if contains(line, "begin projections")
                 line = readline(f)
-                while !contains(line, "end")
+                while !contains(lowercase(line), "end")
                     if contains(line, "!") || isempty(line)
-                        line = lowercase(readline(f))
+                        line = readline(f)
                         continue
                     end
                     if contains(line, "random")
@@ -43,7 +43,7 @@ function get_wan_projections(filename::String, T=Float64)
                     atom         = Symbol(split_line[1])
                     _projections = [Symbol(proj) for proj in DFControl.strip_split(split_line[2], ';')]
                     push!(projections, (atom, _projections)) 
-                    line = lowercase(readline(f))
+                    line = readline(f)
                 end
             elseif contains(line, "begin") && contains(line, "atoms")
                 line = readline(f)
