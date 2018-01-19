@@ -24,14 +24,14 @@ struct Atom{T<:AbstractFloat}
     l_soc     ::T
     mag_moment::Array{T,1} #this should be Point3D or Vec but ok
 end
-Atom(x, y, z, l_soc::T) where T<:AbstractFloat = 
-    Atom(Point3D(x, y, z), l_soc, T(0.0))
-Atom(::Type{T}, x, y, z, l_soc) where T<:AbstractFloat = 
-    Atom(T(x), T(y), T(z), T(l_soc), T(0.0))
 Atom{T}(x, y, z, l_soc) where T<:AbstractFloat = 
-    Atom(T, x, y, z, l_soc, T(0.0))
+    Atom{T}(Point3D{T}(x, y, z), T(l_soc), fill(zero(T),3))
+Atom(::Type{T}, x, y, z, l_soc) where T<:AbstractFloat = 
+    Atom{T}(T(x), T(y), T(z), T(l_soc), fill(zero(T),3))
+Atom{T}(x, y, z, l_soc) where T<:AbstractFloat = 
+    Atom(T, x, y, z, l_soc, fill(zero(T),3))
 Atom(::Type{T}) where T<:AbstractFloat = 
-    Atom(Point3D(T, 0.0), T(0.0), T(0.0))
+    Atom{T}(Point3D{T}(0.0), T(0.0), fill(zero(T),3))
 
 abstract type Wfc{T<:AbstractFloat} end
 "Wavefunction in 3D, holds an array of WfcPoint3D, the superlattice unit cell and the atom around which it lives."

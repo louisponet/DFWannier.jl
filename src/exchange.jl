@@ -34,6 +34,7 @@ function get_wan_projections(filename::String, T=Float64)
                 while !contains(line, "end")
                     if contains(line, "!") || isempty(line)
                         line = lowercase(readline(f))
+                        continue
                     end
                     if contains(line, "random")
                         error("Can't read the atomic info when projections are random!")
