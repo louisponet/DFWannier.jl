@@ -47,9 +47,11 @@ function get_wan_projections(filename::String, T=Float64)
                 end
             elseif contains(line, "begin") && contains(line, "atoms")
                 line = readline(f)
+                println(line)
                 while !contains(line, "end")
                     if contains(line, "!")
                         line = readline(f)
+                        continue
                     end
                     split_line = DFControl.strip_split(line)
                     atom       = Symbol(split_line[1])
