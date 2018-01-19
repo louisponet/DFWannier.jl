@@ -151,8 +151,6 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
     # ω_grid = vcat(ω_grid, [ω + ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.])
     ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
     ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:-ωv/10/n_ωv])
-    println(ω_grid[1])
-    println(ω_grid[end])
     n_orb_infos = length(orb_infos)
     Jmn = Array{Matrix{T},1}()
     for i = 1:n_orb_infos
@@ -182,14 +180,14 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
                 s_n = orb_infos[n].start
                 l_n = orb_infos[n].last
                 Threads.lock(mutex)
-                Jmn[i] += imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
+                Jmn[i] += sign(trace(D[s_m:l_m, s_m:l_m])) * sign(trace(D[s_n:l_n, s_n:l_n])) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
                 Threads.unlock(mutex)
                 i += 1
             end
         end
     end
 
-    Jmn ./= 2π*prod(nk)^2
+    Jmn ./= -2π*prod(nk)^2
     Jmn .*= 1e3
     return WannExchanges(Jmn, orb_infos, real(totocc))
 end
