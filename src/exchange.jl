@@ -48,7 +48,6 @@ function get_wan_projections(filename::String, T=Float64)
             elseif contains(line, "begin") && contains(line, "atoms")
                 line = readline(f)
                 while !contains(lowercase(line), "end")
-                    println(line)
                     if contains(line, "!")
                         line = readline(f)
                         continue
@@ -63,6 +62,7 @@ function get_wan_projections(filename::String, T=Float64)
         end
     end
 
+    println(length(atoms))
     out = Array{WannProjection, 1}(length(atoms))
     t_start = 1
     for (proj_at, projs) in projections
