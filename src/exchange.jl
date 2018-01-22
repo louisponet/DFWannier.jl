@@ -1,5 +1,5 @@
 using DFControl: WannierDataBlock
-
+using DataStructures: OrderedDict
 @enum Orbital s p d f 
 function Orbital(s::Symbol)
     t = 0 
@@ -23,9 +23,11 @@ struct WannProjection{T <: AbstractFloat}
     position::Point3D{T}
 end
 
+
 function get_wan_projections(filename::String, T=Float64)
-    projections = Tuple[]
+    projections = OrderedDict()
     atoms       = Tuple[]
+    n_proj      = 0
     open(filename, "r") do f
         while !eof(f)
             line = lowercase(readline(f))
@@ -42,28 +44,30 @@ function get_wan_projections(filename::String, T=Float64)
                     split_line   = DFControl.strip_split(line, ':')
                     atom         = Symbol(split_line[1])
                     _projections = [Symbol(proj) for proj in DFControl.strip_split(split_line[2], ';')]
-                    push!(projections, (atom, _projections)) 
+                    projections[atom] = _projections
                     line = readline(f)
                 end
             elseif contains(line, "begin") && contains(line, "atoms")
                 line = readline(f)
                 while !contains(lowercase(line), "end")
                     if contains(line, "!")
-                        line = readline(f)
+                    line = readline(f)
                         continue
                     end
                     split_line = DFControl.strip_split(line)
                     atom       = Symbol(split_line[1])
                     position   = Point3D(DFControl.parse_string_array(T, split_line[2:4]))
                     push!(atoms,(atom, position))
+                    n_proj += length(projections[atom])
                     line = readline(f)
                 end
             end
         end
     end
 
-    out = Array{WannProjection, 1}()
+    t_out = Array{WannProjection, 1}(n_proj)
     t_start = 1
+    i = 1 
     for (proj_at, projs) in projections
         for proj in projs
             for (pos_at, pos) in atoms
@@ -71,12 +75,22 @@ function get_wan_projections(filename::String, T=Float64)
                     continue
                 end
                 size = orbsize(proj)
-                push!(out, WannProjection(proj, pos_at, t_start, size, t_start + size - 1, pos))
+                t_out[i] = WannProjection(proj, pos_at, t_start, size, t_start + size - 1, pos)
+                i += 1
                 t_start += size
             end
         end
     end
-    return out
+    out = WannProjection[] 
+    i = 1
+    for (pos_at, pos) in atoms
+        for proj in t_out
+            if proj.position == pos
+                push!(out, proj)
+            end
+        end
+    end
+    return out 
 end
 
 """
