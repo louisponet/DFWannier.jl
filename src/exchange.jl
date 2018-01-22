@@ -62,11 +62,11 @@ function get_wan_projections(filename::String, T=Float64)
         end
     end
 
-    out = Array{WannProjection, 1}(length(atoms))
+    out = Array{WannProjection, 1}(length(projections))
     t_start = 1
-    for (proj_at, projs) in projections
+    for (i,(proj_at, projs)) in enumerate(projections)
         for proj in projs
-            for (i, (pos_at, pos)) in enumerate(atoms)
+            for (pos_at, pos) in atoms
                 if proj_at != pos_at
                     continue
                 end
