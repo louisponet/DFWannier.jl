@@ -62,16 +62,16 @@ function get_wan_projections(filename::String, T=Float64)
         end
     end
 
-    out = Array{WannProjection, 1}(length(projections))
+    out = Array{WannProjection, 1}()
     t_start = 1
-    for (i,(proj_at, projs)) in enumerate(projections)
+    for (proj_at, projs) in projections
         for proj in projs
             for (pos_at, pos) in atoms
                 if proj_at != pos_at
                     continue
                 end
                 size = orbsize(proj)
-                out[i] = WannProjection(proj, pos_at, t_start, size, t_start + size - 1, pos)
+                push!(out, WannProjection(proj, pos_at, t_start, size, t_start + size - 1, pos))
                 t_start += size
             end
         end
