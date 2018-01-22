@@ -189,14 +189,12 @@ function WannExchanges(hami_raw_up::Array, hami_raw_dn::Array,  orb_infos::Array
         end
     end
 
-    Jmn ./= -2π*prod(nk)^2
+    Jmn ./= 2π*prod(nk)^2
     Jmn .*= 1e3
     return WannExchanges(Jmn, orb_infos, real(totocc))
 end
 function WannExchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, args...; kwargs...)
     tmp = get_wan_projections(wannier_input_file)
-    println(tmp[13].start)
-    println(tmp[18].start)
     WannExchanges(read_hami_file(hami_up_file), read_hami_file(hami_down_file), tmp, args...; kwargs...)
 end
 
