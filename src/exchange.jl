@@ -261,8 +261,5 @@ function exchange_between(atom1::Atom{T}, atom2::Atom{T}, exchanges::Array{Excha
     end
 end
     
-all_exchanges(exchanges::WannExchanges) = [trace(j) for j in exchanges.Jmn]
-
-                             
 
 
