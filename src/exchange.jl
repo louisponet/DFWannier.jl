@@ -273,10 +273,11 @@ end
 function exchange_between(atom1::Atom{T}, atom2::Atom{T}, exchanges::Array{Exchange{T}, 1}) where T <: AbstractFloat
     exch = zero(T) 
     for e in exchanges
-        if e.at1 == e.at2
+        if e.atom1 == atom1 && e.atom2 == atom2
             exch += trace(e.J)
         end
     end
+    return exch
 end
     
 

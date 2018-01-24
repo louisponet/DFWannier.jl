@@ -320,10 +320,15 @@ end
 function write_exchanges(filename::String, structure::Structure)
     open(filename, "w") do f
         exchanges = structure.data[:exchanges]
-        n = length(filter(x->x.at1 == exchanges[1].at1, exchanges)) + 1
+        n = length(filter(x->x.atom1 == exchanges[1].atom1, exchanges)) + 1
         write(f, "$n\n")
-        for exch in structure.data[:exchanges]
-            write(f, "$(findfirst(structure.atoms, at1)) $(findfirst(structure.atoms, at2)) $(exchange_between(at1, at2, exchanges))\n")
+        for (i, atom1) in enumerate(structure.atoms)
+            for atom2 in structure.atoms[i + 1:end]
+                J = exchange_between(atom1, atom2, exchanges)
+                if J != 0
+                    write(f, "$(findfirst(structure.atoms, exchange.atom1)) $(findfirst(structure.atoms, exchange.atom2)) $J)\n")
+                end
+            end
         end
     end
 end
