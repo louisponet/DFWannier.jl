@@ -122,10 +122,10 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
 
         for i = 1:length(infos)
             info = infos[i]
-            s_m = info[2]
-            l_m = info[3]
-            s_n = info[4]
-            l_n = info[5]
+            s_m = info[1]
+            l_m = info[2]
+            s_n = info[3]
+            l_n = info[4]
         
             Threads.lock(mutex)
             Jmn[i] += sign(trace(D[s_m:l_m, s_m:l_m])) * sign(trace(D[s_n:l_n, s_n:l_n])) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
