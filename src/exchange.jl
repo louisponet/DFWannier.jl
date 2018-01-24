@@ -24,6 +24,7 @@ function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_g
     k_eigvec_dn = fill(Array{Complex{T}, 2}(n_orb, n_orb), length(k_grid))
     μ           = fermi
     D           = zeros(Complex{T}, n_orb, n_orb)
+    mutex = Threads.Mutex()
     j=1
     for  hami in [hami_raw_up, hami_raw_dn]
         Threads.@threads for i=1:length(k_grid)
