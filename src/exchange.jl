@@ -81,7 +81,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
 
 
     exchanges = Exchange{T}[]
-    for (i, at1) in atoms
+    for (i, at1) in enumerate(atoms)
         projections1 = at1.data[:projections]
         for proj1 in projections1
             for at2 in atoms[i+1:end]
