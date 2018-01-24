@@ -91,7 +91,8 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:ωv/10/n_ωv])
 
     
-    infos = Array{Tuple{Matrix{T}, Int, Int, Int, Int},1}()
+    infos = Array{Tuple{ Int, Int, Int, Int},1}()
+    Jmn = Array{Matrix{T},1}()
     for (i, at1) in enumerate(atoms)
         projections1 = at1.data[:projections]::Array{Projection, 1}
         for at2 in atoms[i+1:end]
@@ -99,7 +100,8 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             for proj1 in projections1
                 for proj2 in projections2
                     if proj1.orb in orbitals && proj2.orb in orbitals
-                        push!(infos, (zeros(T, proj1.size, proj1.size), proj1.start, proj1.last, proj2.start, proj2.last))
+                        push!(infos, (proj1.start, proj1.last, proj2.start, proj2.last))
+                        push!(Jmn, zeros(T, proj1.size, proj1.size))
                     end
                 end
             end 
@@ -118,13 +120,15 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             end
         end
 
-        for info in infos
+        for i = 1:length(infos)
+            info = infos[i]
             s_m = info[2]
             l_m = info[3]
             s_n = info[4]
             l_n = info[5]
+        
             Threads.lock(mutex)
-            info[1] .+= sign(trace(D[s_m:l_m, s_m:l_m])) * sign(trace(D[s_n:l_n, s_n:l_n])) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
+            Jmn[i] += sign(trace(D[s_m:l_m, s_m:l_m])) * sign(trace(D[s_n:l_n, s_n:l_n])) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
             Threads.unlock(mutex)
         end
     end
@@ -137,8 +141,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             for proj1 in at1.data[:projections]::Array{Projection, 1}
                 for proj2 in at2.data[:projections]::Array{Projection, 1}
                     if proj1.orb in orbitals && proj2.orb in orbitals
-                        info = infos[i]
-                        push!(exchanges, Exchange{T}(info[1]* 1e3 / 2π * prod(nk)^2, at1, at2, proj1.orb, proj2.orb))
+                        push!(exchanges, Exchange{T}(Jmn[1]* 1e3 / 2π * prod(nk)^2, at1, at2, proj1.orb, proj2.orb))
                         i += 1
                     end
                 end
