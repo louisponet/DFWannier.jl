@@ -148,7 +148,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     structure.data[:exchanges] = exchanges
 end
 
-function calculate_exchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, T=Float64, args...; kwargs...)
+function calculate_exchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, args...; kwargs...)
     structure = read_wannier_input(wannier_input_file).structure
     calculate_exchanges(read_hami_file(hami_up_file), read_hami_file(hami_down_file), structure, args...; kwargs...)
     return structure
