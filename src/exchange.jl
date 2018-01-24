@@ -78,11 +78,9 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     mutex = Threads.Mutex() 
     
     k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D = calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
-
     structure.data[:totocc] = totocc
 
     k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
-
     D /= prod(nk)::Int
     n_orb = size(D)[1]
     totocc /= prod(nk)::Int 
@@ -108,6 +106,8 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             end 
         end
     end
+    
+   
     # for j=1:length(ω_grid[1:end-1])
     Threads.@threads for j=1:length(ω_grid[1:end-1])
         ω  = ω_grid[j]
@@ -121,17 +121,18 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             end
         end
 
+        Threads.lock(mutex)
         for i = 1:length(infos)
+            
             info = infos[i]
             s_m = info[1]
             l_m = info[2]
             s_n = info[3]
             l_n = info[4]
-        
-            Threads.lock(mutex)
+            # Jmn[i] += imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
             Jmn[i] += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
-            Threads.unlock(mutex)
         end
+        Threads.unlock(mutex)
     end
     exchanges = Exchange{T}[]
     i = 1
