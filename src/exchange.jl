@@ -79,15 +79,15 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
     ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:ωv/10/n_ωv])
 
-
-    exchanges = Exchange{T}[]
+    
+    infos = Array{Tuple{Matrix{T}, Int, Int, Int, Int},1}()
     for (i, at1) in enumerate(atoms)
         projections1 = at1.data[:projections]
-        for proj1 in projections1
-            for at2 in atoms[i+1:end]
-                projections2 = at2.data[:projections]
+        for at2 in atoms[i+1:end]
+            projections2 = at2.data[:projections]
+            for proj1 in projections1
                 for proj2 in projections2
-                    push!(exchanges, Exchange{T}(zeros(T, proj1.size, proj1.size), at1, at2, proj1.orb, proj2.orb))
+                    push!(infos, (zeros(T, proj1.size, proj1.size), proj1.start, proj1.last, proj2.start, proj2.last))
                 end
             end 
         end
@@ -106,26 +106,31 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
                 g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(2im * π * dot(sign * R, k))
             end
         end
-        i = 1
-        for m = 1:length(atoms)
-            for proj1::Projection in atoms[m].data[:projections]
-                s_m = proj1.start
-                l_m = proj1.last
-                for n = m + 1:length(atoms)
-                    for proj2::Projection in atoms[n].data[:projections]
-                        s_n = proj2.start
-                        l_n = proj2.last
-                        Threads.lock(mutex)
-                        exchanges[i].J += sign(trace(D[s_m:l_m, s_m:l_m])) * sign(trace(D[s_n:l_n, s_n:l_n])) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
-                        Threads.unlock(mutex)
-                        i += 1
-                    end
+
+        for info in infos
+            s_m = info[2]
+            l_m = info[3]
+            s_n = info[4]
+            l_n = info[5]
+            Threads.lock(mutex)
+            info[1] += sign(trace(D[s_m:l_m, s_m:l_m])) * sign(trace(D[s_n:l_n, s_n:l_n])) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
+            Threads.unlock(mutex)
+        end
+    end
+    exchanges = Exchange{T}[]
+    i = 1
+    for m = 1:length(atoms)
+        at1 = atoms[m]
+        for n = m + 1:length(atoms)
+            at2 = atoms[n]
+            for proj1 in at1.data[:projections]
+                for proj2 in at2.data[:projections]
+                    info = infos[i]
+                    push!(exchanges, Exchange{T}(info[1]* 1e3 / 2π * prod(nk)^2, at1, at2, proj1.orb, proj2.orb))
+                    i += 1
                 end
             end
         end
-    end
-    for e in exchanges
-        e.J .*= 1e3 / 2π * prod(nk)^2
     end
 
     structure.data[:exchanges] = exchanges
