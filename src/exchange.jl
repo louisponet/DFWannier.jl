@@ -15,7 +15,7 @@ struct Exchange{T <: AbstractFloat}
     orb2   ::Orbital
 end
 
-function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure::Structure, fermi::T; 
+function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure::Structure, fermi::T;
                              nk::NTuple{3, Int} = (10, 10, 10),
                              R::Array{Int,1}    = [0, 0, 0],
                              ωh::T              = T(-30.), #starting energy
@@ -26,7 +26,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
 
     @assert !isempty(structure.atoms[1].data[:projections]) "Please read a valid wannier file for structure with projections."
     atoms = structure.atoms
-    k_grid      = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
+    k_grid::Array{Array{T, 1}, 1}     = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
     n_orb       = size(hami_from_k(hami_raw_up, k_grid[1]))[1]
     k_eigval_up = fill(Array{Complex{T}}(n_orb), length(k_grid))
     k_eigvec_up = fill(Array{Complex{T}}(n_orb, n_orb), length(k_grid))
@@ -82,9 +82,9 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     
     infos = Array{Tuple{Matrix{T}, Int, Int, Int, Int},1}()
     for (i, at1) in enumerate(atoms)
-        projections1 = at1.data[:projections]
+        projections1 = at1.data[:projections]::Array{Projection, 1}
         for at2 in atoms[i+1:end]
-            projections2 = at2.data[:projections]
+            projections2 = at2.data[:projections]::Array{Projection, 1}
             for proj1 in projections1
                 for proj2 in projections2
                     push!(infos, (zeros(T, proj1.size, proj1.size), proj1.start, proj1.last, proj2.start, proj2.last))
@@ -92,8 +92,6 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             end 
         end
     end
-    # Jmn_threads = fill(t_Jmn, Threads.nthreads())
-    # Threads.@threads for i=1:length(Jmn)
     # for j=1:length(ω_grid[1:end-1])
     Threads.@threads for j=1:length(ω_grid[1:end-1])
         ω  = ω_grid[j]
@@ -123,8 +121,8 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
         at1 = atoms[m]
         for n = m + 1:length(atoms)
             at2 = atoms[n]
-            for proj1 in at1.data[:projections]
-                for proj2 in at2.data[:projections]
+            for proj1 in at1.data[:projections]::Array{Projection, 1}
+                for proj2 in at2.data[:projections]::Array{Projection, 1}
                     info = infos[i]
                     push!(exchanges, Exchange{T}(info[1]* 1e3 / 2π * prod(nk)^2, at1, at2, proj1.orb, proj2.orb))
                     i += 1
