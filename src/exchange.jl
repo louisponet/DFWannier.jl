@@ -15,28 +15,15 @@ struct Exchange{T <: AbstractFloat}
     orb2   ::Orbital
 end
 
-function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure::Structure, fermi::T;
-                             nk::NTuple{3, Int} = (10, 10, 10),
-                             R::Array{Int,1}    = [0, 0, 0],
-                             ωh::T              = T(-30.), #starting energy
-                             ωv::T              = T(0.5), #height of vertical contour
-                             n_ωh::Int          = 300,
-                             n_ωv::Int          = 50,
-                             temp::T            = T(0.01)) where T <: AbstractFloat
-
-    @assert !isempty(structure.atoms[1].data[:projections]) "Please read a valid wannier file for structure with projections."
-    atoms = structure.atoms
-    k_grid::Array{Array{T, 1}, 3} = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
+function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_grid) where T <:AbstractFloat
+    totocc      = zero(Complex{T})
     n_orb       = size(hami_from_k(hami_raw_up, k_grid[1]))[1]
-    k_eigval_up = fill(Array{Complex{T}}(n_orb), length(k_grid))
-    k_eigvec_up = fill(Array{Complex{T}}(n_orb, n_orb), length(k_grid))
-    k_eigval_dn = fill(Array{Complex{T}}(n_orb), length(k_grid))
-    k_eigvec_dn = fill(Array{Complex{T}}(n_orb, n_orb), length(k_grid))
-    # ekin1  = 0 #not used
-    mutex = Threads.Mutex() 
-    totocc = zero(Complex{T})
-    μ      = fermi
-    D      = zeros(Complex{Float64}, n_orb, n_orb)
+    k_eigval_up = fill(Array{Complex{T}, 1}(n_orb), length(k_grid))
+    k_eigvec_up = fill(Array{Complex{T}, 2}(n_orb, n_orb), length(k_grid))
+    k_eigval_dn = fill(Array{Complex{T}, 1}(n_orb), length(k_grid))
+    k_eigvec_dn = fill(Array{Complex{T}, 2}(n_orb, n_orb), length(k_grid))
+    μ           = fermi
+    D           = zeros(Complex{T}, n_orb, n_orb)
     j=1
     for  hami in [hami_raw_up, hami_raw_dn]
         Threads.@threads for i=1:length(k_grid)
@@ -45,7 +32,6 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             hami_k         = hami_from_k(hami, k)
             eigval, eigvec = sorted_eig(hami_k)
             for val in eigval
-                # ekin1  += eig * occ
                 Threads.lock(mutex)
                 totocc += 1. / (exp((val - μ) / temp) + 1.)
                 Threads.unlock(mutex)
@@ -68,11 +54,34 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
         end
         j+=1
     end
+    return k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D
+end
+
+function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure::Structure, fermi::T;
+                             nk::NTuple{3, Int} = (10, 10, 10),
+                             R::Array{Int,1}    = [0, 0, 0],
+                             ωh::T              = T(-30.), #starting energy
+                             ωv::T              = T(0.5), #height of vertical contour
+                             n_ωh::Int          = 300,
+                             n_ωv::Int          = 50,
+                             temp::T            = T(0.01)) where T <: AbstractFloat
+
+    @assert !isempty(structure.atoms[1].data[:projections]) "Please read a valid wannier file for structure with projections."
+    μ = fermi
+    atoms = structure.atoms
+    k_grid::Array{Array{T, 1}, 3} = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
+   
+    # ekin1  = 0 #not used
+    mutex = Threads.Mutex() 
+    
+    k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D = calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
+
     structure.data[:totocc] = totocc
 
     k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
 
     D /= prod(nk)::Int
+    n_orb = size(D)[1]
     totocc /= prod(nk)::Int 
     # ω_grid = [ωh + ω * 1im for ω = -0.6/n_ωv:ωv/n_ωv:ωv]
     # ω_grid = vcat(ω_grid, [ω + ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.])
@@ -111,7 +120,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             s_n = info[4]
             l_n = info[5]
             Threads.lock(mutex)
-            info[1] += sign(trace(D[s_m:l_m, s_m:l_m])) * sign(trace(D[s_n:l_n, s_n:l_n])) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
+            info[1] .+= sign(trace(D[s_m:l_m, s_m:l_m])) * sign(trace(D[s_n:l_n, s_n:l_n])) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
             Threads.unlock(mutex)
         end
     end
@@ -134,7 +143,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     structure.data[:exchanges] = exchanges
 end
 
-function calculate_exchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, args...; kwargs...)
+function calculate_exchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, T=Float64, args...; kwargs...)
     structure = read_wannier_input(wannier_input_file).structure
     calculate_exchanges(read_hami_file(hami_up_file), read_hami_file(hami_down_file), structure, args...; kwargs...)
     return structure

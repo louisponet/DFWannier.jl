@@ -3,7 +3,7 @@ using DFWannier
 using CUDAnative
 using CuArrays 
 CUDAnative.@profile begin
-  T=Float32
+  T=Float64
   test_wfc1 =  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00003.xsf",Atom{T}(0.0,0.0,0.1,0.1),T))
   test_wfc2=  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00004.xsf",Atom{T}(0.0,0.0,0.1,0.1),T))
   dims = size(test_wfc1.values)

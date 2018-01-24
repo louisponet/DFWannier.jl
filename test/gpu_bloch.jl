@@ -20,7 +20,7 @@ using Plots
 test = construct_bloch_sum(x.wfcs[1],x.k_points[1])
 Array(test.values)
 test = construct_bloch_sum(x2.wfcs[1],x2.k_points[1])
-T=Float32
+T=Float64
 test_wfc1 =  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00003.xsf",Atom{T}(0.0,0.0,0.1,0.1),T))
 test_wfc2=  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00004.xsf",Atom{T}(0.0,0.0,0.1,0.1),T))
 dims = size(test_wfc1.values)

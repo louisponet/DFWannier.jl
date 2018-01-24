@@ -1,6 +1,6 @@
 #does this really need the checking for corruption stuff?
 """
-read_xsf_file(filename::String, atom::Atom, T=Float32)
+read_xsf_file(filename::String, atom::Atom, T=Float64)
 
 Returns a Wfc3D{T} upon reading a Wannier wavefunction file. The atom specified is used in calculations such as angular momentum calculations.
 """
@@ -58,7 +58,7 @@ function read_xsf_file(filename::String, atom::Atom{T}) where T
 end
 
 "Returns a Wfc3D{T} that is centered around an atom at the origin with 0 soc strength."
-read_xsf_file(filename::String, T=Float32) = read_xsf_file(filename,Atom{T}())
+read_xsf_file(filename::String, T=Float64) = read_xsf_file(filename,Atom{T}())
 
 """
 write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
@@ -85,11 +85,11 @@ function write_xsf_file(filename::String,wfc::Wfc3D{T}) where T<:AbstractFloat
 end
 
 """
-read_hami_file(filename::String, T=Float32)
+read_hami_file(filename::String, T=Float64)
 
 Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
-function read_hami_file(filename::String, T=Float32)
+function read_hami_file(filename::String, T=Float64)
     open(filename) do f
         out = Array{Tuple{Int,Int,Int,Int,Int,Complex{T}},1}()
         degen = Int64[]
@@ -114,11 +114,11 @@ function read_hami_file(filename::String, T=Float32)
 end
 
 """
-read_dipole_file(filename::String, T=Float32)
+read_dipole_file(filename::String, T=Float64)
 
 Returns and array of tuples that define the dipoles between the Wannier functions in different unit cells.
 """
-function read_dipole_file(filename::String, T=Float32)
+function read_dipole_file(filename::String, T=Float64)
     open(filename) do  f
         out = Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}},1}()
         readline(f)
@@ -137,11 +137,11 @@ end
 
 #stuff that is not used currently
 """
-read_potential_file(filename::String, T=Float32)
+read_potential_file(filename::String, T=Float64)
 
 Reads a Quantum Espresso potential output file. 
 """
-function read_potential_file(filename::String, T=Float32)
+function read_potential_file(filename::String, T=Float64)
     tmp_data=nothing
     open(filename) do f
         primCell = zeros(T,3,3)
@@ -229,7 +229,7 @@ function write_dip_file(filename::String,points,cell,atoms,names,direction)
     end
 end
 
-function read_xsf_file_GPU(filename::String, T=Float32)
+function read_xsf_file_GPU(filename::String, T=Float64)
     open(filename) do f
         while !eof(f)
             line = readline(f)
