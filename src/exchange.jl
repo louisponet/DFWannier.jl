@@ -1,4 +1,4 @@
-using DFControl: WannierDataBlock, Projection, Orbital
+using DFControl: WannierDataBlock, Projection, Orbital, s, p, d, f
 
 """
     WannExchanges{T <: AbstractFloat}
@@ -64,7 +64,8 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
                              ωv::T              = T(0.5), #height of vertical contour
                              n_ωh::Int          = 300,
                              n_ωv::Int          = 50,
-                             temp::T            = T(0.01)) where T <: AbstractFloat
+                             temp::T            = T(0.01),
+                             orbitals::Array{Orbital, 1} = [d, f]) where T <: AbstractFloat
 
     @assert !isempty(structure.atoms[1].data[:projections]) "Please read a valid wannier file for structure with projections."
     μ = fermi
@@ -96,7 +97,9 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             projections2 = at2.data[:projections]::Array{Projection, 1}
             for proj1 in projections1
                 for proj2 in projections2
-                    push!(infos, (zeros(T, proj1.size, proj1.size), proj1.start, proj1.last, proj2.start, proj2.last))
+                    if proj1.orb in orbitals && proj2.orb in orbitals
+                        push!(infos, (zeros(T, proj1.size, proj1.size), proj1.start, proj1.last, proj2.start, proj2.last))
+                    end
                 end
             end 
         end
@@ -132,9 +135,11 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             at2 = atoms[n]
             for proj1 in at1.data[:projections]::Array{Projection, 1}
                 for proj2 in at2.data[:projections]::Array{Projection, 1}
-                    info = infos[i]
-                    push!(exchanges, Exchange{T}(info[1]* 1e3 / 2π * prod(nk)^2, at1, at2, proj1.orb, proj2.orb))
-                    i += 1
+                    if proj1.orb in orbitals && proj2.orb in orbitals
+                        info = infos[i]
+                        push!(exchanges, Exchange{T}(info[1]* 1e3 / 2π * prod(nk)^2, at1, at2, proj1.orb, proj2.orb))
+                        i += 1
+                    end
                 end
             end
         end
