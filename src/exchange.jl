@@ -78,12 +78,12 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     mutex = Threads.Mutex() 
     
     k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D = calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
-    structure.data[:totocc] = totocc
-
+    
     k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
     D /= prod(nk)::Int
     n_orb = size(D)[1]
     totocc /= prod(nk)::Int 
+    structure.data[:totocc] = real(totocc)
     # ω_grid = [ωh + ω * 1im for ω = -0.6/n_ωv:ωv/n_ωv:ωv]
     # ω_grid = vcat(ω_grid, [ω + ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.])
     ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]

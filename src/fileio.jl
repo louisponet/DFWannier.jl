@@ -333,15 +333,24 @@ end
 
 function read_exchanges(filename::String, T=Float64)
     open(filename, "r") do f
-        size1 = parse(readline(f))
-        out = zeros(T, (size1,size1))
+        out = T[]
+        indices = Tuple{Int,Int}[]
+        max = 0
         while !eof(f)
             spl = split(readline(f))
             i, j = parse.(Int, spl[1:2])
+            if j> max
+                max = j
+            end
+            push!(indices, (i,j))
             exch = parse(T, spl[3])
-            out[i, j] = exch
+            push!(out, exch) 
         end
-        return out
+        real_out = zeros(T, (max, max))
+        for (o, (i, j)) in zip(out, indices)
+            real_out[i, j] = o
+        end
+        return real_out
     end
 end
             
