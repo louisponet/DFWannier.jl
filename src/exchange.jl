@@ -124,7 +124,10 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             end
         end
     end
-    map(x->x.J, exchanges) .*= 1e3 / 2π * prod(nk)^2
+    for e in exchanges
+        e.J .*= 1e3 / 2π * prod(nk)^2
+    end
+
     structure.data[:exchanges] = exchanges
 end
 
