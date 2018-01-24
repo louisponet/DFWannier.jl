@@ -28,7 +28,7 @@ function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_g
     j=1
     for  hami in [hami_raw_up, hami_raw_dn]
         Threads.@threads for i=1:length(k_grid)
-        for i=1:length(k_grid)
+        # for i=1:length(k_grid)
             k = k_grid[i]
             hami_k         = hami_from_k(hami, k)
             eigval, eigvec = sorted_eig(hami_k)
@@ -40,7 +40,7 @@ function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_g
                 for val in eigval
                     totocc += 1. / (exp((val - μ) / temp) + 1.)
                 end
-                D             += hami_k 
+                D += hami_k 
                 Threads.unlock(mutex)
             else
                 k_eigval_dn[i] = eigval
