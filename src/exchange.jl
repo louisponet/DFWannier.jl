@@ -26,7 +26,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
 
     @assert !isempty(structure.atoms[1].data[:projections]) "Please read a valid wannier file for structure with projections."
     atoms = structure.atoms
-    k_grid::Array{Array{T, 1}, 1}     = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
+    k_grid::Array{Array{T, 1}, 3} = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
     n_orb       = size(hami_from_k(hami_raw_up, k_grid[1]))[1]
     k_eigval_up = fill(Array{Complex{T}}(n_orb), length(k_grid))
     k_eigvec_up = fill(Array{Complex{T}}(n_orb, n_orb), length(k_grid))
