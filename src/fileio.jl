@@ -317,14 +317,12 @@ function write_dipole_mesh(filename,mesh::Array{Tuple{Point3D{T},Point3D{T}},3},
     write_xsf_file(filename,Wfc3D(tmp_points,Point3D{T}[],Atom()))
 end
 
-function write_exchanges(filename::String, exchanges::WannExchanges)
+function write_exchanges(filename::String, structure::Structure)
     open(filename, "w") do f
-        write(f, "$(length(exchanges.infos))\n")
-        for i = 1:length(exchanges.infos)
-            info1 = exchanges.infos[i]
-            for j = i+1:length(exchanges.infos)
-                info2 = exchanges.infos[j]
-                write(f, "$i $j $(exchange_between(i, j, exchanges))\n")
+        write(f, "$(length(structure.atoms))\n")
+        for (i, at1) in enumerate(structure.atoms)
+            for (j, at2) in enumerate(structure.atoms[i + 1:end])
+                write(f, "$i $j $(exchange_between(at1, at2, exchanges))\n")
             end
         end
     end
