@@ -18,21 +18,6 @@ end
 show(io::IO,x::WfcPoint3D)=print(io,"w = $(x.w), x = $(x.p.x), y = $(x.p.y), z = $(x.p.z)")
 zero(::Type{WfcPoint3D{T}}) where T<:AbstractFloat = WfcPoint3D(zero(Complex{T}),Point3D(zero(T)))
 
-"Atom in 3D space, has a center in cartesian coordinates and a parameter for the spin-orbit coupling strength."
-struct Atom{T<:AbstractFloat}
-    center    ::Point3D{T}
-    l_soc     ::T
-    mag_moment::Array{T,1} #this should be Point3D or Vec but ok
-end
-Atom{T}(x, y, z, l_soc) where T<:AbstractFloat = 
-    Atom{T}(Point3D{T}(x, y, z), T(l_soc), fill(zero(T),3))
-Atom(::Type{T}, x, y, z, l_soc) where T<:AbstractFloat = 
-    Atom{T}(T(x), T(y), T(z), T(l_soc), fill(zero(T),3))
-Atom{T}(x, y, z, l_soc) where T<:AbstractFloat = 
-    Atom(T, x, y, z, l_soc, fill(zero(T),3))
-Atom(::Type{T}) where T<:AbstractFloat = 
-    Atom{T}(Point3D{T}(0.0), T(0.0), fill(zero(T),3))
-
 abstract type Wfc{T<:AbstractFloat} end
 "Wavefunction in 3D, holds an array of WfcPoint3D, the superlattice unit cell and the atom around which it lives."
 mutable struct Wfc3D{T} <: Wfc{T}
