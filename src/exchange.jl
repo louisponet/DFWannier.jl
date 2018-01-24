@@ -28,20 +28,18 @@ function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_g
     j=1
     for  hami in [hami_raw_up, hami_raw_dn]
         Threads.@threads for i=1:length(k_grid)
-        # for i=1:length(k_grid)
+        for i=1:length(k_grid)
             k = k_grid[i]
             hami_k         = hami_from_k(hami, k)
             eigval, eigvec = sorted_eig(hami_k)
-            for val in eigval
-                Threads.lock(mutex)
-                totocc += 1. / (exp((val - μ) / temp) + 1.)
-                Threads.unlock(mutex)
-            end
 
             if j == 1
                 k_eigval_up[i] = eigval
                 k_eigvec_up[i] = eigvec
                 Threads.lock(mutex)
+                for val in eigval
+                    totocc += 1. / (exp((val - μ) / temp) + 1.)
+                end
                 D             += hami_k 
                 Threads.unlock(mutex)
             else
@@ -49,6 +47,9 @@ function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_g
                 k_eigvec_dn[i] = eigvec
                 
                 Threads.lock(mutex)
+                for val in eigval
+                    totocc += 1. / (exp((val - μ) / temp) + 1.)
+                end
                 D -= hami_k
                 Threads.unlock(mutex)
             end
@@ -128,7 +129,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             l_n = info[4]
         
             Threads.lock(mutex)
-            Jmn[i] += sign(trace(D[s_m:l_m, s_m:l_m])) * sign(trace(D[s_n:l_n, s_n:l_n])) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
+            Jmn[i] += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
             Threads.unlock(mutex)
         end
     end
@@ -141,7 +142,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             for proj1 in at1.data[:projections]::Array{Projection, 1}
                 for proj2 in at2.data[:projections]::Array{Projection, 1}
                     if proj1.orb in orbitals && proj2.orb in orbitals
-                        push!(exchanges, Exchange{T}(Jmn[1]* 1e3 / 2π * prod(nk)^2, at1, at2, proj1.orb, proj2.orb))
+                        push!(exchanges, Exchange{T}(Jmn[i]* 1e3 / (2π * prod(nk)^2), at1, at2, proj1.orb, proj2.orb))
                         i += 1
                     end
                 end
