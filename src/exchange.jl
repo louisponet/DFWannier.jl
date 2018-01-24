@@ -1,4 +1,4 @@
-using DFControl: WannierDataBlock
+using DFControl: WannierDataBlock, Projection, Orbital
 
 """
     WannExchanges{T <: AbstractFloat}
