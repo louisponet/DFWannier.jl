@@ -100,15 +100,11 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     end
     
     # for j=1:length(ω_grid[1:end-1])
-    gs = fill(fill(Array{Complex{T}, 2}(n_orb, n_orb), 2),Threads.nthreads())
     Threads.@threads for j=1:length(ω_grid[1:end-1])
-        t_id = Threads.threadid()
         ω  = ω_grid[j]
         dω = ω_grid[j + 1] - ω
         
-        g = gs[t_id]
-        fill!(g[1], zero(Complex{T}))
-        fill!(g[2], zero(Complex{T}))
+        g = fill(zeros(Complex{T}, n_orb, n_orb), 2)
         for (ki, k_info) in enumerate(k_infos)
             sign = ki * 2 - 3 #1=-1 2=1
             for (k, vals, vecs) in k_info 
