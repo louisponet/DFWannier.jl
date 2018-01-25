@@ -69,23 +69,22 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
                              temp::T            = T(0.01),
                              orbitals::Array{Orbital, 1} = [d, f]) where T <: AbstractFloat
 
-    @assert !isempty(structure.atoms[1].data[:projections]) "Please read a valid wannier file for structure with projections."
+    @assert !isempty(structure.atoms[1].projections) "Please read a valid wannier file for structure with projections."
     μ = fermi
     atoms = structure.atoms
     k_grid::Array{Array{T, 1}, 3} = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
    
-    # ekin1  = 0 #not used
     mutex = Threads.Mutex() 
     
-    k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D = calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
+    k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D = 
+        calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
     
     k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
     D /= prod(nk)::Int
     n_orb = size(D)[1]
     totocc /= prod(nk)::Int 
     structure.data[:totocc] = real(totocc)
-    # ω_grid = [ωh + ω * 1im for ω = -0.6/n_ωv:ωv/n_ωv:ωv]
-    # ω_grid = vcat(ω_grid, [ω + ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.])
+
     ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
     ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:ωv/10/n_ωv])
 
@@ -93,9 +92,9 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     infos = Array{Tuple{ Int, Int, Int, Int},1}()
     Jmn = Array{Matrix{T},1}()
     for (i, at1) in enumerate(atoms)
-        projections1 = at1.data[:projections]::Array{Projection, 1}
+        projections1 = at1.projections
         for at2 in atoms[i+1:end]
-            projections2 = at2.data[:projections]::Array{Projection, 1}
+            projections2 = at2.projections
             for proj1 in projections1
                 for proj2 in projections2
                     if proj1.orb in orbitals && proj2.orb in orbitals
@@ -107,7 +106,6 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
         end
     end
     
-   
     # for j=1:length(ω_grid[1:end-1])
     Threads.@threads for j=1:length(ω_grid[1:end-1])
         ω  = ω_grid[j]
@@ -129,7 +127,6 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             l_m = info[2]
             s_n = info[3]
             l_n = info[4]
-            # Jmn[i] += imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
             Jmn[i] += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
         end
         Threads.unlock(mutex)
@@ -140,10 +137,10 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
         at1 = atoms[m]
         for n = m + 1:length(atoms)
             at2 = atoms[n]
-            for proj1 in at1.data[:projections]::Array{Projection, 1}
-                for proj2 in at2.data[:projections]::Array{Projection, 1}
+            for proj1 in at1.projections
+                for proj2 in at2.projections
                     if proj1.orb in orbitals && proj2.orb in orbitals
-                        push!(exchanges, Exchange{T}(Jmn[i]* 1e3 / (2π * prod(nk)^2), at1, at2, proj1.orb, proj2.orb))
+                        push!(exchanges, Exchange{T}(Jmn[i] * 1e3 / (2π * prod(nk)^2), at1, at2, proj1.orb, proj2.orb))
                         i += 1
                     end
                 end
