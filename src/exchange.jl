@@ -59,6 +59,26 @@ function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_g
     return k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D
 end
 
+function setup_exchanges(atoms::Array{Atom{T}, 1}, orbitals) where T <: AbstractFloat
+    exchanges = Exchange{T}[]
+    for (i, at1) in enumerate(atoms), at2 in atoms[i+1:end]
+        projections1 = at1.projections 
+        projections2 = at2.projections
+        for proj1 in projections1, proj2 in projections2
+            if proj1.orb in orbitals && proj2.orb in orbitals
+                push!(exchanges, Exchange{T}(zeros(T, proj1.size, proj1.size), at1, at2, proj1, proj2))
+            end
+        end
+    end
+    return exchanges
+end
+
+function setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
+    ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
+    ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:ωv/10/n_ωv])
+    return ω_grid
+end
+
 function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure::Structure, fermi::T;
                              nk::NTuple{3, Int} = (10, 10, 10),
                              R::Array{Int,1}    = [0, 0, 0],
@@ -79,25 +99,13 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D = 
         calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
     
-    k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
     D /= prod(nk)::Int
     n_orb = size(D)[1]
     totocc /= prod(nk)::Int 
     structure.data[:totocc] = real(totocc)
-    
-    ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
-    ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:ωv/10/n_ωv])
-
-    exchanges = Exchange{T}[]
-    for (i, at1) in enumerate(atoms), at2 in atoms[i+1:end]
-        projections1 = at1.projections 
-        projections2 = at2.projections
-        for proj1 in projections1, proj2 in projections2
-            if proj1.orb in orbitals && proj2.orb in orbitals
-                push!(exchanges, Exchange{T}(zeros(T, proj1.size, proj1.size), at1, at2, proj1, proj2))
-            end
-        end
-    end
+   
+    ω_grid    = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
+    exchanges = setup_exchanges(atoms, orbitals)
     
     # for j=1:length(ω_grid[1:end-1])
     Threads.@threads for j=1:length(ω_grid[1:end-1])
@@ -105,11 +113,14 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
         dω = ω_grid[j + 1] - ω
         
         g = fill(zeros(Complex{T}, n_orb, n_orb), 2)
-        for (ki, k_info) in enumerate(k_infos)
-            sign = ki * 2 - 3 #1=-1 2=1
-            for (k, vals, vecs) in k_info 
-                g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(2im * π * dot(sign * R, k))
-            end
+        for ki = 1:length(k_grid)
+            k = k_grid[i]
+            upvals = k_eigvals_up[i]
+            upvecs = k_eigvecs_up[i]
+            dnvals = k_eigvals_dn[i]
+            dnvecs = k_eigvecs_dn[i]
+            g[1] += upvecs * diagm(1. ./(μ + ω .- upvals)) * upvecs' * exp(2im * π * dot( R, k))
+            g[2] += upvecs * diagm(1. ./(μ + ω .- upvals)) * upvecs' * exp(2im * π * dot(-R, k))
         end
         for exch in exchanges
             s_m = exch.proj1.start        
