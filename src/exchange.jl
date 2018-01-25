@@ -8,11 +8,11 @@ Projections and atom datablocks are to be found in the corresponding wannier inp
 It turns out the ordering is first projections, then atom order in the atoms datablock.
 """
 struct Exchange{T <: AbstractFloat}
-    J      ::Array{T, 2}
-    atom1  ::Atom{T}
-    atom2  ::Atom{T}
-    orb1   ::Orbital
-    orb2   ::Orbital
+    J       ::Array{T, 2}
+    atom1   ::Atom{T}
+    atom2   ::Atom{T}
+    proj1   ::Projection
+    proj2   ::Projection
 end
 
 function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_grid) where T <:AbstractFloat
@@ -89,7 +89,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:ωv/10/n_ωv])
     
     
-    Jmn = Array{Matrix{T},1}()
+    exchanges = Exchange{T}[]
     for (i, at1) in enumerate(atoms)
         projections1 = at1.projections
         for at2 in atoms[i+1:end]
@@ -97,7 +97,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             for proj1 in projections1
                 for proj2 in projections2
                     if proj1.orb in orbitals && proj2.orb in orbitals
-                        push!(Jmn, zeros(T, proj1.size, proj1.size))
+                        push!(exchanges, Exchange{T}(zeros(T, proj1.size, proj1.size), at1, at2, proj1, proj2))
                     end
                 end
             end 
@@ -116,43 +116,14 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
                 g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(2im * π * dot(sign * R, k))
             end
         end
-        
-        tmp = 1
-        for (i, at1) in enumerate(atoms)
-            projections1 = at1.projections
-            for at2 in atoms[i+1:end]
-                projections2 = at2.projections
-                for proj1 in projections1
-                    s_m = proj1.start
-                    l_m = proj1.last
-                    for proj2 in projections2
-                        s_n = proj2.start
-                        l_n = proj2.last
-                        if proj1.orb in orbitals && proj2.orb in orbitals
-                            Threads.lock(mutex)
-                            Jmn[tmp] += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
-                            Threads.unlock(mutex)
-                            tmp += 1
-                        end
-                    end
-                end 
-            end
-        end
-    end
-    exchanges = Exchange{T}[]
-    i = 1
-    for m = 1:length(atoms)
-        at1 = atoms[m]
-        for n = m + 1:length(atoms)
-            at2 = atoms[n]
-            for proj1 in at1.projections
-                for proj2 in at2.projections
-                    if proj1.orb in orbitals && proj2.orb in orbitals
-                        push!(exchanges, Exchange{T}(Jmn[i] * 1e3 / (2π * prod(nk)^2), at1, at2, proj1.orb, proj2.orb))
-                        i += 1
-                    end
-                end
-            end
+        for exch in exchanges
+            s_m = exch.proj1.start        
+            l_m = exch.proj1.last
+            s_n = exch.proj2.start
+            l_n = exch.proj2.last
+            Threads.lock(mutex)
+            exch.J += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
+            Threads.unlock(mutex)
         end
     end
     
