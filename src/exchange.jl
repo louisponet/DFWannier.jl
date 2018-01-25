@@ -115,10 +115,10 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
         g = fill(zeros(Complex{T}, n_orb, n_orb), 2)
         for ki = 1:length(k_grid)
             k = k_grid[ki]
-            upvals = k_eigvals_up[ki]
-            upvecs = k_eigvecs_up[ki]
-            dnvals = k_eigvals_dn[ki]
-            dnvecs = k_eigvecs_dn[ki]
+            upvals = k_eigval_up[ki]
+            upvecs = k_eigvec_up[ki]
+            dnvals = k_eigval_dn[ki]
+            dnvecs = k_eigvec_dn[ki]
             g[1] += upvecs * diagm(1. ./(μ + ω .- upvals)) * upvecs' * exp(2im * π * dot( R, k))
             g[2] += upvecs * diagm(1. ./(μ + ω .- upvals)) * upvecs' * exp(2im * π * dot(-R, k))
         end
