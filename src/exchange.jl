@@ -74,7 +74,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     atoms = structure.atoms
     k_grid = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
    
-    mutex = Threads.Mutex() 
+    mutex = Threads.SpinLock() 
     
     k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D = 
         calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
