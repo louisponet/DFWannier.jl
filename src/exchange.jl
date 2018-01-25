@@ -8,7 +8,7 @@ Projections and atom datablocks are to be found in the corresponding wannier inp
 It turns out the ordering is first projections, then atom order in the atoms datablock.
 """
 struct Exchange{T <: AbstractFloat}
-    J       ::Array{T, 2}
+    J       ::Matrix{T}
     atom1   ::Atom{T}
     atom2   ::Atom{T}
     proj1   ::Projection
@@ -122,7 +122,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             s_n = exch.proj2.start
             l_n = exch.proj2.last
             Threads.lock(mutex)
-            exch.J += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
+            exch.J .+= sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
             Threads.unlock(mutex)
         end
     end
