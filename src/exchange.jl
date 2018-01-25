@@ -99,6 +99,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D = 
         calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
     
+    k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
     D /= prod(nk)::Int
     n_orb = size(D)[1]
     totocc /= prod(nk)::Int 
@@ -113,14 +114,11 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
         dω = ω_grid[j + 1] - ω
         
         g = fill(zeros(Complex{T}, n_orb, n_orb), 2)
-        for ki = 1:length(k_grid)
-            k = k_grid[ki]
-            upvals = k_eigval_up[ki]
-            upvecs = k_eigvec_up[ki]
-            dnvals = k_eigval_dn[ki]
-            dnvecs = k_eigvec_dn[ki]
-            g[1] += upvecs * diagm(1. ./(μ + ω .- upvals)) * upvecs' * exp(2im * π * dot( R, k))
-            g[2] += upvecs * diagm(1. ./(μ + ω .- upvals)) * upvecs' * exp(2im * π * dot(-R, k))
+        for (ki, k_info) in enumerate(k_infos)
+            sign = ki * 2 - 3 #1=-1 2=1
+            for (k, vals, vecs) in k_info 
+                g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(2im * π * dot(sign * R, k))
+            end
         end
         for exch in exchanges
             s_m = exch.proj1.start        
