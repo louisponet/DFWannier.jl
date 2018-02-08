@@ -22,128 +22,128 @@
       title --> "Center of Mass (X)"
       yguide --> "Rx (Angström)"
       for cm in band.cms
-        push!(out,cm.x)
+        push!(out,cm[1])
       end
     elseif data==:cm_y
       title --> "Center of Mass (Y)"
       yguide --> "Ry (Angström)"
       for cm in band.cms
-        push!(out,cm.y)
+        push!(out,cm[2])
       end
     elseif data==:cm_z
       title --> "Center of Mass (Z)"
       yguide --> L"R_z"*" ("*L"\AA"*")"
       for cm in band.cms
-        push!(out,cm.z)
+        push!(out,cm[3])
       end
     elseif data==:angmom_x
       title --> "Orbital Angular Momentum (X)"
       yguide --> L"L_x (arb. units)"
       for angmom in band.angmoms
-        push!(out,angmom[1].x+angmom[2].x)
+        push!(out,angmom[1][1]+angmom[2][1])
       end
     elseif data==:angmom_y
       title --> "Orbital Angular Momentum (Y)"
       yguide --> L"L_y (arb. units)"
       for angmom in band.angmoms
-        push!(out,angmom[1].y+angmom[2].y)
+        push!(out,angmom[1][2]+angmom[2][2])
       end
     elseif data==:angmom_z
       title --> "Orbital Angular Momentum (Z)"
       yguide --> "Lz (arb. units)"
       for angmom in band.angmoms
-        push!(out,angmom[1].z+angmom[2].z)
+        push!(out,angmom[1][3]+angmom[2][3])
       end
     elseif data==:angmom1_x
       title --> "Orbital Angular Momentum (X)"
       yguide --> "Lx (arb. units)"
       label --> "OAM around Ge"
       for angmom in band.angmoms
-        push!(out,angmom[1].x)
+        push!(out,angmom[1][1])
       end
     elseif data==:angmom1_y
       title --> "Orbital Angular Momentum (Y)"
       yguide --> "Ly (arb. units)"
       label --> "OAM around Ge"
       for angmom in band.angmoms
-        push!(out,angmom[1].y)
+        push!(out,angmom[1][2])
       end
     elseif data==:angmom1_z
       title --> "Orbital Angular Momentum (Z)"
       yguide --> "Lz (arb. units)"
       label --> "OAM around Ge"
       for angmom in band.angmoms
-        push!(out,angmom[1].z)
+        push!(out,angmom[1][3])
       end
     elseif data==:angmom2_x
       title --> "Orbital Angular Momentum (X)"
       yguide --> L"L_x"*" (arb. units)"
       label --> "OAM around Te"
       for angmom in band.angmoms
-        push!(out,angmom[2].x)
+        push!(out,angmom[2][1])
       end
     elseif data==:angmom2_y
       title --> "Orbital Angular Momentum (Y)"
       yguide --> L"L_y"*" (arb. units)"
       label --> "OAM around Ge"
       for angmom in band.angmoms
-        push!(out,angmom[2].y)
+        push!(out,angmom[2][2])
       end
     elseif data==:angmom2_z
       title --> "Orbital Angular Momentum (Z)"
       yguide --> "Lz (arb. units)"
       label --> "OAM around Ge"
       for angmom in band.angmoms
-        push!(out,angmom[2].z)
+        push!(out,angmom[2][3])
       end
     elseif data==:angmom2_xy
       title --> "Orbital Angular Momentum (XY)"
       yguide --> "norm(Lx)+norm(Ly)"
       label --> "Total angmom"
       for (spin,angmom) in zip(band.spins,band.angmoms)
-        push!(out,sqrt((angmom[2].x+spin[2].x)^2+(angmom[2].y+spin[2].y)^2))
+        push!(out,sqrt((angmom[2][1]+spin[2][1])^2+(angmom[2][2]+spin[2][2])^2))
       end
     elseif data==:spin1_x
       title --> "Spin Angular Momentum (X)"
       yguide --> "Sx (arb. units)"
       label --> "SAM around Ge"
       for spin in band.spins
-        push!(out,spin[1].x)
+        push!(out,spin[1][1])
       end
     elseif data==:spin1_y
       title --> "Spin Angular Momentum (Y)"
       yguide --> "Sy (arb. units)"
       label --> "SAM around Ge"
       for spin in band.spins
-        push!(out,spin[1].y)
+        push!(out,spin[1][2])
       end
     elseif data==:spin1_z
       title --> "Spin Angular Momentum (Z)"
       yguide --> "Sz (arb. units)"
       label --> "SAM around Ge"
       for spin in band.spins
-        push!(out,spin[1].z)
+        push!(out,spin[1][3])
       end
     elseif data==:spin2_x
       title --> "Spin Angular Momentum (X)"
       yguide --> L"S_x"*" (arb. units)"
       label --> "SAM around Te"
       for spin in band.spins
-        push!(out,spin[2].x)
+        push!(out,spin[2][1])
       end
     elseif data==:spin2_y
       title --> "Spin Angular Momentum (Y)"
       yguide --> L"S_y"*" (arb. units)"
       label --> "SAM around Te"
       for spin in band.spins
-        push!(out,spin[2].y)
+        push!(out,spin[2][2])
       end
     elseif data==:spin2_z
       title --> "Spin Angular Momentum (Z)"
       yguide --> "Sz (arb. units)"
       label --> "SAM around Te"
       for spin in band.spins
-        push!(out,spin[2].z)
+        push!(out,spin[2][3])
       end
     elseif data==:epot
       title --> "Electrostatic Potential"
@@ -167,7 +167,7 @@ end
 end
 
 @recipe function f(bands::Array{<:WannierBand,1},data::Symbol)
-  for band in bands 
+  for band in bands
     @series begin
       band,data
     end
@@ -175,7 +175,7 @@ end
 end
 
 @recipe function f(bands::Array{<:WannierBand,1})
-  for band in bands 
+  for band in bands
     @series begin
       band
     end

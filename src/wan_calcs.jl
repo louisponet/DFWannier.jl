@@ -72,9 +72,9 @@ function calculate_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3D{T}) wh
   b = wfc1[1,2,1].p - origin
   c = wfc1[1,1,2].p - origin
   V = inv([convert(Array,a) convert(Array,b) convert(Array,c)])
-  center_x = center.x
-  center_y = center.y
-  center_z = center.z
+  center_x = center[1]
+  center_y = center[2]
+  center_z = center[3]
   dadx = V[1,1]
   dbdx = V[2,1]
   dcdx = V[3,1]
@@ -89,27 +89,27 @@ function calculate_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3D{T}) wh
   Lz = zero(Complex{T})
   n1 = zero(T)
   n2 = zero(T)
-  @inbounds for i2 = 2:size(wfc1.points)[3]-1
-    @inbounds for i1 = 2:size(wfc1.points)[2]-1
-      @inbounds for i = 2:size(wfc1.points)[1]-1
-        
+  @inbounds for i2 = 2:size(wfc1)[3]-1
+    @inbounds for i1 = 2:size(wfc1)[2]-1
+      @inbounds for i = 2:size(wfc1)[1]-1
+
         dwx = wfc2[i+1,i1,i2].w-wfc2[i-1,i1,i2].w
         dwy = wfc2[i,i1+1,i2].w-wfc2[i,i1-1,i2].w
         dwz = wfc2[i,i1,i2+1].w-wfc2[i,i1,i2-1].w
-        rx = wfc2[i,i1,i2].p.x-center_x
-        ry = wfc2[i,i1,i2].p.y-center_y
-        rz = wfc2[i,i1,i2].p.z-center_z
-        
+        rx = wfc2[i,i1,i2].p[1]-center_x
+        ry = wfc2[i,i1,i2].p[2]-center_y
+        rz = wfc2[i,i1,i2].p[3]-center_z
+
         ddax = dwx*dadx
         ddbx = dwy*dbdx
         ddcx = dwz*dcdx
         ddx = ddax+ddbx+ddcx
-        
+
         dday = dwx*dady
         ddby = dwy*dbdy
         ddcy = dwz*dcdy
         ddy = dday+ddby+ddcy
-        
+
         ddaz = dwx*dadz
         ddbz = dwy*dbdz
         ddcz = dwz*dcdz
@@ -148,15 +148,44 @@ function calculate_angmoms(wfcs::Array{Wfc3D{T}}) where T<:AbstractFloat
   return [out fill([zero(Complex{T}) for i=1:3],size(out));fill([zero(Complex{T}) for i=1:3],size(out)) out]
 end
 
+function calculate_angmoms(structure::WanStructure{T}, totdim= get_mat_dims(structure))::NTuple{3, SMatrix{2*totdim, 2*totdim, Complex{T}}} where T
+    t_out_x = MMatrix{2*totdim, 2*totdim, Complex{T}}(zeros(Complex{T}, 2 * totdim, 2 * totdim))
+    t_out_y = MMatrix{2*totdim, 2*totdim, Complex{T}}(zeros(Complex{T}, 2 * totdim, 2 * totdim))
+    t_out_z = MMatrix{2*totdim, 2*totdim, Complex{T}}(zeros(Complex{T}, 2 * totdim, 2 * totdim))
+    tot_i = 1
+    for at in structure.atoms
+        len = length(at.wfcs)
+        for i = 0:len-1, j=i:len-1
+            m = tot_i + i
+            n = tot_i + j
+            m2 = totdim + tot_i + i
+            n2 = totdim + tot_i + j
+            l = calculate_angmom(at.wfcs[i+1], at.wfcs[j+1], at.position)
+            if m == n
+                t_out_x[m, n], t_out_y[m, n], t_out_z[m, n] = real.(l)
+                t_out_x[m2, n2], t_out_y[m2, n2], t_out_z[m2, n2] = real.(l)
+            else
+                t_out_x[m, n], t_out_y[m, n], t_out_z[m, n] = l
+                t_out_x[m2, n2], t_out_y[m2, n2], t_out_z[m2, n2] = l
+            end
+        end
+        tot_i += len
+    end
+
+    return SMatrix{2*totdim, 2*totdim, Complex{T}}.((t_out_x, t_out_y, t_out_z))
+end
+
+
+
 "Calculates the spins between the supplied wavefunctions"
-function calculate_spins(wfcs::Array{<:Wfc{T},1}) where T<:AbstractFloat
+function calculate_spins(wfcs::Array{<:Wfc3D{T},1}) where T<:AbstractFloat
   dim = length(wfcs)
-  dim_2 = div(dim,2)
   s_x = get_pauli(T,:x,2*dim)
   s_y = get_pauli(T,:y,2*dim)
   s_z = get_pauli(T,:z,2*dim)
   return s_x,s_y,s_z
 end
+
 
 "Calculates the dipole term between two wavefunctions"
 function calculate_dip(wfc1::Wfc3D{T},wfc2::Wfc3D{T}) where T<:AbstractFloat
@@ -166,9 +195,9 @@ function calculate_dip(wfc1::Wfc3D{T},wfc2::Wfc3D{T}) where T<:AbstractFloat
   n1 = zero(Complex{T})
   n2 = zero(Complex{T})
   for (p1,p2) in zip(wfc1.points,wfc2.points)
-    out_x += conj(p1.w)*p2.w*p1.p.x
-    out_y += conj(p1.w)*p2.w*p1.p.y
-    out_z += conj(p1.w)*p2.w*p1.p.z
+    out_x += conj(p1.w)*p2.w*p1.p[1]
+    out_y += conj(p1.w)*p2.w*p1.p[2]
+    out_z += conj(p1.w)*p2.w*p1.p[3]
     n1 += norm(p1.w)^2
     n2 += norm(p2.w)^2
   end
@@ -188,7 +217,7 @@ function calculate_dips(wfcs::Array{<:Wfc3D})
 end
 
 "Calculates the dipoles from the supplied wannier dipole output."
-function calculate_k_dips(dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}}},k_points::Array) where T<:AbstractFloat
+function calculate_k_dips(dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}}}, k_points::AbstractArray) where T<:AbstractFloat
   dim = 0
   for i=1:length(dip_raw)
     d = dip_raw[i][4]
@@ -203,9 +232,9 @@ function calculate_k_dips(dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}}},
   for i=1:size(dip_raw)[1]
     d = dip_raw[i]
     complex_part = 2*pi*(k_points[1]*d[1]+k_points[2]*d[2]+k_points[3]*d[3])
-    tmp[d[4],d[5]][1] += d[6].x*exp(-1im*complex_part)
-    tmp[d[4],d[5]][2] += d[6].y*exp(-1im*complex_part)
-    tmp[d[4],d[5]][3] += d[6].z*exp(-1im*complex_part)
+    tmp[d[4],d[5]][1] += d[6][1]*exp(-1im*complex_part)
+    tmp[d[4],d[5]][2] += d[6][2]*exp(-1im*complex_part)
+    tmp[d[4],d[5]][3] += d[6][3]*exp(-1im*complex_part)
   end
   for i in eachindex(out)
     out[i]=Point3D(real(tmp[i][1]),real(tmp[i][2]),real(tmp[i][3]))
@@ -227,9 +256,9 @@ function calculate_overlap_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T},n_overlaps::Int6
   b = wfc1[1,2,1].p - origin
   c = wfc1[1,1,2].p - origin
   V = inv([convert(Array,a) convert(Array,b) convert(Array,c)])
-  center_x = wfc1.atom.center.x
-  center_y = wfc1.atom.center.y
-  center_z = wfc1.atom.center.z
+  center_x = wfc1.atom.center[1]
+  center_y = wfc1.atom.center[2]
+  center_z = wfc1.atom.center[3]
   dadx = V[1,1]
   dbdx = V[2,1]
   dcdx = V[3,1]
@@ -260,19 +289,19 @@ function calculate_overlap_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T},n_overlaps::Int6
           ddbx = (wfc2[j,j1+1,j2].w-wfc2[j,j1-1,j2].w)*dbdx
           ddcx = (wfc2[j,j1,j2+1].w-wfc2[j,j1,j2-1].w)*dcdx
           ddx = ddax+ddbx+ddcx
-          
+
           dday = (wfc2[j+1,j1,j2].w-wfc2[j-1,j1,j2].w)*dady
           ddby = (wfc2[j,j1+1,j2].w-wfc2[j,j1-1,j2].w)*dbdy
           ddcy = (wfc2[j,j1,j2+1].w-wfc2[j,j1,j2-1].w)*dcdy
           ddy = dday+ddby+ddcy
-          
+
           ddaz = (wfc2[j+1,j1,j2].w-wfc2[j-1,j1,j2].w)*dadz
           ddbz = (wfc2[j,j1+1,j2].w-wfc2[j,j1-1,j2].w)*dbdz
           ddcz = (wfc2[j,j1,j2+1].w-wfc2[j,j1,j2-1].w)*dcdz
           ddz = ddaz+ddbz+ddcz
-          Lx += conj(wfc1[i,i1,i2].w)*-1im*((wfc1[i,i1,i2].p.y-center_y)*ddz-(wfc1[i,i1,i2].p.z-center_z)*ddy)
-          Ly += conj(wfc1[i,i1,i2].w)*-1im*((wfc1[i,i1,i2].p.z-center_z)*ddx-(wfc1[i,i1,i2].p.x-center_x)*ddz)
-          Lz += conj(wfc1[i,i1,i2].w)*-1im*((wfc1[i,i1,i2].p.x-center_x)*ddy-(wfc1[i,i1,i2].p.y-center_y)*ddx)
+          Lx += conj(wfc1[i,i1,i2].w)*-1im*((wfc1[i,i1,i2].p[2]-center_y)*ddz-(wfc1[i,i1,i2].p[3]-center_z)*ddy)
+          Ly += conj(wfc1[i,i1,i2].w)*-1im*((wfc1[i,i1,i2].p[3]-center_z)*ddx-(wfc1[i,i1,i2].p[1]-center_x)*ddz)
+          Lz += conj(wfc1[i,i1,i2].w)*-1im*((wfc1[i,i1,i2].p[1]-center_x)*ddy-(wfc1[i,i1,i2].p[2]-center_y)*ddx)
           # n1 += norm(wfc1[i,i1,i2].w)^2
           # n2 += norm(wfc2[i,i1,i2].w)^2
           i+=1
@@ -366,7 +395,7 @@ function add_overlap_cm!(overlaps::Wfc3D{T},wfc1::Wfc3D{T},wfc2::Wfc3D{T},prefac
         w1 = wfc1.points[i1,i2,i3].w
         w2 = wfc2.points[j1,j2,j3].w
         tmp = overlaps[i1,i2,i3].w
-        overlaps.points[i1,i2,i3] = WfcPoint3D{T}(prefac*real(conj(w1)*w2)*wfc1.points[i1,i2,i3].p.z+tmp,wfc1.points[i1,i2,i3].p)
+        overlaps.points[i1,i2,i3] = WfcPoint3D{T}(prefac*real(conj(w1)*w2)*wfc1.points[i1,i2,i3].p[3]+tmp,wfc1.points[i1,i2,i3].p)
         i1+=1
         j1+=1
       end
@@ -380,7 +409,7 @@ end
 
 function add_distribution!(distribution::Wfc3D{T},wfc1::Wfc3D{T},R::Point3D{T}) where T
   dim_a,dim_b,dim_c = size(wfc1.points)
-  
+
   ind1,ind2 = find_start(wfc1,R,27)
   i3 = ind1[3]
   j3 = ind2[3]
@@ -437,54 +466,54 @@ function calculate_tmp_pot(k_wfcs,potential)
   return [out zeros(out);zeros(out) out]
 end
 
-function calculate_dip_mesh_soc(model::WannierModel{T},k_point,band) where T
-  points = similar(model.wfcs[1].points,Tuple{Point3D{T},Point3D{T}})
-  k_wfcs = Array{Wfc3D{T},1}(size(model.wfcs)[1])
-  for (i,wfc) in enumerate(model.wfcs)
-    k_wfcs[i] = construct_bloch_sum(wfc,k_point)
-  end
-  dim_a = size(points)[1]
-  dim_b = size(points)[2]
-  dim_c = size(points)[3]
-  for wfc in k_wfcs
-    for ic=1:dim_c
-      for ib=1:dim_b
-        for ia=1:dim_a
-          if ia <= dim_a/7 || ib <= dim_b/7 || ic <= dim_c/7
-            wfc.points[ia,ib,ic] = WfcPoint3D(0.0im,wfc.points[ia,ib,ic].p)
-          elseif ia>= dim_a*(1-1/7) || ib >= dim_b*(1-1/7) || ic >= dim_c*(1-1/7)
-            wfc.points[ia,ib,ic] = WfcPoint3D(0.0im,wfc.points[ia,ib,ic].p)
-          else
-            continue
-          end
-        end
-      end
-    end
-  end
-  hami = construct_SOC_hami(hami_from_k(model.hami_raw,k_point),model.wfcs)
-  eigval,eigvecs = sorted_eig(hami)
-  eigvec = eigvecs[:,band]
-  for i in eachindex(points)
-    point = model.wfcs[1].points[i].p
-    dip_x = zero(Complex{T})
-    dip_y = zero(Complex{T})
-    dip_z = zero(Complex{T})
-    for i1=1:length(eigvec)
-      c1 = eigvec[i1]
-      w1 = k_wfcs[div(i1-1,length(k_wfcs))+1].points[i].w
-      for i2=1:length(eigvec)
-        w2 = k_wfcs[div(i2-1,length(k_wfcs))+1].points[i].w
-        c2 = eigvec[i2]
-        fac = conj(c1*w1)*c2*w2
-        dip_x+=fac*point.x
-        dip_y+=fac*point.y
-        dip_z+=fac*point.z
-      end
-    end
-    points[i]=(point,Point3D(real(dip_x),real(dip_y),real(dip_z)))
-  end
-  return points
-end
+# function calculate_dip_mesh_soc(model::WannierModel{T},k_point,band) where T
+#   points = similar(model.wfcs[1].points,Tuple{Point3D{T},Point3D{T}})
+#   k_wfcs = Array{Wfc3D{T},1}(size(model.wfcs)[1])
+#   for (i,wfc) in enumerate(model.wfcs)
+#     k_wfcs[i] = construct_bloch_sum(wfc,k_point)
+#   end
+#   dim_a = size(points)[1]
+#   dim_b = size(points)[2]
+#   dim_c = size(points)[3]
+#   for wfc in k_wfcs
+#     for ic=1:dim_c
+#       for ib=1:dim_b
+#         for ia=1:dim_a
+#           if ia <= dim_a/7 || ib <= dim_b/7 || ic <= dim_c/7
+#             wfc.points[ia,ib,ic] = WfcPoint3D(0.0im,wfc.points[ia,ib,ic].p)
+#           elseif ia>= dim_a*(1-1/7) || ib >= dim_b*(1-1/7) || ic >= dim_c*(1-1/7)
+#             wfc.points[ia,ib,ic] = WfcPoint3D(0.0im,wfc.points[ia,ib,ic].p)
+#           else
+#             continue
+#           end
+#         end
+#       end
+#     end
+#   end
+#   hami = construct_SOC_hami(hami_from_k(model.hami_raw,k_point),model.wfcs)
+#   eigval,eigvecs = sorted_eig(hami)
+#   eigvec = eigvecs[:,band]
+#   for i in eachindex(points)
+#     point = model.wfcs[1].points[i].p
+#     dip_x = zero(Complex{T})
+#     dip_y = zero(Complex{T})
+#     dip_z = zero(Complex{T})
+#     for i1=1:length(eigvec)
+#       c1 = eigvec[i1]
+#       w1 = k_wfcs[div(i1-1,length(k_wfcs))+1].points[i].w
+#       for i2=1:length(eigvec)
+#         w2 = k_wfcs[div(i2-1,length(k_wfcs))+1].points[i].w
+#         c2 = eigvec[i2]
+#         fac = conj(c1*w1)*c2*w2
+#         dip_x+=fac*point.x
+#         dip_y+=fac*point.y
+#         dip_z+=fac*point[3]
+#       end
+#     end
+#     points[i]=(point,Point3D(real(dip_x),real(dip_y),real(dip_z)))
+#   end
+#   return points
+# end
 
 function calculate_density_wfc(wfc::Wfc3D{T}) where T
   density_wfc = deepcopy(wfc)

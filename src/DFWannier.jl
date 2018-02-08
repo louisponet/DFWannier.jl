@@ -1,7 +1,7 @@
 #Cleanup don't export everything that doesn't have to be exported
 module DFWannier
   if (Pkg.installed.(["CUDAdrv","CuArrays","CUDAnative"]) .!= [nothing for _=1:3])==[true for __=1:3]
-    gpu_enabled = true
+    gpu_enabled = false
   else
     gpu_enabled = false
   end
@@ -10,6 +10,7 @@ module DFWannier
   using RecipesBase
   using LaTeXStrings
   using StaticArrays
+  using GeometryTypes
   if gpu_enabled
     using CuArrays
     using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
@@ -17,9 +18,9 @@ module DFWannier
 
     dev = CuDevice(0)
     ctx = CuContext(dev)
-  end
-
+    end
   include("types.jl")
+  include("typedefs.jl")
   #---#
   export WfcPoint3D
   export Wfc3D
@@ -28,10 +29,12 @@ module DFWannier
   end
   export WannierBand
   export WannierModel
+  include("atom_ext.jl")
   include("structure_ext.jl")
-  export add_wan_data!
+  export add_wan_data
+  export set_soc!
 
-  include("utils.jl") 
+  include("utils.jl")
 
   include("wan_calcs.jl")
   if gpu_enabled
@@ -45,7 +48,8 @@ module DFWannier
   export calculate_dips
 
   include("hami_calcs.jl")
-  include("model_calcs.jl")
+  include("structure_calcs.jl")
+  # include("model_calcs.jl")
   include("plotting.jl")
   include("exchange.jl")
   export AtomOrbInfo

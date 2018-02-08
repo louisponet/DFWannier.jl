@@ -31,9 +31,9 @@ function read_xsf_file(filename::String, T=Float64)
                     #uncomment this line if there is data corruption
                     # tmp = Array{Complex{T}}(map(x->(v = tryparse(T,x); isnull(v) ? Complex(0.0,0.0) : Complex{T}(get(v),0.0)),split(line)))
                     for t in map(x->Complex{T}(x,zero(T)),parse.(T,split(line)))
-                        x = origin.x + (a_vec * a_array[k])[1] + (b_vec * b_array[k1])[1] + (c_vec * c_array[k2])[1]
-                        y = origin.y + (a_vec * a_array[k])[2] + (b_vec * b_array[k1])[2] + (c_vec * c_array[k2])[2]
-                        z = origin.z + (a_vec * a_array[k])[3] + (b_vec * b_array[k1])[3] + (c_vec * c_array[k2])[3]
+                        x = origin[1] + (a_vec * a_array[k])[1] + (b_vec * b_array[k1])[1] + (c_vec * c_array[k2])[1]
+                        y = origin[2] + (a_vec * a_array[k])[2] + (b_vec * b_array[k1])[2] + (c_vec * c_array[k2])[2]
+                        z = origin[3] + (a_vec * a_array[k])[3] + (b_vec * b_array[k1])[3] + (c_vec * c_array[k2])[3]
                         out[k,k1,k2] = WfcPoint3D{T}(t,Point3D{T}(x,y,z))
                         if k < nx
                             k += 1
@@ -57,8 +57,6 @@ function read_xsf_file(filename::String, T=Float64)
     end
 end
 
-"Returns a Wfc3D{T} that is centered around an atom at the origin with 0 soc strength."
-read_xsf_file(filename::String, T=Float64) = read_xsf_file(filename)
 
 """
 write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
@@ -72,10 +70,10 @@ function write_xsf_file(filename::String,wfc::Wfc3D{T}) where T<:AbstractFloat
         write(f,["# Generated from PhD calculations\n", "", "BEGIN_BLOCK_DATAGRID_3D\n", "3D_FIELD\n",
         "BEGIN_DATAGRID_3D_UNKNOWN\n"])
         write(f,"$(size(wfc.points)[1])    $(size(wfc.points)[2])     $(size(wfc.points)[3])\n")
-        write(f,"$(origin.x)   $(origin.y)   $(origin.z)\n")
-        write(f,"$(wfc.points[end,1,1].p.x-origin.x)   $(wfc.points[end,1,1].p.y-origin.y)   $(wfc.points[end,1,1].p.z-origin.z)\n")
-        write(f,"$(wfc.points[1,end,1].p.x-origin.x)   $(wfc.points[1,end,1].p.y-origin.y)   $(wfc.points[1,end,1].p.z-origin.z)\n")
-        write(f,"$(wfc.points[1,1,end].p.x-origin.x)   $(wfc.points[1,1,end].p.y-origin.y)   $(wfc.points[1,1,end].p.z-origin.z)\n")
+        write(f,"$(origin[1])   $(origin[2])   $(origin[3])\n")
+        write(f,"$(wfc.points[end,1,1].p[1]-origin[1])   $(wfc.points[end,1,1].p[2]-origin[2])   $(wfc.points[end,1,1].p[3]-origin[3])\n")
+        write(f,"$(wfc.points[1,end,1].p[1]-origin[1])   $(wfc.points[1,end,1].p[2]-origin[2])   $(wfc.points[1,end,1].p[3]-origin[3])\n")
+        write(f,"$(wfc.points[1,1,end].p[1]-origin[1])   $(wfc.points[1,1,end].p[2]-origin[2])   $(wfc.points[1,1,end].p[3]-origin[3])\n")
         for wfp in wfc.points
             write(f,"$(real(wfp.w)) ")
         end
@@ -127,7 +125,7 @@ function read_dipole_file(filename::String, T=Float64)
             l= split(readline(f))
             ints = [parse(Int,x) for x in l[1:5]]
             dipole = Point3D(parse(T,l[6]),parse(T,l[8]),parse(T,l[10]))
-            push!(out,(ints...,dipole))
+            push!(out, (ints... ,dipole))
         end
         return out
     end
@@ -201,26 +199,26 @@ function write_dip_file(filename::String,points,cell,atoms,names,direction)
         origin = points[1,1,1][1]
         write(f,["# Generated from PhD calculations\n"])
         write(f,["CRYSTAL\n","PRIMVEC\n"])
-        write(f,["$(cell[1].x)  $(cell[1].y) $(cell[1].z)\n"])
-        write(f,["$(cell[2].x)  $(cell[2].y) $(cell[2].z)\n"])
-        write(f,["$(cell[3].x)  $(cell[3].y) $(cell[3].z)\n"])
+        write(f,["$(cell[1][1])  $(cell[1][2]) $(cell[1][3])\n"])
+        write(f,["$(cell[2][1])  $(cell[2][2]) $(cell[2][3])\n"])
+        write(f,["$(cell[3][1])  $(cell[3][2]) $(cell[3][3])\n"])
         write(f,["CONVVEC\n"])
-        write(f,["$(cell[1].x)  $(cell[1].y) $(cell[1].z)\n"])
-        write(f,["$(cell[2].x)  $(cell[2].y) $(cell[2].z)\n"])
-        write(f,["$(cell[3].x)  $(cell[3].y) $(cell[3].z)\n"])
+        write(f,["$(cell[1][1])  $(cell[1][2]) $(cell[1][3])\n"])
+        write(f,["$(cell[2][1])  $(cell[2][2]) $(cell[2][3])\n"])
+        write(f,["$(cell[3][1])  $(cell[3][2]) $(cell[3][3])\n"])
         write(f,["PRIMCOORD\n"])
         write(f,["  $(length(atoms)) 1\n"])
         for (atom,name) in zip(atoms,names)
-            write(f,["$name  $(atom.center.x)  $(atom.center.y)  $(atom.center.z)\n"])
+            write(f,["$name  $(atom.center[1])  $(atom.center[2])  $(atom.center[3])\n"])
         end
 
         write(f,["", "BEGIN_BLOCK_DATAGRID_3D\n", "3D_FIELD\n",
         "BEGIN_DATAGRID_3D_UNKNOWN\n"])
         write(f,"$(size(points)[1])    $(size(points)[2])     $(size(points)[3])\n")
-        write(f,"$(origin.x)   $(origin.y)   $(origin.z)\n")
-        write(f,"$(points[end,1,1][1].x-origin.x)   $(points[end,1,1][1].y-origin.y)   $(points[end,1,1][1].z-origin.z)\n")
-        write(f,"$(points[1,end,1][1].x-origin.x)   $(points[1,end,1][1].y-origin.y)   $(points[1,end,1][1].z-origin.z)\n")
-        write(f,"$(points[1,1,end][1].x-origin.x)   $(points[1,1,end][1].y-origin.y)   $(points[1,1,end][1].z-origin.z)\n")
+        write(f,"$(origin[1])   $(origin[2])   $(origin[3])\n")
+        write(f,"$(points[end,1,1][1][1]-origin[1])   $(points[end,1,1][1][2]-origin[2])   $(points[end,1,1][1][3]-origin[3])\n")
+        write(f,"$(points[1,end,1][1][1]-origin[1])   $(points[1,end,1][1][2]-origin[2])   $(points[1,end,1][1][3]-origin[3])\n")
+        write(f,"$(points[1,1,end][1][1]-origin[1])   $(points[1,1,end][1][2]-origin[2])   $(points[1,1,end][1][3]-origin[3])\n")
         for point in points
             write(f,"$(point[2][direction]) ")
         end

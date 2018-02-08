@@ -9,13 +9,18 @@ function hami_from_k(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_po
       break
     end
   end
-  out = zeros(Complex{T},(dim,dim))
+  out = MMatrix{dim, dim, Complex{T}}(zeros(Complex{T},(dim,dim)))
   for i=1:size(hami_raw)[1]
     h = hami_raw[i]
     complex_part = 2*pi*(k_points[1]*h[1]+k_points[2]*h[2]+k_points[3]*h[3])
-    out[h[4],h[5]] += h[6]*exp(-1im*complex_part)
+    if h[4] == h[5]
+        out[h[4],h[5]] += real(h[6]*exp(-1im*complex_part))
+    else
+        out[h[4],h[5]] += h[6]*exp(-1im*complex_part)
+    end
   end
-  return out
+
+  return SMatrix{dim, dim, Complex{T}}(Hermitian(out))
 end
 
 "Constructs the total spin-orbit-coupled Hamiltonian out of supplied angular momentums between the Wannier functions and uses the l_soc of the atoms."
@@ -29,6 +34,26 @@ function construct_soc_hami(hami,angmoms,atoms)
   return out
 end
 
+"Constructs the total spin-orbit-coupled Hamiltonian out of supplied angular momentums between the Wannier functions and uses the l_soc of the atoms."
+function construct_soc_hami(hami, Lx, Ly, Lz, structure)
+    dim = div(size(Lx)[1],2)
+    Lx_soc = MMatrix{dim, dim, eltype(Lx)}()
+    Ly_soc = MMatrix{dim, dim, eltype(Lx)}()
+    Lz_soc = MMatrix{dim, dim, eltype(Lx)}()
+    i = 1
+    for at in structure.atoms
+        len = length(at.wfcs)-1
+        Lx_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * Lx[i:i+len, i:i+len]
+        Ly_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * Ly[i:i+len, i:i+len]
+        Lz_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * Lz[i:i+len, i:i+len]
+        i += len
+    end
+    Lx_soc = (Lx_soc+Lx_soc')/2
+    Ly_soc = (Ly_soc+Ly_soc')/2
+    Lz_soc = (Lz_soc+Lz_soc')/2
+    out = [hami+Lz_soc Lx_soc-1im*Ly_soc;Lx_soc+1im*Ly_soc hami-Lz_soc]
+    return out
+end
 #Used by bloch calculations
 function construct_L_hamis{T<:AbstractFloat}(wfcs::Array{Wfc3D{T},1})
   dim = length(wfcs)
@@ -55,7 +80,7 @@ function construct_soc_hami(hami,wfcs)
   return out
 end
 #Not sure if used
-"Constructs the angular momentum part of the Tight Binding Hamiltonians" 
+"Constructs the angular momentum part of the Tight Binding Hamiltonians"
 function construct_L_hamis(angmoms,l1,l2)
   dim = div(size(angmoms[1])[1],2)
   dim_2 = div(dim,2)

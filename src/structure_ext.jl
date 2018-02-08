@@ -1,16 +1,26 @@
 import DFControl: search_dir, parse_block
 
-function add_wan_data!(job::DFJob, T=Float64)
-    add_wan_data!(job.structure, job.local_dir, T)
-    return job
+mutable struct WanStructure{T<:AbstractFloat} <: AbstractStructure{T}
+    name   ::AbstractString
+    cell   ::Mat3{T}
+    atoms  ::Vector{<:AbstractAtom{T}}
+    data   ::Dict{Symbol, Any}
+    tbhami ::Vector{Tuple{Int,Int,Int,Int,Int,Complex{T}}}
+    tbdip  ::Vector{Tuple{Int,Int,Int,Int,Int,Point3D{T}}}
 end
 
+WanStructure(structure::AbstractStructure, tbhami, tbdip) =
+    WanStructure(structure.name, structure.cell, structure.atoms, structure.data, tbhami, tbdip)
+WanStructure(structure::AbstractStructure, tbhami) =
+    WanStructure(structure.name, structure.cell, structure.atoms, structure.data, tbhami, Tuple{Int,Int,Int,Int,Int,Complex{T}}[])
+
+
 #TODO does not handle the SOC case. Or the case where there is up and down
-function add_wan_data!(structure::Structure, job_dir::String, T=Float64)
+function add_wan_data(structure::AbstractStructure{T}, job_dir::String) where T
     search_dir(str) = job_dir .* DFControl.search_dir(job_dir, str)
     xsf_files  = search_dir(".xsf")
-    hami_file  = search_dir("hr.dat")[1]
-    r_file     = search_dir("r.dat")[1]
+    hami_file  = search_dir("_hr.dat")[1]
+    r_file     = search_dir("_r.dat")[1]
     wout_file  = search_dir(".wout")[1]
 
     t_wfcs = Array{Array{WfcPoint3D{T},3},1}(length(xsf_files))
@@ -24,13 +34,13 @@ function add_wan_data!(structure::Structure, job_dir::String, T=Float64)
 
         centers = Point3D{T}.(parse_block(f, T, T, T))
     end
-
+    new_atoms = WanAtom{T}[]
     for at in structure.atoms
-        at.wfcs = Wfc3D{T}[]
+        push!(new_atoms, WanAtom(at))
     end
-    for (i, (c, wfc)) in enumerate(zip(center, wfcs))
-        t_at = structure.atoms[1]
-        for at in structure.atoms[2:end]
+    for (i, (c, wfc)) in enumerate(zip(centers, t_wfcs))
+        t_at = new_atoms[1]
+        for at in new_atoms[2:end]
             if norm(at.position - c) < norm(t_at.position - c)
                 t_at = at
             end
@@ -38,8 +48,64 @@ function add_wan_data!(structure::Structure, job_dir::String, T=Float64)
         push!(t_at.wfcs, wfc)
     end
 
+    structure.atoms = new_atoms
+    tbhami          = read_hami_file(hami_file, T)
+    tbdip           = read_dipole_file(r_file, T)
+    return WanStructure(structure, tbhami, tbdip)
+end
 
-    structure.data[:tbhami] = read_hami_file.(hami_files, T)
-    structure.data[:tbdip]  = read_dipole_file.(r_files, T)
+function add_wan_data(job::DFJob)
+    job.structure = add_wan_data(job.structure, job.local_dir)
+    return job
+end
+
+"""
+    set_soc!(structure::Structure, socs...)
+
+Accepts a varargs list of atom symbols => soc,
+which will set the soc of the atoms in the structure to the specified values.
+"""
+function set_soc!(structure::AbstractStructure{T}, socs...) where T
+    for (at, soc) in socs
+        for str_at in structure.atoms
+            if str_at.id == at
+                str_at.lsoc = T(soc)
+            end
+        end
+    end
     return structure
+end
+
+"""
+    set_soc!(job::DFJob, socs...)
+
+Accepts a varargs list of atom symbols => soc,
+which will set the soc of the atoms in the job structure to the specified values.
+"""
+function set_soc!(job::DFJob, socs...)
+    set_soc!(job.structure, socs...)
+    return job
+end
+
+"""
+    getwfcs(structure::WanStructure)
+
+Returns the wavefunctions that are linked to the atoms inside the structure.
+"""
+function getwfcs(structure::WanStructure{T}) where T
+    wfcs = Array{WfcPoint3D{T}, 3}[]
+    for at in structure.atoms
+        for wfc in at.wfcs
+            push!(wfcs, wfc)
+        end
+    end
+    return wfcs
+end
+
+function get_mat_dims(structure::WanStructure{T}) where T
+    dim = 0
+    for at in structure.atoms
+        dim += length(at.wfcs)
+    end
+    return dim
 end
