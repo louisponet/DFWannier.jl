@@ -10,7 +10,7 @@ module DFWannier
   using RecipesBase
   using LaTeXStrings
   using StaticArrays
-  if gpu_enabled 
+  if gpu_enabled
     using CuArrays
     using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
     using CUDAnative
@@ -18,8 +18,8 @@ module DFWannier
     dev = CuDevice(0)
     ctx = CuContext(dev)
   end
+
   include("types.jl")
-  export Atom
   #---#
   export WfcPoint3D
   export Wfc3D
@@ -28,6 +28,8 @@ module DFWannier
   end
   export WannierBand
   export WannierModel
+  include("structure_ext.jl")
+  export add_wan_data!
 
   include("utils.jl") 
 

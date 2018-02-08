@@ -4,15 +4,15 @@ read_xsf_file(filename::String, atom::Atom, T=Float64)
 
 Returns a Wfc3D{T} upon reading a Wannier wavefunction file. The atom specified is used in calculations such as angular momentum calculations.
 """
-function read_xsf_file(filename::String, atom::Atom{T}) where T
+function read_xsf_file(filename::String, T=Float64)
     open(filename) do f
         while !eof(f)
             line = readline(f)
             if line == "PRIMVEC"
                 cell  = [Point3D{T}(map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),split(readline(f)))) for i=1:3]
             end
-            
-            if line == " DATAGRID_3D_DENSITY" || contains(line, "DATAGRID_3D_UNKNOWN") 
+
+            if line == " DATAGRID_3D_DENSITY" || contains(line, "DATAGRID_3D_UNKNOWN")
                 nx, ny, nz = parse.(Int,split(readline(f)))
                 origin     = Point3D{T}(parse.(T,split(readline(f))))
                 a_vec      = parse.(T,split(readline(f)))
@@ -21,20 +21,20 @@ function read_xsf_file(filename::String, atom::Atom{T}) where T
                 a_array    = collect(T,linspace(0, 1, nx))
                 b_array    = collect(T,linspace(0, 1, ny))
                 c_array    = collect(T,linspace(0, 1, nz))
-                out        = Wfc3D(Array{WfcPoint3D{T},3}(nx,ny,nz),cell,atom)
+                out        = Array{WfcPoint3D{T},3}(nx,ny,nz)
                 line       = readline(f)
-                
+
                 k  = 1
                 k1 = 1
                 k2 = 1
                 while line != "END_DATAGRID_3D"
-                    #uncomment this line if there is data corruption 
+                    #uncomment this line if there is data corruption
                     # tmp = Array{Complex{T}}(map(x->(v = tryparse(T,x); isnull(v) ? Complex(0.0,0.0) : Complex{T}(get(v),0.0)),split(line)))
                     for t in map(x->Complex{T}(x,zero(T)),parse.(T,split(line)))
                         x = origin.x + (a_vec * a_array[k])[1] + (b_vec * b_array[k1])[1] + (c_vec * c_array[k2])[1]
                         y = origin.y + (a_vec * a_array[k])[2] + (b_vec * b_array[k1])[2] + (c_vec * c_array[k2])[2]
                         z = origin.z + (a_vec * a_array[k])[3] + (b_vec * b_array[k1])[3] + (c_vec * c_array[k2])[3]
-                        out.points[k,k1,k2] = WfcPoint3D{T}(t,Point3D{T}(x,y,z))
+                        out[k,k1,k2] = WfcPoint3D{T}(t,Point3D{T}(x,y,z))
                         if k < nx
                             k += 1
                         else
@@ -58,7 +58,7 @@ function read_xsf_file(filename::String, atom::Atom{T}) where T
 end
 
 "Returns a Wfc3D{T} that is centered around an atom at the origin with 0 soc strength."
-read_xsf_file(filename::String, T=Float64) = read_xsf_file(filename,Atom{T}())
+read_xsf_file(filename::String, T=Float64) = read_xsf_file(filename)
 
 """
 write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
@@ -139,7 +139,7 @@ end
 """
 read_potential_file(filename::String, T=Float64)
 
-Reads a Quantum Espresso potential output file. 
+Reads a Quantum Espresso potential output file.
 """
 function read_potential_file(filename::String, T=Float64)
     tmp_data=nothing
@@ -213,7 +213,7 @@ function write_dip_file(filename::String,points,cell,atoms,names,direction)
         for (atom,name) in zip(atoms,names)
             write(f,["$name  $(atom.center.x)  $(atom.center.y)  $(atom.center.z)\n"])
         end
-        
+
         write(f,["", "BEGIN_BLOCK_DATAGRID_3D\n", "3D_FIELD\n",
         "BEGIN_DATAGRID_3D_UNKNOWN\n"])
         write(f,"$(size(points)[1])    $(size(points)[2])     $(size(points)[3])\n")
@@ -344,7 +344,7 @@ function read_exchanges(filename::String, T=Float64)
             end
             push!(indices, (i,j))
             exch = parse(T, spl[3])
-            push!(out, exch) 
+            push!(out, exch)
         end
         real_out = zeros(T, (max, max))
         for (o, (i, j)) in zip(out, indices)
@@ -353,4 +353,3 @@ function read_exchanges(filename::String, T=Float64)
         return real_out
     end
 end
-            
