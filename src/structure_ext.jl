@@ -21,25 +21,19 @@ function add_wan_data(structure::AbstractStructure{T}, job_dir::String) where T
     xsf_files  = search_dir(".xsf")
     hami_file  = search_dir("_hr.dat")[1]
     r_file     = search_dir("_r.dat")[1]
-    wout_file  = search_dir(".wout")[1]
 
+    new_atoms = WanAtom{T}[]
+    for at in structure.atoms
+        push!(new_atoms, WanAtom(at, :wfcs => Wfc3D{T}[]))
+    end
     t_wfcs = Array{Array{WfcPoint3D{T},3},1}(length(xsf_files))
     Threads.@threads for i=1:length(xsf_files)
         t_wfcs[i] = read_xsf_file(xsf_files[i], T)
     end
 
-    centers= nothing
-    open(wout_file, "r") do f
-        readuntil(f, "Final State")
-
-        centers = Point3D{T}.(parse_block(f, T, T, T))
-    end
-    new_atoms = WanAtom{T}[]
-    for at in structure.atoms
-        push!(new_atoms, WanAtom(at))
-    end
-    for (i, (c, wfc)) in enumerate(zip(centers, t_wfcs))
+    for (i, wfc) in enumerate(t_wfcs)
         t_at = new_atoms[1]
+        c = calc_dip(wfc,wfc)
         for at in new_atoms[2:end]
             if norm(at.position - c) < norm(t_at.position - c)
                 t_at = at
@@ -102,7 +96,7 @@ function getwfcs(structure::WanStructure{T}) where T
     return wfcs
 end
 
-function get_mat_dims(structure::WanStructure{T}) where T
+function getwandim(structure::WanStructure{T}) where T
     dim = 0
     for at in structure.atoms
         dim += length(at.wfcs)

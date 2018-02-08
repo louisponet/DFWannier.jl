@@ -35,17 +35,17 @@ function construct_soc_hami(hami,angmoms,atoms)
 end
 
 "Constructs the total spin-orbit-coupled Hamiltonian out of supplied angular momentums between the Wannier functions and uses the l_soc of the atoms."
-function construct_soc_hami(hami, Lx, Ly, Lz, structure)
-    dim = div(size(Lx)[1],2)
-    Lx_soc = MMatrix{dim, dim, eltype(Lx)}()
-    Ly_soc = MMatrix{dim, dim, eltype(Lx)}()
-    Lz_soc = MMatrix{dim, dim, eltype(Lx)}()
+function construct_soc_hami(hami, structure::WanStructure{T}) where T
+    dim = getwandim(structure)
+    Lx_soc = MMatrix{dim, dim, Complex{T}}()
+    Ly_soc = similar(Lx_soc)
+    Lz_soc = similar(Lx_soc)
     i = 1
     for at in structure.atoms
         len = length(at.wfcs)-1
-        Lx_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * Lx[i:i+len, i:i+len]
-        Ly_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * Ly[i:i+len, i:i+len]
-        Lz_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * Lz[i:i+len, i:i+len]
+        Lx_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * getindex.(at.angmom, 1)
+        Ly_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * getindex.(at.angmom, 2)
+        Lz_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * getindex.(at.angmom, 3)
         i += len
     end
     Lx_soc = (Lx_soc+Lx_soc')/2

@@ -66,7 +66,7 @@ function find_start(wfc::Wfc3D,R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tup
 end
 
 "Calculates the angular momentum between two wavefunctions and around the center."
-function calculate_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3D{T}) where T<:AbstractFloat
+function calc_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3D{T}) where T<:AbstractFloat
   origin = wfc1[1,1,1].p
   a = wfc1[2,1,1].p - origin
   b = wfc1[1,2,1].p - origin
@@ -129,56 +129,56 @@ function calculate_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3D{T}) wh
 end
 
 "Calculates the angular momenta between two wavefunctions, around the atom of the second wavefunction."
-function calculate_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T}) where T<:AbstractFloat
+function calc_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T}) where T<:AbstractFloat
   if wfc1.atom != wfc2.atom
     return zero(Complex{T}),zero(Complex{T}),zero(Complex{T})
   else
-    return calculate_angmom(wfc1,wfc2,wfc2.atom.center)
+    return calc_angmom(wfc1,wfc2,wfc2.atom.center)
   end
 end
 
 "Calculates the angular momenta between all the supplied wavefunctions"
-function calculate_angmoms(wfcs::Array{Wfc3D{T}}) where T<:AbstractFloat
+function calc_angmoms(wfcs::Array{Wfc3D{T}}) where T<:AbstractFloat
   out = Array{Array{Complex{T},1},2}((size(wfcs)[1],size(wfcs)[1]))
   for (i,wfc1) in enumerate(wfcs)
     for (i1,wfc2) in enumerate(wfcs)
-      out[i,i1]=[calculate_angmom(wfc1,wfc2)...]
+      out[i,i1]=[calc_angmom(wfc1,wfc2)...]
     end
   end
   return [out fill([zero(Complex{T}) for i=1:3],size(out));fill([zero(Complex{T}) for i=1:3],size(out)) out]
 end
 
-function calculate_angmoms(structure::WanStructure{T}, totdim= get_mat_dims(structure))::NTuple{3, SMatrix{2*totdim, 2*totdim, Complex{T}}} where T
-    t_out_x = MMatrix{2*totdim, 2*totdim, Complex{T}}(zeros(Complex{T}, 2 * totdim, 2 * totdim))
-    t_out_y = MMatrix{2*totdim, 2*totdim, Complex{T}}(zeros(Complex{T}, 2 * totdim, 2 * totdim))
-    t_out_z = MMatrix{2*totdim, 2*totdim, Complex{T}}(zeros(Complex{T}, 2 * totdim, 2 * totdim))
-    tot_i = 1
+function calc_angmoms!(structure::WanStructure{T}) where T
     for at in structure.atoms
-        len = length(at.wfcs)
-        for i = 0:len-1, j=i:len-1
-            m = tot_i + i
-            n = tot_i + j
-            m2 = totdim + tot_i + i
-            n2 = totdim + tot_i + j
-            l = calculate_angmom(at.wfcs[i+1], at.wfcs[j+1], at.position)
-            if m == n
-                t_out_x[m, n], t_out_y[m, n], t_out_z[m, n] = real.(l)
-                t_out_x[m2, n2], t_out_y[m2, n2], t_out_z[m2, n2] = real.(l)
-            else
-                t_out_x[m, n], t_out_y[m, n], t_out_z[m, n] = l
-                t_out_x[m2, n2], t_out_y[m2, n2], t_out_z[m2, n2] = l
-            end
+        if isdefined(at, :angmoms)
+            continue
         end
-        tot_i += len
+        dim = length(at.wfcs)
+        ang = MMatrix{dim, dim, Vec3{Complex{T}}}()
+        for i=1:dim, j=1:dim
+            ang[i, j] = Vec3(calc_angmom(at.wfcs[i], at.wfcs[j], at.position)...)
+        end
+        at.angmom = ang
     end
-
-    return SMatrix{2*totdim, 2*totdim, Complex{T}}.((t_out_x, t_out_y, t_out_z))
 end
 
 
+function calc_spins(structure::WanStructure{T}) where T<: AbstractFloat
+    if haskey(structure.data, :Sx)
+        return structure.data[:Sx], structure.data[:Sy], structure.data[:Sz]
+    end
+    dim = length(structure.atoms[1].wfcs)
+    s_x = Mat(get_pauli(T, :x, 2*dim))
+    s_y = Mat(get_pauli(T, :y, 2*dim))
+    s_z = Mat(get_pauli(T, :z, 2*dim))
+    structure.data[:Sx] = s_x
+    structure.data[:Sy] = s_y
+    structure.data[:Sz] = s_z
+    return s_x, s_y, s_z
+end
 
 "Calculates the spins between the supplied wavefunctions"
-function calculate_spins(wfcs::Array{<:Wfc3D{T},1}) where T<:AbstractFloat
+function calc_spins(wfcs::Array{<:Wfc3D{T},1}) where T<:AbstractFloat
   dim = length(wfcs)
   s_x = get_pauli(T,:x,2*dim)
   s_y = get_pauli(T,:y,2*dim)
@@ -188,13 +188,13 @@ end
 
 
 "Calculates the dipole term between two wavefunctions"
-function calculate_dip(wfc1::Wfc3D{T},wfc2::Wfc3D{T}) where T<:AbstractFloat
+function calc_dip(wfc1::Wfc3D{T},wfc2::Wfc3D{T}) where T<:AbstractFloat
   out_x = zero(Complex{T})
   out_y = zero(Complex{T})
   out_z = zero(Complex{T})
   n1 = zero(Complex{T})
   n2 = zero(Complex{T})
-  for (p1,p2) in zip(wfc1.points,wfc2.points)
+  for (p1,p2) in zip(wfc1,wfc2)
     out_x += conj(p1.w)*p2.w*p1.p[1]
     out_y += conj(p1.w)*p2.w*p1.p[2]
     out_z += conj(p1.w)*p2.w*p1.p[3]
@@ -206,18 +206,18 @@ function calculate_dip(wfc1::Wfc3D{T},wfc2::Wfc3D{T}) where T<:AbstractFloat
 end
 
 "Calculates all dipole terms between the wavefunctions."
-function calculate_dips(wfcs::Array{<:Wfc3D})
+function calc_dips(wfcs::Array{<:Wfc3D})
   out = Array{Point3D,2}((size(wfcs)[1],size(wfcs)[1]))
   for (i,wfc1) in enumerate(wfcs)
     for (i1,wfc2) in enumerate(wfcs)
-      out[i,i1]=calculate_cm(wfc1,wfc2)
+      out[i,i1]=calc_cm(wfc1,wfc2)
     end
   end
   return out
 end
 
 "Calculates the dipoles from the supplied wannier dipole output."
-function calculate_k_dips(dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}}}, k_points::AbstractArray) where T<:AbstractFloat
+function calc_k_dips(dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}}}, k_points::AbstractArray) where T<:AbstractFloat
   dim = 0
   for i=1:length(dip_raw)
     d = dip_raw[i][4]
@@ -239,11 +239,11 @@ function calculate_k_dips(dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}}},
   for i in eachindex(out)
     out[i]=Point3D(real(tmp[i][1]),real(tmp[i][2]),real(tmp[i][3]))
   end
-  return [out zeros(out);zeros(out) out]
+  return Mat{2*dim, 2*dim, Point3{T}}([out zeros(out);zeros(out) out])
 end
 
 #------------------------Not currently used beyond here---------------------------------#
-function calculate_overlap_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T},n_overlaps::Int64) where T<:AbstractFloat
+function calc_overlap_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T},n_overlaps::Int64) where T<:AbstractFloat
   if wfc1.atom!=wfc2.atom
     return [(zero(Complex{T}),zero(Complex{T}),zero(Complex{T})) for i=1:2*n_overlaps+1,i1=1:2*n_overlaps+1,i2=1:2*n_overlaps+1]
   end
@@ -315,8 +315,8 @@ function calculate_overlap_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T},n_overlaps::Int6
     end
     out_moms[R1+n_overlaps+1,R2+n_overlaps+1,R3+n_overlaps+1] = (Lx,Ly,Lz)
   end
-  n1 = calculate_normalization_constant(wfc1)
-  n2 = calculate_normalization_constant(wfc2)
+  n1 = calc_normalization_constant(wfc1)
+  n2 = calc_normalization_constant(wfc2)
   n = sqrt(n1*n2)
   for i in eachindex(out_moms)
     out_moms[i]=(out_moms[i][1]/n,out_moms[i][2]/n,out_moms[i][3]/n)
@@ -324,18 +324,18 @@ function calculate_overlap_angmom(wfc1::Wfc3D{T},wfc2::Wfc3D{T},n_overlaps::Int6
   return out_moms
 end
 
-function calculate_overlap_angmoms(wfcs::Array{Wfc3D{T}},n_overlaps::Int64) where T<:AbstractFloat
+function calc_overlap_angmoms(wfcs::Array{Wfc3D{T}},n_overlaps::Int64) where T<:AbstractFloat
   out = Array(Tuple{Complex{T},Complex{T},Complex{T}},length(wfcs),length(wfcs),n_overlaps*2+1,n_overlaps*2+1,n_overlaps*2+1)
   for i1=1:length(wfcs)
     for i=1:length(wfcs)
-      out[i,i1,:,:,:] = calculate_overlap_angmom(wfcs[i],wfcs[i1],n_overlaps)
+      out[i,i1,:,:,:] = calc_overlap_angmom(wfcs[i],wfcs[i1],n_overlaps)
     end
   end
   return out
 end
 
 #this is for the bloch sum approach doesnt work
-function calculate_angmoms(angmoms::Array{Tuple{Complex{T},Complex{T},Complex{T}},5},k::Array{T,1}) where T<:AbstractFloat
+function calc_angmoms(angmoms::Array{Tuple{Complex{T},Complex{T},Complex{T}},5},k::Array{T,1}) where T<:AbstractFloat
   dim_wfcs = size(angmoms)[1]
   out = [[zero(Complex{T}) for i=1:3] for i1 = 1:dim_wfcs,i2=1:dim_wfcs]
   R1 = -div(size(angmoms)[3],2):div(size(angmoms)[3],2)
@@ -434,7 +434,7 @@ function add_distribution!(distribution::Wfc3D{T},wfc1::Wfc3D{T},R::Point3D{T}) 
   end
 end
 
-function calculate_pot(wfc1::Wfc3D{T},wfc2::Wfc3D{T},potential::Array{T,3}) where T<:AbstractFloat
+function calc_pot(wfc1::Wfc3D{T},wfc2::Wfc3D{T},potential::Array{T,3}) where T<:AbstractFloat
   dim_a,dim_b,dim_c = (size(wfc1.points)...)
   i1s::Int64,i2s::Int64,i3s::Int64 = 29,29,29
   i1m::Int64,i2m::Int64,i3m::Int64 = dim_a*2/3+1,dim_b*2/3+1,dim_c*2/3+1
@@ -456,17 +456,17 @@ function calculate_pot(wfc1::Wfc3D{T},wfc2::Wfc3D{T},potential::Array{T,3}) wher
   return out/n
 end
 
-function calculate_tmp_pot(k_wfcs,potential)
+function calc_tmp_pot(k_wfcs,potential)
   out = Array{Complex,2}((size(k_wfcs)[1],size(k_wfcs)[1]))
   for (i,wfc1) in enumerate(k_wfcs)
     for (i1,wfc2) in enumerate(k_wfcs)
-      out[i,i1]= calculate_pot(wfc1,wfc2,potential)
+      out[i,i1]= calc_pot(wfc1,wfc2,potential)
     end
   end
   return [out zeros(out);zeros(out) out]
 end
 
-# function calculate_dip_mesh_soc(model::WannierModel{T},k_point,band) where T
+# function calc_dip_mesh_soc(model::WannierModel{T},k_point,band) where T
 #   points = similar(model.wfcs[1].points,Tuple{Point3D{T},Point3D{T}})
 #   k_wfcs = Array{Wfc3D{T},1}(size(model.wfcs)[1])
 #   for (i,wfc) in enumerate(model.wfcs)
@@ -515,7 +515,7 @@ end
 #   return points
 # end
 
-function calculate_density_wfc(wfc::Wfc3D{T}) where T
+function calc_density_wfc(wfc::Wfc3D{T}) where T
   density_wfc = deepcopy(wfc)
   for (i,wfc_p) in enumerate(wfc.points)
     density_wfc.points[i] = WfcPoint3D{T}(conj(wfc_p.w)*wfc_p.w,wfc_p.p)
@@ -523,7 +523,7 @@ function calculate_density_wfc(wfc::Wfc3D{T}) where T
   return density_wfc
 end
 
-function calculate_density_wfc_normalized(wfc::Wfc3D{T}) where T
+function calc_density_wfc_normalized(wfc::Wfc3D{T}) where T
   density_wfc = deepcopy(wfc)
   n=zero(Complex{T})
   for (i,wfc_p) in enumerate(wfc.points)

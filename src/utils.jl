@@ -1,10 +1,10 @@
+
 function sorted_eig(hami)
   # for i=1:size(hami)[1]
   #   hami[i,i] = real(hami[i,i])
   # end
   #
   eigs, eigvec = eig(hami)
-  println(eigs)
   out_eig = similar(eigs)
   out_vec = similar(eigvec)
   perm = sortperm(real(eigs))

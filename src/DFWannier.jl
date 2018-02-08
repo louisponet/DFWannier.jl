@@ -41,11 +41,12 @@ module DFWannier
     include("wan_calcs_gpu.jl")
   end
   export construct_bloch_sum
-  export calculate_angmom
-  export calculate_angmoms
-  export calculate_spins
-  export calculate_dip
-  export calculate_dips
+  export calc_angmom
+  export calc_angmoms
+  export calc_angmoms!
+  export calc_spins
+  export calc_dip
+  export calc_dips
 
   include("hami_calcs.jl")
   include("structure_calcs.jl")
@@ -55,7 +56,7 @@ module DFWannier
   export AtomOrbInfo
   export WannExchanges
   export exchange_between
-  export calculate_exchanges
+  export calc_exchanges
   include("fileio.jl")
   export read_xsf_file
   export write_xsf_file
