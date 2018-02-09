@@ -47,7 +47,7 @@ module DFWannier
   export calc_spins
   export calc_dip
   export calc_dips
-
+  export calc_observables
   include("hami_calcs.jl")
   include("structure_calcs.jl")
   # include("model_calcs.jl")

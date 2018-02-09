@@ -28,65 +28,20 @@ end
 "Constructs the total spin-orbit-coupled Hamiltonian out of supplied angular momentums between the Wannier functions and uses the l_soc of the atoms."
 function construct_soc_hami(hami, structure::WanStructure{T})::Matrix{Complex{T}} where T
     dim = getwandim(structure)
-    Lx_soc = MMatrix{dim, dim, Complex{T}}()
-    Ly_soc = similar(Lx_soc)
-    Lz_soc = similar(Lx_soc)
+    Lx_soc = zeros(Complex{T}, dim, dim)
+    Ly_soc = zeros(Complex{T}, dim, dim)
+    Lz_soc = zeros(Complex{T}, dim, dim)
     i = 1
     for at in structure.atoms
         len = length(at.wfcs)-1
         Lx_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * getindex.(at.angmom, 1)
         Ly_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * getindex.(at.angmom, 2)
         Lz_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * getindex.(at.angmom, 3)
-        i += len
+        i += len + 1
     end
     Lx_soc = (Lx_soc+Lx_soc')/2
     Ly_soc = (Ly_soc+Ly_soc')/2
     Lz_soc = (Lz_soc+Lz_soc')/2
     out = [hami+Lz_soc Lx_soc-1im*Ly_soc;Lx_soc+1im*Ly_soc hami-Lz_soc]
     return out
-end
-#Used by bloch calculations
-function construct_L_hamis{T<:AbstractFloat}(wfcs::Array{Wfc3D{T},1})
-  dim = length(wfcs)
-  hami_Lx = zeros(Complex{T},(dim,dim))
-  hami_Ly = zeros(Complex{T},(dim,dim))
-  hami_Lz = zeros(Complex{T},(dim,dim))
-  for i=1:dim
-    for i1=1:dim
-      Lx1,Ly1,Lz1 = calculate_angmom(wfcs[i],wfcs[i1])
-      hami_Lx[i,i1] = wfcs[i1].atom.l_soc * Lx1
-      hami_Ly[i,i1] = wfcs[i1].atom.l_soc * Ly1
-      hami_Lz[i,i1] = wfcs[i1].atom.l_soc * Lz1
-    end
-  end
-  hami_Lx = (hami_Lx+hami_Lx')/2
-  hami_Ly = (hami_Ly+hami_Ly')/2
-  hami_Lz = (hami_Lz+hami_Lz')/2
-  return hami_Lx,hami_Ly,hami_Lz
-end
-
-function construct_soc_hami(hami,wfcs)
-  h_Lx,h_Ly,h_Lz = construct_L_hamis(wfcs)
-  out = [hami+0.5h_Lz 0.5h_Lx-0.5im*h_Ly;0.5h_Lx+0.5im*h_Ly hami-0.5h_Lz]
-  return out
-end
-#Not sure if used
-"Constructs the angular momentum part of the Tight Binding Hamiltonians"
-function construct_L_hamis(angmoms,l1,l2)
-  dim = div(size(angmoms[1])[1],2)
-  dim_2 = div(dim,2)
-  hami_Lx = zeros(Complex{T},(dim,dim))
-  hami_Ly = zeros(Complex{T},(dim,dim))
-  hami_Lz = zeros(Complex{T},(dim,dim))
-  for i1 = 1:dim
-    for i = 1:dim
-      hami_Lx[i,i1] = angmoms[1][i,i1][1]*l1+angmoms[2][i,i1][1]*l2
-      hami_Ly[i,i1] = angmoms[1][i,i1][2]*l1+angmoms[2][i,i1][2]*l2
-      hami_Lz[i,i1] = angmoms[1][i,i1][3]*l1+angmoms[2][i,i1][3]*l2
-    end
-  end
-  hami_Lx = (hami_Lx+hami_Lx')/2
-  hami_Ly = (hami_Ly+hami_Ly')/2
-  hami_Lz = (hami_Lz+hami_Lz')/2
-  return hami_Lx,hami_Ly,hami_Lz
 end

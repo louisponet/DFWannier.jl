@@ -17,7 +17,7 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
             hami = t_hami
         end
         eigvals, eigvecs = sorted_eig(hami)
-        push!(eigvals_k, eigvals)
+        push!(eigvals_k, real(eigvals))
         L_t, S_t = eigangmomspin(eigvecs, structure.atoms, Sx, Sy, Sz)
         push!(L_k, L_t)
         push!(S_k, S_t)
