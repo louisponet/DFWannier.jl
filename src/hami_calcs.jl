@@ -9,12 +9,13 @@ function hami_from_k(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_po
       break
     end
   end
-  out = MMatrix{dim, dim, Complex{T}}(zeros(Complex{T},(dim,dim)))
+  outhami = MMatrix{dim, dim, Complex{T}}(zeros(Complex{T},(dim,dim)))
+  outdip = MMatrix{dim, dim, Complex{T}}(zeros(Point3{Complex{T}},(dim,dim)))
   for i=1:size(hami_raw)[1]
     h = hami_raw[i]
     complex_part = 2*pi*(k_points[1]*h[1]+k_points[2]*h[2]+k_points[3]*h[3])
     if h[4] == h[5]
-        out[h[4],h[5]] += real(h[6]*exp(-1im*complex_part))
+        out[h[4],h[5]] += h[6]*cos(complex_part)
     else
         out[h[4],h[5]] += h[6]*exp(-1im*complex_part)
     end
@@ -23,19 +24,9 @@ function hami_from_k(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_po
   return SMatrix{dim, dim, Complex{T}}(Hermitian(out))
 end
 
-"Constructs the total spin-orbit-coupled Hamiltonian out of supplied angular momentums between the Wannier functions and uses the l_soc of the atoms."
-function construct_soc_hami(hami,angmoms,atoms)
-  soc_angmoms = [0.5*atoms[i].l_soc*angmoms[i,j] for i=1:length(atoms),j=1:length(atoms)]
-  h_Lx,h_Ly,h_Lz = map(x->x[1],soc_angmoms),map(x->x[2],soc_angmoms),map(x->x[3],soc_angmoms)
-  h_Lx = (h_Lx+h_Lx')/2
-  h_Ly = (h_Ly+h_Ly')/2
-  h_Lz = (h_Lz+h_Lz')/2
-  out = [hami+h_Lz h_Lx-1im*h_Ly;h_Lx+1im*h_Ly hami-h_Lz]
-  return out
-end
 
 "Constructs the total spin-orbit-coupled Hamiltonian out of supplied angular momentums between the Wannier functions and uses the l_soc of the atoms."
-function construct_soc_hami(hami, structure::WanStructure{T}) where T
+function construct_soc_hami(hami, structure::WanStructure{T})::Matrix{Complex{T}} where T
     dim = getwandim(structure)
     Lx_soc = MMatrix{dim, dim, Complex{T}}()
     Ly_soc = similar(Lx_soc)

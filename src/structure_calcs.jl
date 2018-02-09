@@ -10,11 +10,11 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
     cm_k = Vector{Point3D{T}}[]
     for j=1:size(kpoints)[1]
         k = kpoints[j]
-        dips = calc_k_dips(structure.tbdip, k)
+        t_hami, dips = hami_dip_from_k(structure.tbhami, structure.tbdip, k)
         if soc
-            hami = construct_soc_hami(hami_from_k(structure.tbhami, k), structure)
+            hami = construct_soc_hami(t_hami, structure)
         else
-            hami = hami_from_k(structure.tbhami, k)
+            hami = t_hami
         end
         eigvals, eigvecs = sorted_eig(hami)
         push!(eigvals_k, eigvals)
@@ -24,6 +24,35 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
         push!(cm_k, eigcm(dips, eigvecs))
     end
     return eigvals_k, L_k, S_k, cm_k
+end
+
+function hami_dip_from_k(tbhami, tbdip, k::Vector{T}) where T
+    dim = 0
+    for i = 1:length(tbhami)
+        d = tbhami[i][4]
+        if d > dim
+            dim = d
+        else
+            break
+        end
+    end
+    outhami =zeros(Complex{T},(dim,dim))
+    outdip  = zeros(Point3{Complex{T}},(dim,dim))
+    for i = 1:size(tbhami)[1]
+        h = tbhami[i]
+        a, b, c = h[1], h[2], h[3]
+        wf1, wf2 = h[4], h[5]
+        exponent =  2pi * (k[1]*a + k[2]*b + k[3]*c)
+        factor   = exp(-1im * exponent)
+        if wf2 == wf1
+            outhami[wf1, wf2] += h[6] * cos(exponent)
+        else
+            outhami[wf1, wf2] += h[6] * factor
+        end
+        outdip[wf1, wf2] += tbdip[i][6] * factor
+    end
+    outdip_ = real(outdip)
+    return Hermitian(outhami), [outdip_ zeros(outdip_);zeros(outdip_) outdip_]
 end
 
 function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T
@@ -50,7 +79,7 @@ function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T
 
                     wfi1 = wfc2atwfcindex(atoms, i1)
                     wfi2 = wfc2atwfcindex(atoms, i2)
-                    L += conj(c1) * c2 * at.angmom[wfi1,wfi2]
+                    L += conj(c1) * c2 * at.angmom[wfi1, wfi2]::Vec3{Complex{T}}
                     S += conj(c1) * c2 * Vec3(Sx[wfi1, wfi2], Sy[wfi1, wfi2], Sz[wfi1, wfi2])
                 end
             end
@@ -77,9 +106,7 @@ function eigcm(dip::AbstractMatrix{Point3{T}}, eigvecs) where T
     return out
 end
 
-
-
-@inline function wfc2atindex(atoms::Vector{<:WanAtom}, wfci)
+function wfc2atindex(atoms::Vector{<:WanAtom}, wfci)
     wfcounter = 0
     i = 1
     while true
@@ -93,7 +120,7 @@ end
     end
 end
 
-@inline function wfc2atwfcindex(atoms::Vector{<:WanAtom}, wfci)
+function wfc2atwfcindex(atoms::Vector{<:WanAtom}, wfci)
     i = 1
     while true
         at = atoms[i]

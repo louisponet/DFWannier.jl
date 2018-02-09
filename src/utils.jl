@@ -8,7 +8,7 @@ function sorted_eig(hami)
   out_eig = similar(eigs)
   out_vec = similar(eigvec)
   perm = sortperm(real(eigs))
-  for (i,p) in enumerate(perm)
+  for (i, p) in enumerate(perm)
     out_vec[:,i]=eigvec[:,p]
     out_eig[i] = eigs[p]
   end

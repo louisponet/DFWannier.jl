@@ -232,9 +232,10 @@ function calc_k_dips(dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}}}, k_po
   for i=1:size(dip_raw)[1]
     d = dip_raw[i]
     complex_part = 2*pi*(k_points[1]*d[1]+k_points[2]*d[2]+k_points[3]*d[3])
-    tmp[d[4],d[5]][1] += d[6][1]*exp(-1im*complex_part)
-    tmp[d[4],d[5]][2] += d[6][2]*exp(-1im*complex_part)
-    tmp[d[4],d[5]][3] += d[6][3]*exp(-1im*complex_part)
+    factor = exp(-1im*complex_part)
+    tmp[d[4],d[5]][1] += d[6][1]*factor
+    tmp[d[4],d[5]][2] += d[6][2]*factor
+    tmp[d[4],d[5]][3] += d[6][3]*factor
   end
   for i in eachindex(out)
     out[i]=Point3D(real(tmp[i][1]),real(tmp[i][2]),real(tmp[i][3]))
