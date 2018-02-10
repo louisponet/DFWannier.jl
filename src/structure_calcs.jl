@@ -1,14 +1,14 @@
 #TODO a lot of optimization possible by splitting it up!
-function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:AbstractVector{T}}, soc=false) where T
+function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:AbstractVector{T}}, soc::Bool=false) where T
     nat = length(structure.atoms)
     calc_angmoms!(structure)
     Sx, Sy, Sz = calc_spins(structure)
-
-    L_k = Vector{Tuple{WanAtom{T}, Vector{Vec3{T}}}}[]
-    S_k = Vector{Tuple{WanAtom{T}, Vector{Vec3{T}}}}[]
-    eigvals_k = Vector{T}[]
-    cm_k = Vector{Point3D{T}}[]
-    for j=1:size(kpoints)[1]
+    klen = length(kpoints)
+    L_k = Vector{Vector{Tuple{WanAtom{T}, Vector{Vec3{T}}}}}(klen)
+    S_k = Vector{Vector{Tuple{WanAtom{T}, Vector{Vec3{T}}}}}(klen)
+    eigvals_k = Vector{Vector{T}}(klen)
+    cm_k = Vector{Vector{Point3D{T}}}(klen)
+    Threads.@threads for j=1:size(kpoints)[1]
         k = kpoints[j]
         t_hami, dips = hami_dip_from_k(structure.tbhami, structure.tbdip, k)
         if soc
@@ -17,15 +17,16 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
             hami = t_hami
         end
         eigvals, eigvecs = sorted_eig(hami)
-        push!(eigvals_k, real(eigvals))
+        eigvals_k[j] = real(eigvals)
         L_t, S_t = eigangmomspin(eigvecs, structure.atoms, Sx, Sy, Sz)
-        push!(L_k, L_t)
-        push!(S_k, S_t)
-        push!(cm_k, eigcm(dips, eigvecs))
+
+        L_k[j]  = L_t
+        S_k[j]  = S_t
+        cm_k[j] = eigcm(dips, eigvecs)
     end
     return eigvals_k, L_k, S_k, cm_k
 end
-function calc_observables(structure::WanStructure, k_points, k_range, args...)
+function calc_observables(structure::WanStructure, k_points, k_range::StepRangeLen, args...)
     mid = div(size(k_points)[1],2)+1
     beg = Int64(k_range[1])
     steps = div(size(k_range)[1],2)
@@ -97,8 +98,6 @@ function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T
                     at = atoms[at_index1]
                     c2 = eigvec[i2]
 
-                    wfi1 = wfc2atwfcindex(atoms, i1)
-                    wfi2 = wfc2atwfcindex(atoms, i2)
                     if blockid1 == blockid2
                         L += conj(c1) * c2 * at.angmom[wfi1, wfi2]::Vec3{Complex{T}}
                     else
