@@ -1,4 +1,4 @@
-
+div1(x, y) = div(x - 1, y) + 1
 function sorted_eig(hami)
   # for i=1:size(hami)[1]
   #   hami[i,i] = real(hami[i,i])

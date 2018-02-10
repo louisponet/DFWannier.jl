@@ -39,9 +39,9 @@ function construct_soc_hami(hami, structure::WanStructure{T})::Matrix{Complex{T}
         Lz_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * getindex.(at.angmom, 3)
         i += len + 1
     end
-    Lx_soc = (Lx_soc+Lx_soc')/2
-    Ly_soc = (Ly_soc+Ly_soc')/2
-    Lz_soc = (Lz_soc+Lz_soc')/2
+    # Lx_soc = (Lx_soc+Lx_soc')/2
+    # Ly_soc = (Ly_soc+Ly_soc')/2
+    # Lz_soc = (Lz_soc+Lz_soc')/2
     out = [hami+Lz_soc Lx_soc-1im*Ly_soc;Lx_soc+1im*Ly_soc hami-Lz_soc]
     return out
 end

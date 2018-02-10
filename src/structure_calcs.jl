@@ -25,6 +25,27 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
     end
     return eigvals_k, L_k, S_k, cm_k
 end
+function calc_observables(structure::WanStructure, k_points, k_range, args...)
+    mid = div(size(k_points)[1],2)+1
+    beg = Int64(k_range[1])
+    steps = div(size(k_range)[1],2)
+    last = Int64(k_range[end])
+    kxs = [linspace(k_points[beg][1], k_points[mid][1], steps)..., k_points[mid][1], linspace(k_points[mid][1], k_points[last][1], steps)[2:end]...]
+    kys = [linspace(k_points[beg][2],k_points[mid][2],steps)...,k_points[mid][2] ,linspace(k_points[mid][2], k_points[last][2], steps)[2:end]...]
+    kzs = [linspace(k_points[beg][3],k_points[mid][3],steps)...,k_points[mid][3] ,linspace(k_points[mid][3],k_points[last][3],steps)[2:end]...]
+    kxs_t = [linspace(k_points[beg][1],k_points[mid][1],steps*100)... ,linspace(k_points[mid][1],k_points[last][1],steps*100)[2:end]...]
+    kys_t = [linspace(k_points[beg][2],k_points[mid][2],steps*100)... ,linspace(k_points[mid][2],k_points[last][2],steps*100)[2:end]...]
+    kzs_t = [linspace(k_points[beg][3],k_points[mid][3],steps*100)... ,linspace(k_points[mid][3],k_points[last][3],steps*100)[2:end]...]
+    # kxs[div(length(kxs),2)]+=0.00001
+    kxs[div(length(kxs),2)] = kxs_t[div(length(kxs_t),2)]
+    kxs[div(length(kxs),2)+1] = kxs_t[div(length(kxs_t),2)+2]
+    kys[div(length(kxs),2)] = kys_t[div(length(kxs_t),2)]
+    kys[div(length(kxs),2)+1] = kys_t[div(length(kxs_t),2)+2]
+    kzs[div(length(kxs),2)] = kzs_t[div(length(kxs_t),2)]
+    kzs[div(length(kxs),2)+1] = kzs_t[div(length(kxs_t),2)+2]
+    k_points = [[kxs[i],kys[i],kzs[i]] for i=1:length(kxs)]
+    return calc_observables(structure, k_points, args...)
+end
 
 function hami_dip_from_k(tbhami, tbdip, k::Vector{T}) where T
     dim = 0
@@ -67,20 +88,22 @@ function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T
             L = zero(Vec3{Complex{T}})
             S = zero(Vec3{Complex{T}})
             for i1 = 1:len
-                at_index1 = wfc2atindex(atoms, i1)
-                at_index1 == a && continue
+                at_index1, blockid1, wfi1 = wfc2atindex(atoms, i1)
+                at_index1 != a && continue
                 c1 = eigvec[i1]
                 for i2 = 1:len
-                    at_index2 = wfc2atindex(atoms, i2)
-                    at_index1 == a && continue
-
+                    at_index2, blockid2, wfi2= wfc2atindex(atoms, i2)
+                    at_index2 != a && continue
                     at = atoms[at_index1]
                     c2 = eigvec[i2]
 
                     wfi1 = wfc2atwfcindex(atoms, i1)
                     wfi2 = wfc2atwfcindex(atoms, i2)
-                    L += conj(c1) * c2 * at.angmom[wfi1, wfi2]::Vec3{Complex{T}}
-                    S += conj(c1) * c2 * Vec3(Sx[wfi1, wfi2], Sy[wfi1, wfi2], Sz[wfi1, wfi2])
+                    if blockid1 == blockid2
+                        L += conj(c1) * c2 * at.angmom[wfi1, wfi2]::Vec3{Complex{T}}
+                    else
+                        S += conj(c1) * c2 * Vec3(Sx[i1, i2], Sy[i1, i2], Sz[i1, i2])
+                    end
                 end
             end
             push!(L_t, real(L))
@@ -109,26 +132,15 @@ end
 function wfc2atindex(atoms::Vector{<:WanAtom}, wfci)
     wfcounter = 0
     i = 1
+    outi = 1
     while true
+        len = length(atoms[i].wfcs)
         wfcounter += length(atoms[i].wfcs)
         if wfcounter >= wfci
-            return mod1(i, length(atoms))
+            return i, div1(outi, length(atoms)), len - wfcounter + wfci
         else
-            i+=1
-            i = mod1(i, length(atoms))
-        end
-    end
-end
-
-function wfc2atwfcindex(atoms::Vector{<:WanAtom}, wfci)
-    i = 1
-    while true
-        at = atoms[i]
-        if wfci - length(at.wfcs) < 1
-            return wfci
-        else
-            wfci -= length(at.wfcs)
-            i += 1
+            outi += 1
+            i +=1
             i = mod1(i, length(atoms))
         end
     end
