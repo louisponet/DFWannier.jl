@@ -150,7 +150,7 @@ end
 
 function calc_angmoms!(structure::WanStructure{T}) where T
     for at in structure.atoms
-        if isdefined(at, :angmoms)
+        if isdefined(at, :angmom)
             continue
         end
         dim = length(at.wfcs)
