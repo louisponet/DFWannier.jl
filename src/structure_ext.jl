@@ -16,6 +16,8 @@ WanStructure(structure::AbstractStructure, tbhami) =
 
 
 #TODO does not handle the SOC case. Or the case where there is up and down
+#TODO handle so that the previous job doesn't get destroyed I mean it's not necessary
+#     it also doesn't agree with the paradigm of julia 
 function add_wan_data(structure::AbstractStructure{T}, job_dir::String) where T
     search_dir(str) = job_dir .* DFControl.search_dir(job_dir, str)
     xsf_files  = search_dir(".xsf")
