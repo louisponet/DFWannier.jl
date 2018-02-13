@@ -1,34 +1,33 @@
 #Cleanup don't export everything that doesn't have to be exported
 module DFWannier
-  if (Pkg.installed.(["CUDAdrv","CuArrays","CUDAnative"]) .!= [nothing for _=1:3])==[true for __=1:3]
-    gpu_enabled = false
-  else
-    gpu_enabled = false
-  end
+  # if (Pkg.installed.(["CUDAdrv","CuArrays","CUDAnative"]) .!= [nothing for _=1:3])==[true for __=1:3]
+  #   gpu_enabled = false
+  # else
+  #   gpu_enabled = false
+  # end
   using Reexport
   @reexport using DFControl
   using RecipesBase
   using LaTeXStrings
   using StaticArrays
   using GeometryTypes
-  if gpu_enabled
-    using CuArrays
-    using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
-    using CUDAnative
-
-    dev = CuDevice(0)
-    ctx = CuContext(dev)
-    end
+  # if gpu_enabled
+  #   using CuArrays
+  #   using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
+  #   using CUDAnative
+  #
+  #   dev = CuDevice(0)
+  #   ctx = CuContext(dev)
+  #   end
   include("types.jl")
   include("typedefs.jl")
   #---#
   export WfcPoint3D
   export Wfc3D
-  if gpu_enabled
-    export Wfc3D_gpu
-  end
+  # if gpu_enabled
+  #   export Wfc3D_gpu
+  # end
   export WannierBand
-  export WannierModel
   include("atom_ext.jl")
   include("structure_ext.jl")
   export add_wan_data
@@ -37,9 +36,9 @@ module DFWannier
   include("utils.jl")
 
   include("wan_calcs.jl")
-  if gpu_enabled
-    include("wan_calcs_gpu.jl")
-  end
+  # if gpu_enabled
+  #   include("wan_calcs_gpu.jl")
+  # end
   export construct_bloch_sum
   export calc_angmom
   export calc_angmoms
@@ -47,10 +46,9 @@ module DFWannier
   export calc_spins
   export calc_dip
   export calc_dips
-  export calc_observables
   include("hami_calcs.jl")
   include("structure_calcs.jl")
-  # include("model_calcs.jl")
+  export calc_observables
   include("plotting.jl")
   include("exchange.jl")
   export AtomOrbInfo

@@ -65,12 +65,17 @@ zero(::Type{WfcPoint3D{T}}) where T<:AbstractFloat = WfcPoint3D(zero(Complex{T})
 
 "Holds all the calculated values from a wannier model."
 mutable struct WannierBand{T<:AbstractFloat} <: Band
-    eigvals::Array{T,1}
-    eigvec::Array{Array{Complex{T},1},1}
-    cms::Array{Point3D{T},1}
-    angmoms::Array{Array{Point3D{T},1},1}
-    spins::Array{Array{Point3D{T},1},1}
-    k_points::Array{Array{T,1},1}
+    eigvals  ::Vector{T}
+    eigvec   ::Vector{Vector{Complex{T}}}
+    cms      ::Vector{Point3D{T}}
+    angmoms  ::Vector{Vector{Point3D{T}}}
+    spins    ::Vector{Vector{Point3D{T}}}
+    k_points ::Vector{Vector{T}}
+end
+
+function WannierBand(kpoints::Vector{Vector{T}}) where T
+    klen = length(kpoints)
+    WannierBand{T}(Vector{T}(klen), Vector{Vector{Complex{T}}}(klen), Vector{Point3D{T}}(klen), Vector{Vector{Point3D{T}}}(klen), Vector{Vector{Point3D{T}}}(klen), kpoints)
 end
 #
 # if gpu_enabled

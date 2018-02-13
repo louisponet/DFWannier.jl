@@ -1,15 +1,18 @@
-#TODO a lot of optimization possible by splitting it up!
 function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:AbstractVector{T}}, soc::Bool=false) where T
     nat = length(structure.atoms)
+    matdim = getwandim(structure)
+    klen = length(kpoints)
     calc_angmoms!(structure)
     Sx, Sy, Sz = calc_spins(structure)
-    klen = length(kpoints)
-    L_k = Vector{Vector{Tuple{WanAtom{T}, Vector{Vec3{T}}}}}(klen)
-    S_k = Vector{Vector{Tuple{WanAtom{T}, Vector{Vec3{T}}}}}(klen)
-    eigvals_k = Vector{Vector{T}}(klen)
-    cm_k = Vector{Vector{Point3D{T}}}(klen)
-    Threads.@threads for j=1:size(kpoints)[1]
-        k = kpoints[j]
+
+    if soc
+        outbands = fill(WannierBand(kpoints), 2 * matdim)
+    else
+        outbands = fill(WannierBand(kpoints), matdim)
+    end
+
+    Threads.@threads for i=1:klen
+        k = kpoints[i]
         t_hami, dips = hami_dip_from_k(structure.tbhami, structure.tbdip, k)
         if soc
             hami = construct_soc_hami(t_hami, structure)
@@ -17,15 +20,22 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
             hami = t_hami
         end
         eigvals, eigvecs = sorted_eig(hami)
-        eigvals_k[j] = real(eigvals)
-        L_t, S_t = eigangmomspin(eigvecs, structure.atoms, Sx, Sy, Sz)
-
-        L_k[j]  = L_t
-        S_k[j]  = S_t
-        cm_k[j] = eigcm(dips, eigvecs)
+        eigvals_k = real(eigvals)
+        cm_k      = eigcm(dips, eigvecs)
+        L_k, S_k  = eigangmomspin(eigvecs, structure.atoms, Sx, Sy, Sz)
+        for (j, (e, l, s, cm)) in enumerate(zip(eigvals_k, L_k, S_k, cm_k))
+            ob = outbands[j]
+            ob.eigvals[i] = e
+            ob.eigvec[i]  = eigvecs[:, j]
+            ob.angmoms[i] = l
+            ob.cms[i]     = cm
+            ob.spins[i]   = s
+        end
     end
-    return eigvals_k, L_k, S_k, cm_k
+
+    return outbands
 end
+
 function calc_observables(structure::WanStructure, k_points, k_range::StepRangeLen, args...)
     mid = div(size(k_points)[1],2)+1
     beg = Int64(k_range[1])
@@ -78,8 +88,8 @@ function hami_dip_from_k(tbhami, tbdip, k::Vector{T}) where T
 end
 
 function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T
-    outL = Tuple{WanAtom, Vector{Vec3{T}}}[]
-    outS = Tuple{WanAtom, Vector{Vec3{T}}}[]
+    outL = Vector{Vec3{T}}[]
+    outS = Vector{Vec3{T}}[]
     len = size(eigvecs)[1]
     for (a, at) in enumerate(atoms)
         L_t    = Vec3{T}[]
@@ -108,8 +118,8 @@ function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T
             push!(L_t, real(L))
             push!(S_t, real(S))
         end
-        push!(outL, (at, L_t))
-        push!(outS, (at, S_t))
+        push!(outL, L_t)
+        push!(outS, S_t)
     end
     return outL, outS
 end
