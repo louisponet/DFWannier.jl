@@ -1,1 +1,1 @@
-const Wfc3D{T} = Array{WfcPoint3D{T}, 3}
+const Wfc3D{T} = Array{WfcPoint3{T}, 3}

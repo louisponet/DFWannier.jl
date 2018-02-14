@@ -24,7 +24,7 @@ function find_start(wfc::Wfc3D_gpu,R,partitions)::Tuple{Tuple{Int64,Int64,Int64}
 end
 
 
-function find_start(grid::Array{<:Point3D,3},R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tuple{Int64,Int64,Int64}}
+function find_start(grid::Array{<:Point3,3},R,partitions)::Tuple{Tuple{Int64,Int64,Int64},Tuple{Int64,Int64,Int64}}
   part_1D = partitions^(1/3)
   # part_1D = partitions
   dim_a = size(grid)[1]
@@ -49,7 +49,7 @@ function find_start(grid::Array{<:Point3D,3},R,partitions)::Tuple{Tuple{Int64,In
 end
 
 function calc_inds_coeffs(wfc::Wfc3D_gpu{T},k) where T
-  grid = [Point3D(g...) for g in Array(wfc.grid)]
+  grid = [Point3(g...) for g in Array(wfc.grid)]
   indices = Array{Tuple{Tuple{Int32,Int32,Int32},Tuple{Int32,Int32,Int32}},1}()
   coefficients = Array{Complex{T},1}()
   for R1=-1:1,R2=-1:1,R3=-1:1

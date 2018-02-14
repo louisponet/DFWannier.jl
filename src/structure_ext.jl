@@ -6,7 +6,7 @@ mutable struct WanStructure{T<:AbstractFloat} <: AbstractStructure{T}
     atoms  ::Vector{<:AbstractAtom{T}}
     data   ::Dict{Symbol, Any}
     tbhami ::Vector{Tuple{Int,Int,Int,Int,Int,Complex{T}}}
-    tbdip  ::Vector{Tuple{Int,Int,Int,Int,Int,Point3D{T}}}
+    tbdip  ::Vector{Tuple{Int,Int,Int,Int,Int,Point3{T}}}
 end
 
 WanStructure(structure::AbstractStructure, tbhami, tbdip) =
@@ -28,7 +28,7 @@ function add_wan_data(structure::AbstractStructure{T}, job_dir::String) where T
     for at in structure.atoms
         push!(new_atoms, WanAtom(at, :wfcs => Wfc3D{T}[]))
     end
-    t_wfcs = Array{Array{WfcPoint3D{T},3},1}(length(xsf_files))
+    t_wfcs = Array{Array{WfcPoint3{T},3},1}(length(xsf_files))
     Threads.@threads for i=1:length(xsf_files)
         t_wfcs[i] = read_xsf_file(xsf_files[i], T)
     end
@@ -89,7 +89,7 @@ end
 Returns the wavefunctions that are linked to the atoms inside the structure.
 """
 function getwfcs(structure::WanStructure{T}) where T
-    wfcs = Array{WfcPoint3D{T}, 3}[]
+    wfcs = Array{WfcPoint3{T}, 3}[]
     for at in structure.atoms
         for wfc in at.wfcs
             push!(wfcs, wfc)

@@ -5,13 +5,18 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
     calc_angmoms!(structure)
     Sx, Sy, Sz = calc_spins(structure)
 
+    outbands = WannierBand{T}[]
     if soc
-        outbands = fill(WannierBand(kpoints), 2 * matdim)
+        for i =1:2*matdim
+            push!(outbands, WannierBand(kpoints))
+        end
     else
-        outbands = fill(WannierBand(kpoints), matdim)
+        for i =1:matdim
+            push!(outbands, WannierBand(kpoints))
+        end
     end
 
-    Threads.@threads for i=1:klen
+    for i=1:klen
         k = kpoints[i]
         t_hami, dips = hami_dip_from_k(structure.tbhami, structure.tbdip, k)
         if soc
@@ -23,13 +28,13 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
         eigvals_k = real(eigvals)
         cm_k      = eigcm(dips, eigvecs)
         L_k, S_k  = eigangmomspin(eigvecs, structure.atoms, Sx, Sy, Sz)
-        for (j, (e, l, s, cm)) in enumerate(zip(eigvals_k, L_k, S_k, cm_k))
+        for j = 1:length(eigvals)
             ob = outbands[j]
-            ob.eigvals[i] = e
+            ob.eigvals[i] = eigvals_k[j]
             ob.eigvec[i]  = eigvecs[:, j]
-            ob.angmoms[i] = l
-            ob.cms[i]     = cm
-            ob.spins[i]   = s
+            ob.angmoms[i] = [l[j] for l in L_k]
+            ob.cms[i]     = cm_k[j]
+            ob.spins[i]   = [s[j] for s in S_k]
         end
     end
 

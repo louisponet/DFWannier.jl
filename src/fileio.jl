@@ -9,19 +9,19 @@ function read_xsf_file(filename::String, T=Float64)
         while !eof(f)
             line = readline(f)
             if line == "PRIMVEC"
-                cell  = [Point3D{T}(map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),split(readline(f)))) for i=1:3]
+                cell  = [Point3{T}(map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),split(readline(f)))) for i=1:3]
             end
 
             if line == " DATAGRID_3D_DENSITY" || contains(line, "DATAGRID_3D_UNKNOWN")
                 nx, ny, nz = parse.(Int,split(readline(f)))
-                origin     = Point3D{T}(parse.(T,split(readline(f))))
+                origin     = Point3{T}(parse.(T,split(readline(f))))
                 a_vec      = parse.(T,split(readline(f)))
                 b_vec      = parse.(T,split(readline(f)))
                 c_vec      = parse.(T,split(readline(f)))
                 a_array    = collect(T,linspace(0, 1, nx))
                 b_array    = collect(T,linspace(0, 1, ny))
                 c_array    = collect(T,linspace(0, 1, nz))
-                out        = Array{WfcPoint3D{T},3}(nx,ny,nz)
+                out        = Array{WfcPoint3{T},3}(nx,ny,nz)
                 line       = readline(f)
 
                 k  = 1
@@ -34,7 +34,7 @@ function read_xsf_file(filename::String, T=Float64)
                         x = origin[1] + (a_vec * a_array[k])[1] + (b_vec * b_array[k1])[1] + (c_vec * c_array[k2])[1]
                         y = origin[2] + (a_vec * a_array[k])[2] + (b_vec * b_array[k1])[2] + (c_vec * c_array[k2])[2]
                         z = origin[3] + (a_vec * a_array[k])[3] + (b_vec * b_array[k1])[3] + (c_vec * c_array[k2])[3]
-                        out[k,k1,k2] = WfcPoint3D{T}(t,Point3D{T}(x,y,z))
+                        out[k,k1,k2] = WfcPoint3{T}(t,Point3{T}(x,y,z))
                         if k < nx
                             k += 1
                         else
@@ -118,13 +118,13 @@ Returns and array of tuples that define the dipoles between the Wannier function
 """
 function read_dipole_file(filename::String, T=Float64)
     open(filename) do  f
-        out = Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}},1}()
+        out = Array{Tuple{Int,Int,Int,Int,Int,Point3{T}},1}()
         readline(f)
         readline(f)
         while !eof(f)
             l= split(readline(f))
             ints = [parse(Int,x) for x in l[1:5]]
-            dipole = Point3D(parse(T,l[6]),parse(T,l[8]),parse(T,l[10]))
+            dipole = Point3(parse(T,l[6]),parse(T,l[8]),parse(T,l[10]))
             push!(out, (ints... ,dipole))
         end
         return out
@@ -307,12 +307,12 @@ function read_xsf_file_GPU(filename::String, T=Float64)
     end
 end
 
-function write_dipole_mesh(filename,mesh::Array{Tuple{Point3D{T},Point3D{T}},3},direction) where T
-    tmp_points = similar(mesh,WfPoint3D{T})
+function write_dipole_mesh(filename,mesh::Array{Tuple{Point3{T},Point3{T}},3},direction) where T
+    tmp_points = similar(mesh,WfPoint3{T})
     for (ip,p) in enumerate(mesh)
-        tmp_points[ip] = WfcPoint3D{T}(getfield(p[2],direction),p[1])
+        tmp_points[ip] = WfcPoint3{T}(getfield(p[2],direction),p[1])
     end
-    write_xsf_file(filename,Wfc3D(tmp_points,Point3D{T}[],Atom()))
+    write_xsf_file(filename,Wfc3D(tmp_points,Point3{T}[],Atom()))
 end
 
 function write_exchanges(filename::String, structure::Structure)

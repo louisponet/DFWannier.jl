@@ -2,27 +2,27 @@ using DFControl: form_directory,search_dir
 import Base: norm, getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 "Point of a wavefunction in 3D, holds the complex value of the wavefunction and the cartesian coordinate."
-struct WfcPoint3D{T<:AbstractFloat}
+struct WfcPoint3{T<:AbstractFloat}
     w::Complex{T}
-    p::Point3D{T}
+    p::Point3{T}
 end
-+(a::WfcPoint3D,b::Point3D) = WfcPoint3D(a.w,a.p+b)
-+(a::WfcPoint3D,b::WfcPoint3D) = a.p == b.p ? WfcPoint3D(a.w+b.w,a.p) : error("Can only sum two wavepoints at the same point in space!")
--(a::WfcPoint3D,b::Point3D) = WfcPoint3D(a.w,a.p-b)
-+(a::WfcPoint3D{T},b::Complex{T}) where T = WfcPoint3D(a.w+b,a.p)
-*(a::WfcPoint3D,b::AbstractFloat) = WfcPoint3D(a.w*b,a.p)
-*(a::WfcPoint3D{T},b::Complex{T}) where T = WfcPoint3D(a.w*b,a.p)
-*(b::AbstractFloat,a::WfcPoint3D) = WfcPoint3D(a.w*b,a.p)
-*(b::Complex{T},a::WfcPoint3D{T}) where T = WfcPoint3D(a.w*b,a.p)
-/(a::WfcPoint3D{T},b::Complex{T}) where T = WfcPoint3D(a.w/b,a.p)
-show(io::IO,x::WfcPoint3D)=print(io,"w = $(x.w), x = $(x.p[1]), y = $(x.p[2]), z = $(x.p[3])")
-zero(::Type{WfcPoint3D{T}}) where T<:AbstractFloat = WfcPoint3D(zero(Complex{T}),Point3D(zero(T)))
++(a::WfcPoint3,b::Point3) = WfcPoint3(a.w,a.p+b)
++(a::WfcPoint3,b::WfcPoint3) = a.p == b.p ? WfcPoint3(a.w+b.w,a.p) : error("Can only sum two wavepoints at the same point in space!")
+-(a::WfcPoint3,b::Point3) = WfcPoint3(a.w,a.p-b)
++(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w+b,a.p)
+*(a::WfcPoint3,b::AbstractFloat) = WfcPoint3(a.w*b,a.p)
+*(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w*b,a.p)
+*(b::AbstractFloat,a::WfcPoint3) = WfcPoint3(a.w*b,a.p)
+*(b::Complex{T},a::WfcPoint3{T}) where T = WfcPoint3(a.w*b,a.p)
+/(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w/b,a.p)
+show(io::IO,x::WfcPoint3)=print(io,"w = $(x.w), x = $(x.p[1]), y = $(x.p[2]), z = $(x.p[3])")
+zero(::Type{WfcPoint3{T}}) where T<:AbstractFloat = WfcPoint3(zero(Complex{T}),Point3(zero(T)))
 
 # abstract type Wfc{T<:AbstractFloat} end
-# "Wavefunction in 3D, holds an array of WfcPoint3D, the superlattice unit cell and the atom around which it lives."
+# "Wavefunction in 3D, holds an array of WfcPoint3, the superlattice unit cell and the atom around which it lives."
 # mutable struct Wfc3D{T} <: Wfc{T}
-#     points::Array{WfcPoint3D{T},3}
-#     cell::Array{Point3D{T},1}
+#     points::Array{WfcPoint3{T},3}
+#     cell::Array{Point3{T},1}
 #     atom::Atom{T}
 # end
 # /(a::Wfc3D{T},b::Complex{T}) where T = Wfc3D(a.points./b,a.cell,a.atom)
@@ -67,15 +67,15 @@ zero(::Type{WfcPoint3D{T}}) where T<:AbstractFloat = WfcPoint3D(zero(Complex{T})
 mutable struct WannierBand{T<:AbstractFloat} <: Band
     eigvals  ::Vector{T}
     eigvec   ::Vector{Vector{Complex{T}}}
-    cms      ::Vector{Point3D{T}}
-    angmoms  ::Vector{Vector{Point3D{T}}}
-    spins    ::Vector{Vector{Point3D{T}}}
+    cms      ::Vector{Point3{T}}
+    angmoms  ::Vector{Vector{Point3{T}}}
+    spins    ::Vector{Vector{Point3{T}}}
     k_points ::Vector{Vector{T}}
 end
 
 function WannierBand(kpoints::Vector{Vector{T}}) where T
     klen = length(kpoints)
-    WannierBand{T}(Vector{T}(klen), Vector{Vector{Complex{T}}}(klen), Vector{Point3D{T}}(klen), Vector{Vector{Point3D{T}}}(klen), Vector{Vector{Point3D{T}}}(klen), kpoints)
+    WannierBand{T}(Vector{T}(klen), Vector{Vector{Complex{T}}}(klen), Vector{Point3{T}}(klen), Vector{Vector{Point3{T}}}(klen), Vector{Vector{Point3{T}}}(klen), kpoints)
 end
 #
 # if gpu_enabled
@@ -83,7 +83,7 @@ end
 #         grid::CuArray{Tuple{T,T,T},3}
 #         values::CuArray{Complex{T},3}
 #         # cell::CuArray{Tuple{T,T,T},1}
-#         cell::Array{Point3D{T},1}
+#         cell::Array{Point3{T},1}
 #         atom::Atom{T}
 #     end
 # end
@@ -91,7 +91,7 @@ end
 # "Start of any Wannier calculation. Gets constructed by reading the Wannier Hamiltonian and wavefunctions, and gets used in Wannier calculations."
 # mutable struct WannierModel{T<:AbstractFloat}
 #     hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}},1}
-#     dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3D{T}},1}
+#     dip_raw::Array{Tuple{Int,Int,Int,Int,Int,Point3{T}},1}
 #     wfcs::Array{<:Wfc{T},1}
 #     k_points::Array{Array{T,1},1}
 #     bands::Array{WannierBand{T},1}

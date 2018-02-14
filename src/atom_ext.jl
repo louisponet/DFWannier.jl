@@ -3,11 +3,11 @@ import DFControl: Element, Projection
 mutable struct WanAtom{T<:AbstractFloat} <: AbstractAtom{T}
     id          ::Symbol
     element     ::Element
-    position    ::Point3D{T}
+    position    ::Point3{T}
     pseudo      ::String
     projections ::Array{Projection, 1}
     lsoc        ::T
-    wfcs        ::Vector{Array{WfcPoint3D{T}, 3}}
+    wfcs        ::Vector{Array{WfcPoint3{T}, 3}}
     magmoment   ::SVector{3, T}
     angmom      ::AbstractMatrix{Vec3{Complex{T}}}
     function WanAtom(atom::Atom{T}, args...) where T <: AbstractFloat
@@ -39,6 +39,6 @@ end
 WanAtom(atom::Atom{T}, lsoc, wfcs, magmoment) where T<:AbstractFloat =
     WanAtom(atom, :lsoc => lsoc, :wfcs => wfcs, :magmoment => magmoment)
 WanAtom(atom::Atom{T}, magmoment) where T =
-    WanAtom(atom, zero(T), Array{WfcPoint3D{T}, 3}[], :magmoment => magmoment)
+    WanAtom(atom, zero(T), Array{WfcPoint3{T}, 3}[], :magmoment => magmoment)
 WanAtom(atom::Atom{T}, lsoc, wfcs) where T =
     WanAtom(atom, :lsoc => lsoc, :wfcs => wfcs, :magmoment => SVector(zeros(T,3)...))

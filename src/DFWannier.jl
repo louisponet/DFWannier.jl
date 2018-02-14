@@ -22,7 +22,7 @@ module DFWannier
   include("types.jl")
   include("typedefs.jl")
   #---#
-  export WfcPoint3D
+  export WfcPoint3
   export Wfc3D
   # if gpu_enabled
   #   export Wfc3D_gpu
