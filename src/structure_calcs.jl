@@ -4,7 +4,6 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
     klen = length(kpoints)
     calc_angmoms!(structure)
     Sx, Sy, Sz = calc_spins(structure)
-
     outbands = WannierBand{T}[]
     if soc
         for i =1:2*matdim
@@ -16,7 +15,7 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
         end
     end
 
-    for i=1:klen
+    Threads.@threads for i=1:klen
         k = kpoints[i]
         t_hami, dips = hami_dip_from_k(structure.tbhami, structure.tbdip, k)
         if soc
@@ -73,7 +72,7 @@ function hami_dip_from_k(tbhami, tbdip, k::Vector{T}) where T
             break
         end
     end
-    outhami =zeros(Complex{T},(dim,dim))
+    outhami = zeros(Complex{T},(dim,dim))
     outdip  = zeros(Point3{Complex{T}},(dim,dim))
     for i = 1:size(tbhami)[1]
         h = tbhami[i]

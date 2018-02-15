@@ -167,10 +167,10 @@ function calc_spins(structure::WanStructure{T}) where T<: AbstractFloat
     # if haskey(structure.data, :Sx)
     #     return structure.data[:Sx], structure.data[:Sy], structure.data[:Sz]
     # end
-    dim = length(structure.atoms[1].wfcs)
-    s_x = Mat(get_pauli(T, :x, 4*dim))
-    s_y = Mat(get_pauli(T, :y, 4*dim))
-    s_z = Mat(get_pauli(T, :z, 4*dim))
+    dim = getwandim(structure)
+    s_x = get_pauli(T, :x, 2*dim)
+    s_y = get_pauli(T, :y, 2*dim)
+    s_z = get_pauli(T, :z, 2*dim)
     structure.data[:Sx] = s_x
     structure.data[:Sy] = s_y
     structure.data[:Sz] = s_z

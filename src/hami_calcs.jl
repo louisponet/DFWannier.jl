@@ -9,8 +9,8 @@ function hami_from_k(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_po
       break
     end
   end
-  outhami = MMatrix{dim, dim, Complex{T}}(zeros(Complex{T},(dim,dim)))
-  outdip = MMatrix{dim, dim, Complex{T}}(zeros(Point3{Complex{T}},(dim,dim)))
+  outhami =zeros(Complex{T},(dim,dim))
+  outdip = zeros(Point3{Complex{T}},(dim,dim))
   for i=1:size(hami_raw)[1]
     h = hami_raw[i]
     complex_part = 2*pi*(k_points[1]*h[1]+k_points[2]*h[2]+k_points[3]*h[3])
@@ -21,7 +21,7 @@ function hami_from_k(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_po
     end
   end
 
-  return SMatrix{dim, dim, Complex{T}}(Hermitian(out))
+  return Hermitian(out)
 end
 
 

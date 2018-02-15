@@ -27,7 +27,7 @@ function get_pauli(T::Type, dir::Symbol, dim::Int)
     out[1:div(dim,2),1:div(dim,2)]=0.5eye(T,div(dim,2),div(dim,2))
     out[div(dim,2)+1:end,div(dim,2)+1:end]=-0.5*eye(T,div(dim,2),div(dim,2))
   end
-  return SMatrix{dim, dim, Complex{T}}(out)
+  return out
 end
 
 # if gpu_enabled
