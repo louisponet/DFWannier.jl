@@ -20,7 +20,7 @@ function hami_from_k(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_po
     end
   end
 
-  return Hermitian(out)
+  return out
 end
 
 
