@@ -52,9 +52,8 @@ module DFWannier
   include("plotting.jl")
   include("exchange.jl")
   export AtomOrbInfo
-  export WannExchanges
   export exchange_between
-  export calc_exchanges
+  export calculate_exchanges
   include("fileio.jl")
   export read_xsf_file
   export write_xsf_file
