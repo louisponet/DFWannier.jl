@@ -9,15 +9,14 @@ function hami_from_k(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_po
       break
     end
   end
-  outhami =zeros(Complex{T},(dim,dim))
-  outdip = zeros(Point3{Complex{T}},(dim,dim))
+  out =zeros(Complex{T},(dim,dim))
   for i=1:size(hami_raw)[1]
     h = hami_raw[i]
-    complex_part = 2*pi*(k_points[1]*h[1]+k_points[2]*h[2]+k_points[3]*h[3])
+    complex_part = 2 * pi * (k_points[1] * h[1] + k_points[2] * h[2] + k_points[3] * h[3])
     if h[4] == h[5]
-        out[h[4],h[5]] += h[6]*cos(complex_part)
+        out[h[4], h[5]] += h[6] * cos(complex_part)
     else
-        out[h[4],h[5]] += h[6]*exp(-1im*complex_part)
+        out[h[4], h[5]] += h[6] * exp(-1im * complex_part)
     end
   end
 
