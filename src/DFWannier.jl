@@ -29,7 +29,9 @@ module DFWannier
   # end
   export WannierBand
   include("atom_ext.jl")
+  export WanAtom
   include("structure_ext.jl")
+  export WanStructure
   export add_wan_data
   export set_soc!
 
