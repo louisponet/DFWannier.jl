@@ -92,7 +92,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     @assert !isempty(structure.atoms[1].projections) "Please read a valid wannier file for structure with projections."
     μ = fermi
     atoms = structure.atoms
-    k_grid = [[kx, ky, kz] for kx = -0.5/nk[1]:1/nk[1]:0.5/nk[1], ky = -0.5/nk[2]:1/nk[2]:0.5/nk[2], kz = -0.5/nk[3]:1/nk[3]:0.5/nk[3]]
+    k_grid = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
 
     mutex = Threads.SpinLock()
 
