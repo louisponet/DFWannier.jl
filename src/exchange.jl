@@ -125,8 +125,9 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             l_m = exch.proj1.last
             s_n = exch.proj2.start
             l_n = exch.proj2.last
+            tmp = sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
             Threads.lock(mutex)
-            exch.J += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
+            exch.J += tmp
             Threads.unlock(mutex)
         end
     end
