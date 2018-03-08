@@ -117,7 +117,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
         for (ki, k_info) in enumerate(k_infos)
             sign = ki * 2 - 3 #1=-1 2=1
             for (k, vals, vecs) in k_info
-                g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(2im * π * dot(sign * R, k))
+                g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(-2im * π * dot(sign * R, k))
             end
         end
         for exch in exchanges
