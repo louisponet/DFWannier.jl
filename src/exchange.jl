@@ -105,7 +105,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     exchanges = setup_exchanges(atoms, orbitals)
 
     # for j=1:length(ω_grid[1:end-1])
-    t_js = zeros(Complex{T}, length(exchanges), Threads.nthreads())
+    t_js = [fill(similar(e.J), Threads.nthreads()) for e in exchanges]
     Threads.@threads for j=1:length(ω_grid[1:end-1])
         ω  = ω_grid[j]
         dω = ω_grid[j + 1] - ω
@@ -123,11 +123,11 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
             l_m = exch.proj1.last
             s_n = exch.proj2.start
             l_n = exch.proj2.last
-            t_js[eid, tid] += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
+            t_js[eid][tid] += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
         end
     end
     for (eid, exch) in enumerate(exchanges)
-        exch.J = 1e3 / (2π * prod(nk)^2) * sum(t_js[eid, :])
+        exch.J = 1e3 / (2π * prod(nk)^2) * sum(t_js[eid])
     end
     structure.data[:exchanges] = exchanges
 end
