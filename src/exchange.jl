@@ -16,19 +16,19 @@ mutable struct Exchange{T <: AbstractFloat}
 end
 
 function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_grid) where T <:AbstractFloat
-    totocc      = zero(Complex{T})
+    totocc_t    = zeros(Complex{T}, Threads.nthreads())
     n_orb       = size(hami_from_k(hami_raw_up, k_grid[1]))[1]
     k_eigval_up = fill(Array{Complex{T}, 1}(n_orb), length(k_grid))
     k_eigvec_up = fill(Array{Complex{T}, 2}(n_orb, n_orb), length(k_grid))
     k_eigval_dn = fill(Array{Complex{T}, 1}(n_orb), length(k_grid))
     k_eigvec_dn = fill(Array{Complex{T}, 2}(n_orb, n_orb), length(k_grid))
     μ           = fermi
-    D           = zeros(Complex{T}, n_orb, n_orb)
-    mutex = Threads.Mutex()
+    D_t         = fill(zeros(Complex{T}, n_orb, n_orb), Threads.nthreads())
+    # D           = zeros(Complex{T}, n_orb, n_orb)
     j=1
     for  hami in [hami_raw_up, hami_raw_dn]
         Threads.@threads for i=1:length(k_grid)
-        # for i=1:length(k_grid)
+            tid = Threads.threadid()
             k = k_grid[i]
             hami_k         = hami_from_k(hami, k)
             eigval, eigvec = sorted_eig(hami_k)
@@ -36,26 +36,24 @@ function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_g
             if j == 1
                 k_eigval_up[i] = eigval
                 k_eigvec_up[i] = eigvec
-                Threads.lock(mutex)
                 for val in eigval
-                    totocc += 1. / (exp((val - μ) / temp) + 1.)
+                    totocc_t[tid] += 1. / (exp((val - μ) / temp) + 1.)
                 end
-                D += hami_k
-                Threads.unlock(mutex)
+                D_t[tid] += hami_k
             else
                 k_eigval_dn[i] = eigval
                 k_eigvec_dn[i] = eigvec
 
-                Threads.lock(mutex)
                 for val in eigval
-                    totocc += 1. / (exp((val - μ) / temp) + 1.)
+                    totocc_t[tid] += 1. / (exp((val - μ) / temp) + 1.)
                 end
-                D -= hami_k
-                Threads.unlock(mutex)
+                D_t[tid] -= hami_k
             end
         end
         j+=1
     end
+    D = sum(D_t)
+    totocc = sum(totocc_t)
     return k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D
 end
 
@@ -94,8 +92,6 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     atoms = structure.atoms
     k_grid = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
 
-    mutex = Threads.SpinLock()
-
     k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D =
         calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
 
@@ -109,30 +105,29 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     exchanges = setup_exchanges(atoms, orbitals)
 
     # for j=1:length(ω_grid[1:end-1])
+    t_js = zeros(Complex{T}, length(exchanges), Threads.nthreads())
     Threads.@threads for j=1:length(ω_grid[1:end-1])
         ω  = ω_grid[j]
         dω = ω_grid[j + 1] - ω
 
-        g = fill(zeros(Complex{T}, n_orb, n_orb), 2)
+        g = fill(zeros(T, n_orb, n_orb), 2)
         for (ki, k_info) in enumerate(k_infos)
             sign = ki * 2 - 3 #1=-1 2=1
             for (k, vals, vecs) in k_info
                 g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(-2im * π * dot(sign * R, k))
             end
         end
-        for exch in exchanges
+        tid = Threads.threadid()
+        for (eid, exch) in enumerate(exchanges)
             s_m = exch.proj1.start
             l_m = exch.proj1.last
             s_n = exch.proj2.start
             l_n = exch.proj2.last
-            tmp = sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
-            Threads.lock(mutex)
-            exch.J += tmp
-            Threads.unlock(mutex)
+            t_js[eid, tid] += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
         end
     end
-    for exch in exchanges
-        exch.J *= 1e3 / (2π * prod(nk)^2)
+    for (eid, exch) in enumerate(exchanges)
+        exch.J = 1e3 / (2π * prod(nk)^2) * sum(t_js[eid, :])
     end
     structure.data[:exchanges] = exchanges
 end

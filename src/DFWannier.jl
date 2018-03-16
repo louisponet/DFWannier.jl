@@ -61,4 +61,5 @@ module DFWannier
   export write_xsf_file
   export read_exchanges
   export write_exchanges
+  export read_hami_file
 end
