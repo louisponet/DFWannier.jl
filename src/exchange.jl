@@ -138,6 +138,10 @@ function calculate_exchanges(hami_up_file::String, hami_down_file::String, wanni
     return structure
 end
 
+function calculate_exchanges(hami_up::Tuple, hami_down::Tuple, structure::Structure, args...; kwargs...)
+    calculate_exchanges(hami_up, hami_down, structure, args...; kwargs...)
+    return structure
+end
 
 
 @inline function Jmn_index(atom1::Int, atom2::Int, total::Int)
