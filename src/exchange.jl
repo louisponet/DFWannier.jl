@@ -90,7 +90,6 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     @assert !isempty(structure.atoms[1].projections) "Please read a valid wannier file for structure with projections."
     μ = fermi
     atoms = structure.atoms
-    # k_grid = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
     k_grid = [[kx, ky, kz] for kx = 0.:1/nk[1]:1, ky = 0.:1/nk[2]:1, kz = 0.:1/nk[3]:1]
 
     k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D =
@@ -116,7 +115,7 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
         for (ki, k_info) in enumerate(k_infos)
             sign = ki * 2 - 3 #1=-1 2=1
             for (k, vals, vecs) in k_info
-                g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(-1im * π * dot(sign * R, k))
+                g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(-2im * π * dot(sign * R, k))
             end
         end
         tid = Threads.threadid()
