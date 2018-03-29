@@ -168,9 +168,9 @@ function calc_spins(structure::WanStructure{T}) where T<: AbstractFloat
     #     return structure.data[:Sx], structure.data[:Sy], structure.data[:Sz]
     # end
     dim = getwandim(structure)
-    s_x = get_pauli(T, :x, 2*dim)
-    s_y = get_pauli(T, :y, 2*dim)
-    s_z = get_pauli(T, :z, 2*dim)
+    s_x = pauli(T, :x, 2*dim)
+    s_y = pauli(T, :y, 2*dim)
+    s_z = pauli(T, :z, 2*dim)
     structure.data[:Sx] = s_x
     structure.data[:Sy] = s_y
     structure.data[:Sz] = s_z
@@ -180,9 +180,9 @@ end
 "Calculates the spins between the supplied wavefunctions"
 function calc_spins(wfcs::Array{<:Wfc3D{T},1}) where T<:AbstractFloat
   dim = length(wfcs)
-  s_x = get_pauli(T,:x,2*dim)
-  s_y = get_pauli(T,:y,2*dim)
-  s_z = get_pauli(T,:z,2*dim)
+  s_x = pauli(T,:x,2*dim)
+  s_y = pauli(T,:y,2*dim)
+  s_z = pauli(T,:z,2*dim)
   return s_x,s_y,s_z
 end
 

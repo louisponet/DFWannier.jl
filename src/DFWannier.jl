@@ -11,6 +11,7 @@ module DFWannier
   using LaTeXStrings
   using StaticArrays
   using GeometryTypes
+  using Optim
   # if gpu_enabled
   #   using CuArrays
   #   using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
@@ -62,4 +63,6 @@ module DFWannier
   export read_exchanges
   export write_exchanges
   export read_hami_file
+  include("spinsims.jl")
+  export calcspinspols
 end

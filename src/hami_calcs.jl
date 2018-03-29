@@ -44,3 +44,17 @@ function construct_soc_hami(hami, structure::WanStructure{T})::Matrix{Complex{T}
     out = [hami+Lz_soc Lx_soc-1im*Ly_soc;Lx_soc+1im*Ly_soc hami-Lz_soc]
     return out
 end
+
+function heisenberg_energy(moments::Vector{<:Vec3}, exchanges::Vector{Matrix{T}}, H, anisotropy) where T
+    energy = zero(T)
+    nexch  = length(exchanges)
+    nmom   = length(moments)
+    for i = 1:nmom
+        for j = i+1:nmom
+            for k = 1:nexch
+                energy += exchanges[k][i,j] * dot(moments[i], moments[j]) + H * moments[i][1] + anisotropy * moments[i][3]^2
+            end
+        end
+    end
+    return energy
+end

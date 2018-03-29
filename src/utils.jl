@@ -1,10 +1,6 @@
 div1(x, y) = div(x - 1, y) + 1
 function sorted_eig(hami)
-  # for i=1:size(hami)[1]
-  #   hami[i,i] = real(hami[i,i])
-  # end
-  #
-  eigs, eigvec = eig(hami)
+    eigs, eigvec = eig(hami)
   out_eig = similar(eigs)
   out_vec = similar(eigvec)
   perm = sortperm(real(eigs))
@@ -15,7 +11,7 @@ function sorted_eig(hami)
   return out_eig, out_vec
 end
 
-function get_pauli(T::Type, dir::Symbol, dim::Int)
+function pauli(T::Type, dir::Symbol, dim::Int)
   out = zeros(Complex{T}, dim, dim)
   if dir == :x
     out[1:div(dim,2),div(dim,2)+1:end]=0.5*eye(T,div(dim,2),div(dim,2))
@@ -30,6 +26,14 @@ function get_pauli(T::Type, dir::Symbol, dim::Int)
   return out
 end
 
+@inline randpolϕ(::Type{T}=Float64) where T = 2π * rand(T)
+@inline randpolθ(::Type{T}=Float64) where T = acos(1 - 2rand(T))
+
+@inline randpolθϕ(::Type{T}=Float64) where T = (randpolθ(T), randpolϕ(T))
+@inline randθsϕs(::Type{T}, n) where T = [[randpolθ(T) for i=1:n] ; [randpolϕ(T) for j=1:n]]
+@inline randθsϕs(n) = randθsϕs(Float64, n)
+
+@inline polar2xyz(r, θ, ϕ) = Vec3(r * sin(θ) * cos(ϕ), r * sin(θ) * sin(ϕ), r * cos(θ))
 # if gpu_enabled
 # function host2gpu(wfc::Wfc3D)
 #   cell=wfc.cell
