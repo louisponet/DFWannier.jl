@@ -30,7 +30,7 @@ function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_g
         Threads.@threads for i=1:length(k_grid)
             tid = Threads.threadid()
             k = k_grid[i]
-            hami_k         = hami_from_k(hami, k)
+            hami_k         = symHk(hami, k)
             eigval, eigvec = sorted_eig(hami_k)
 
             if j == 1

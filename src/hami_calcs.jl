@@ -23,6 +23,30 @@ function hami_from_k(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_po
   return out
 end
 
+function symHk(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_points::Array) where T<:AbstractFloat
+  dim = 0
+  for i=1:length(hami_raw)
+    d = hami_raw[i][4]
+    if d>dim
+      dim = d
+    else
+      break
+    end
+  end
+  out =zeros(Complex{T},(dim,dim))
+  for i=1:size(hami_raw)[1]
+    h = hami_raw[i]
+    complex_part1 = 2 * pi * (k_points[1] * h[1] + k_points[2] * h[2] + k_points[3] * h[3])
+    if h[4] == h[5]
+        out[h[4], h[5]] += h[6] * cos(complex_part1)
+    else
+        complex_part2 = -2 * pi * (k_points[1] * h[1] + k_points[2] * h[2] + k_points[3] * h[3])
+        out[h[4], h[5]] += 0.5h[6] * (exp(-1im * complex_part1) + exp(-1im * complex_part2))
+    end
+  end
+
+  return out
+end
 
 "Constructs the total spin-orbit-coupled Hamiltonian out of supplied angular momentums between the Wannier functions and uses the l_soc of the atoms."
 function construct_soc_hami(hami, structure::WanStructure{T})::Matrix{Complex{T}} where T
