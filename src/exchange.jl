@@ -17,7 +17,7 @@ end
 
 function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_grid) where T <:AbstractFloat
     totocc_t    = zeros(Complex{T}, Threads.nthreads())
-    n_orb       = size(hami_from_k(hami_raw_up, k_grid[1]))[1]
+    n_orb       = size(hami_raw_up[1].block)[1]
     k_eigval_up = fill(Vector{Complex{T}}(n_orb), length(k_grid))
     k_eigvec_up = fill(Matrix{Complex{T}}(n_orb, n_orb), length(k_grid))
     k_eigval_dn = fill(Vector{Complex{T}}(n_orb), length(k_grid))
