@@ -83,25 +83,32 @@ function write_xsf_file(filename::String,wfc::Wfc3D{T}) where T<:AbstractFloat
 end
 
 """
-read_hami_file(filename::String, T=Float64)
+read_hami_file(filename::String,structure::AbstractStructure{T})
 
 Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
-function read_hami_file(filename::String, T=Float64)
+function read_hami_file(filename::String, structure::AbstractStructure{T}) where  T
     open(filename) do f
-        out = Array{Tuple{Int,Int,Int,Int,Int,Complex{T}},1}()
+        out = TbBlock{T}[]
         degen = Int64[]
         line_nr = 0
         readline(f)
-        n_wanfun = parse(Int64,readline(f))
+        n_wanfun = parse(Int64, readline(f))
         readline(f)
         while !eof(f)
             l = split(readline(f))
             if length(l)==7
-                line_nr+=1
-                ints = [parse(Int,x) for x in l[1:5]]
+                line_nr += 1
+                ints = parse.(Int, l[1:5])
+                Rtpiba = Vec3(ints[1:3]...)
+                block = getfirst(x -> x.Rtpiba == Rtpiba, out)
+
+                if block == nothing
+                    block = TbBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Complex{T}}(n_wanfun, n_wanfun))
+                    push!(out, block)
+                end
                 complex = Complex{T}(parse(T,l[6]),parse(T,l[7]))/degen[div(line_nr-1,n_wanfun^2)+1]
-                push!(out,(ints...,complex))
+                block.block[ints[4], ints[5]] = complex
             elseif length(l)!=7
                 ints = parse.(Int,l)
                 push!(degen,ints...)
@@ -112,25 +119,31 @@ function read_hami_file(filename::String, T=Float64)
 end
 
 """
-read_dipole_file(filename::String, T=Float64)
+read_dipole_file(filename::String, structure::AbstractStructure{T})
 
 Returns and array of tuples that define the dipoles between the Wannier functions in different unit cells.
 """
-function read_dipole_file(filename::String, T=Float64)
+function read_dipole_file(filename::String, structure::AbstractStructure{T}) where T
     open(filename) do  f
-        out = Array{Tuple{Int,Int,Int,Int,Int,Point3{T}},1}()
+        out = DipBlock{T}[]
         readline(f)
-        readline(f)
+        n_wanfun = parse(Int64, readline(f))
         while !eof(f)
             l= split(readline(f))
-            ints = [parse(Int,x) for x in l[1:5]]
-            dipole = Point3(parse(T,l[6]),parse(T,l[8]),parse(T,l[10]))
-            push!(out, (ints... ,dipole))
+            ints = parse.(Int, l[1:5])
+            Rtpiba = Vec3(ints[1:3]...)
+            block = getfirst(x -> x.Rtpiba == Rtpiba, out)
+
+            if block == nothing
+                block = DipBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Point3{T}}(n_wanfun, n_wanfun))
+                push!(out, block)
+            end
+            dipole = Point3{T}(parse(T,l[6]),parse(T,l[8]),parse(T,l[10]))
+            block.block[ints[4], ints[5]] = dipole
         end
         return out
     end
 end
-
 
 
 #stuff that is not used currently

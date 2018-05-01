@@ -1,23 +1,37 @@
 import DFControl: search_dir, parse_block
 
+struct TbBlock{T<:AbstractFloat}
+    Rcart::Vec3{T}
+    Rtpiba::Vec3{Int}
+    block::Matrix{Complex{T}}
+end
+
+struct DipBlock{T<:AbstractFloat}
+    Rcart::Vec3{T}
+    Rtpiba::Vec3{Int}
+    block::Matrix{Point3{T}}
+end
+
 mutable struct WanStructure{T<:AbstractFloat} <: AbstractStructure{T}
     name   ::AbstractString
     cell   ::Mat3{T}
     atoms  ::Vector{<:AbstractAtom{T}}
     data   ::Dict{Symbol, Any}
-    tbhami ::Vector{Tuple{Int,Int,Int,Int,Int,Complex{T}}}
-    tbdip  ::Vector{Tuple{Int,Int,Int,Int,Int,Point3{T}}}
+    tbhami ::Vector{TbBlock{T}}
+    tbdip  ::Vector{DipBlock{T}}
 end
 
 WanStructure(structure::AbstractStructure, tbhami, tbdip) =
     WanStructure(structure.name, structure.cell, structure.atoms, structure.data, tbhami, tbdip)
+WanStructure(structure::AbstractStructure,atoms, tbhami, tbdip) =
+    WanStructure(structure.name, structure.cell, atoms, structure.data, tbhami, tbdip)
 WanStructure(structure::AbstractStructure, tbhami) =
     WanStructure(structure.name, structure.cell, structure.atoms, structure.data, tbhami, Tuple{Int,Int,Int,Int,Int,Complex{T}}[])
 
 
 #TODO does not handle the SOC case. Or the case where there is up and down
 #TODO handle so that the previous job doesn't get destroyed I mean it's not necessary
-#     it also doesn't agree with the paradigm of julia 
+#     it also doesn't agree with the paradigm of julia
 function add_wan_data(structure::AbstractStructure{T}, job_dir::String) where T
     search_dir(str) = job_dir .* DFControl.search_dir(job_dir, str)
     xsf_files  = search_dir(".xsf")
@@ -44,10 +58,9 @@ function add_wan_data(structure::AbstractStructure{T}, job_dir::String) where T
         push!(t_at.wfcs, wfc)
     end
 
-    structure.atoms = new_atoms
-    tbhami          = read_hami_file(hami_file, T)
-    tbdip           = read_dipole_file(r_file, T)
-    return WanStructure(structure, tbhami, tbdip)
+    tbhami          = read_hami_file(hami_file, structure)
+    tbdip           = read_dipole_file(r_file, structure)
+    return WanStructure(structure,new_atoms, tbhami, tbdip)
 end
 
 function add_wan_data(job::DFJob)

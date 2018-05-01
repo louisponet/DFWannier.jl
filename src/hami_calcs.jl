@@ -1,51 +1,14 @@
-"Takes the hami in hopping param form and constructs H(k) from it"
-function hami_from_k(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_points::Array) where T<:AbstractFloat
-  dim = 0
-  for i=1:length(hami_raw)
-    d = hami_raw[i][4]
-    if d>dim
-      dim = d
-    else
-      break
-    end
-  end
-  out =zeros(Complex{T},(dim,dim))
-  for i=1:size(hami_raw)[1]
-    h = hami_raw[i]
-    complex_part = 2 * pi * (k_points[1] * h[1] + k_points[2] * h[2] + k_points[3] * h[3])
-    if h[4] == h[5]
-        out[h[4], h[5]] += h[6] * cos(complex_part)
-    else
-        out[h[4], h[5]] += h[6] * exp(-1im * complex_part)
-    end
-  end
 
-  return out
+function Hk!(out::Matrix{T}, tbhami, kpoint) where T
+    fill!(out, zero(T))
+    for block in tbhami
+        out .+= e^(-2im*pi*(block.Rtpiba ⋅ kpoint)) .* block.block
+    end
 end
-
-function symHk(hami_raw::Array{Tuple{Int,Int,Int,Int,Int,Complex{T}}},k_points::Array) where T<:AbstractFloat
-  dim = 0
-  for i=1:length(hami_raw)
-    d = hami_raw[i][4]
-    if d>dim
-      dim = d
-    else
-      break
-    end
-  end
-  out =zeros(Complex{T},(dim,dim))
-  for i=1:size(hami_raw)[1]
-    h = hami_raw[i]
-    complex_part1 = 2 * pi * (k_points[1] * h[1] + k_points[2] * h[2] + k_points[3] * h[3])
-    if h[4] == h[5]
-        out[h[4], h[5]] += h[6] * cos(complex_part1)
-    else
-        complex_part2 = -2 * pi * (k_points[1] * h[1] + k_points[2] * h[2] + k_points[3] * h[3])
-        out[h[4], h[5]] += 0.5h[6] * (exp(-1im * complex_part1) + exp(-1im * complex_part2))
-    end
-  end
-
-  return out
+function Hk(tbhami, kpoint)
+    out = similar(tbhami[1].block)
+    Hk!(out, tbhami, kpoint)
+    return out
 end
 
 "Constructs the total spin-orbit-coupled Hamiltonian out of supplied angular momentums between the Wannier functions and uses the l_soc of the atoms."
@@ -81,4 +44,22 @@ function heisenberg_energy(moments::Vector{<:Vec3}, exchanges::Vector{Matrix{T}}
         end
     end
     return energy
+end
+
+"Symmetrizes the hamiltonian such that it is fully periodic"
+function symmetrize!(tb_hami, structure)
+    centerh = getfirst(x->x.Rtpiba == Vec3(0,0,0), tb_hami).block
+    bonds_ = bonds(structure)
+    atoms  = structure.atoms
+    for block in tb_hami
+        block.Rtpiba == Vec3(0,0,0) && continue
+        shbonds = shiftedbonds(block.Rtpiba, structure)
+        for b in bonds_, shb in shbonds
+            if b == shb
+                for j1=1:length(b.at1.projections), j2=1:length(b.at2.projections)
+                    block.block[range(shb.at1.projections[j1]), range(shb.at2.projections[j2])] .= centerh[range(b.at1.projections[j1]), range(b.at2.projections[j2])]
+                end
+            end
+        end
+    end
 end

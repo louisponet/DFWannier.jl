@@ -1,4 +1,4 @@
-function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:AbstractVector{T}}, soc::Bool=false) where T
+function calc_observables(structure::WanStructure{T}, kpoints::Vector{Vec3{T}}, soc::Bool=false) where T
     nat = length(structure.atoms)
     matdim = getwandim(structure)
     klen = length(kpoints)
@@ -40,7 +40,7 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{<:Abstract
     return outbands
 end
 
-function calc_observables(structure::WanStructure, k_points, k_range::StepRangeLen, args...)
+function calc_observables(structure::WanStructure{T}, k_points, k_range::StepRangeLen, args...) where T
     mid = div(size(k_points)[1],2)+1
     beg = Int64(k_range[1])
     steps = div(size(k_range)[1],2)
@@ -59,36 +59,22 @@ function calc_observables(structure::WanStructure, k_points, k_range::StepRangeL
     kzs[div(length(kxs),2)] = kzs_t[div(length(kxs_t),2)]
     kzs[div(length(kxs),2)+1] = kzs_t[div(length(kxs_t),2)+2]
     k_points = [[kxs[i],kys[i],kzs[i]] for i=1:length(kxs)]
-    return calc_observables(structure, k_points, args...)
+    return calc_observables(structure, Vec3{T}.(k_points), args...)
 end
 
-function hami_dip_from_k(tbhami, tbdip, k::Vector{T}) where T
-    dim = 0
+function hami_dip_from_k(tbhami, tbdip, k::Vec3{T}) where T
+    outham = similar(tbhami[1].block)
+    outdip = Matrix{Point3{Complex{T}}}(size(tbdip[1].block))
     for i = 1:length(tbhami)
-        d = tbhami[i][4]
-        if d > dim
-            dim = d
-        else
-            break
-        end
-    end
-    outhami = zeros(Complex{T},(dim,dim))
-    outdip  = zeros(Point3{Complex{T}},(dim,dim))
-    for i = 1:size(tbhami)[1]
-        h = tbhami[i]
-        a, b, c = h[1], h[2], h[3]
-        wf1, wf2 = h[4], h[5]
-        exponent =  2pi * (k[1]*a + k[2]*b + k[3]*c)
-        factor   = exp(-1im * exponent)
-        if wf2 == wf1
-            outhami[wf1, wf2] += h[6] * cos(exponent)
-        else
-            outhami[wf1, wf2] += h[6] * factor
-        end
-        outdip[wf1, wf2] += tbdip[i][6] * factor
+        Rtpiba = tbhami[i].Rtpiba
+        hb = tbhami[i].block
+        db = tbdip[i].block
+        factor =  e^(-2im*pi*(Rtpiba ⋅ k))
+        outham .+= factor .* hb
+        outdip .+= factor .* db
     end
     outdip_ = real(outdip)
-    return Hermitian(outhami), [outdip_ zeros(outdip_);zeros(outdip_) outdip_]
+    return outham, [outdip_ zeros(outdip_);zeros(outdip_) outdip_]
 end
 
 function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T

@@ -18,10 +18,10 @@ end
 function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_grid) where T <:AbstractFloat
     totocc_t    = zeros(Complex{T}, Threads.nthreads())
     n_orb       = size(hami_from_k(hami_raw_up, k_grid[1]))[1]
-    k_eigval_up = fill(Array{Complex{T}, 1}(n_orb), length(k_grid))
-    k_eigvec_up = fill(Array{Complex{T}, 2}(n_orb, n_orb), length(k_grid))
-    k_eigval_dn = fill(Array{Complex{T}, 1}(n_orb), length(k_grid))
-    k_eigvec_dn = fill(Array{Complex{T}, 2}(n_orb, n_orb), length(k_grid))
+    k_eigval_up = fill(Vector{Complex{T}}(n_orb), length(k_grid))
+    k_eigvec_up = fill(Matrix{Complex{T}}(n_orb, n_orb), length(k_grid))
+    k_eigval_dn = fill(Vector{Complex{T}}(n_orb), length(k_grid))
+    k_eigvec_dn = fill(Matrix{Complex{T}}(n_orb, n_orb), length(k_grid))
     μ           = fermi
     D_t         = fill(zeros(Complex{T}, n_orb, n_orb), Threads.nthreads())
     # D           = zeros(Complex{T}, n_orb, n_orb)
@@ -30,7 +30,7 @@ function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_g
         Threads.@threads for i=1:length(k_grid)
             tid = Threads.threadid()
             k = k_grid[i]
-            hami_k         = symHk(hami, k)
+            hami_k         = Hk(hami, k)
             eigval, eigvec = sorted_eig(hami_k)
 
             if j == 1
@@ -57,7 +57,7 @@ function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_g
     return k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D
 end
 
-function setup_exchanges(atoms::Array{Atom{T}, 1}, orbitals) where T <: AbstractFloat
+function setup_exchanges(atoms::Vector{Atom{T}}, orbitals) where T <: AbstractFloat
     exchanges = Exchange{T}[]
     for (i, at1) in enumerate(atoms), at2 in atoms[i+1:end]
         projections1 = at1.projections
@@ -90,7 +90,8 @@ function calculate_exchanges(hami_raw_up::Array, hami_raw_dn::Array,  structure:
     @assert !isempty(structure.atoms[1].projections) "Please read a valid wannier file for structure with projections."
     μ = fermi
     atoms = structure.atoms
-    k_grid = [[kx, ky, kz] for kx = 0.:1/nk[1]:1-0.0001, ky = 0.:1/nk[2]:1-0.0001, kz = 0.:1/nk[3]:1-0.0001]
+    # k_grid = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
+    k_grid = [Vec3(kx, ky, kz) for kx = 0.:1/nk[1]:1, ky = 0.:1/nk[2]:1, kz = 0.:1/nk[3]:1]
 
     k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D =
         calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
@@ -135,11 +136,11 @@ end
 
 function calculate_exchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, args...; kwargs...)
     structure = read_wannier_input(wannier_input_file)[2]
-    calculate_exchanges(read_hami_file(hami_up_file), read_hami_file(hami_down_file), structure, args...; kwargs...)
+    calculate_exchanges(symmetrize!(read_hami_file(hami_up_file,structure), structure), symmetrize!(read_hami_file(hami_down_file, structure), structure), structure, args...; kwargs...)
     return structure
 end
 
-function calculate_exchanges(hami_up::Vector{<:Tuple}, hami_down::Vector{<:Tuple}, wannier_input_file::String, args...; kwargs...)
+function calculate_exchanges(hami_up::Vector{TbBlock{T}}, hami_down::Vector{TbBlock{T}}, wannier_input_file::String, args...; kwargs...)
     structure = read_wannier_input(wannier_input_file)[2]
     calculate_exchanges(hami_up, hami_down, structure, args...; kwargs...)
     return structure

@@ -21,6 +21,7 @@ module DFWannier
   #   ctx = CuContext(dev)
   #   end
   include("types.jl")
+  include("bonds.jl")
   include("typedefs.jl")
   #---#
   export WfcPoint3
