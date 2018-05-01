@@ -94,24 +94,23 @@ function read_hami_file(filename::String, structure::AbstractStructure{T}) where
         line_nr = 0
         readline(f)
         n_wanfun = parse(Int64, readline(f))
-        readline(f)
+        l = readline(f)
+
         while !eof(f)
             l = split(readline(f))
             if length(l)==7
                 line_nr += 1
-                ints = parse.(Int, l[1:5])
-                Rtpiba = Vec3(ints[1:3]...)
+                Rtpiba = Vec3(parse(Int, l[1]), parse(Int,l[2]), parse(Int,l[3]))
                 block = getfirst(x -> x.Rtpiba == Rtpiba, out)
 
                 if block == nothing
                     block = TbBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Complex{T}}(n_wanfun, n_wanfun))
                     push!(out, block)
                 end
-                complex = Complex{T}(parse(T,l[6]),parse(T,l[7]))/degen[div(line_nr-1,n_wanfun^2)+1]
-                block.block[ints[4], ints[5]] = complex
+                complex = Complex{T}(parse(T, l[6]),parse(T, l[7]))/degen[div(line_nr-1,n_wanfun^2)+1]
+                block.block[parse(Int, l[4]), parse(Int,l[5])] = complex
             elseif length(l)!=7
-                ints = parse.(Int,l)
-                push!(degen,ints...)
+                push!(degen,parse.(Int,l)...)
             end
         end
         return out
