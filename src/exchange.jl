@@ -140,7 +140,7 @@ function calculate_exchanges(hami_up_file::String, hami_down_file::String, wanni
     return structure
 end
 
-function calculate_exchanges(hami_up::Vector{TbBlock{T}}, hami_down::Vector{TbBlock{T}}, wannier_input_file::String, args...; kwargs...)
+function calculate_exchanges(hami_up, hami_down, wannier_input_file::String, args...; kwargs...)
     structure = read_wannier_input(wannier_input_file)[2]
     calculate_exchanges(hami_up, hami_down, structure, args...; kwargs...)
     return structure
