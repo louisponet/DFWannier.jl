@@ -96,8 +96,8 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
                              R::Array{Int,1}    = [0, 0, 0],
                              ωh::T              = T(-30.), #starting energy
                              ωv::T              = T(0.5), #height of vertical contour
-                             n_ωh::Int          = 300,
-                             n_ωv::Int          = 50,
+                             n_ωh::Int          = 30,
+                             n_ωv::Int          = 5,
                              temp::T            = T(0.01),
                              orbitals::Array{Orbital, 1} = [d, f]) where T <: AbstractFloat
 

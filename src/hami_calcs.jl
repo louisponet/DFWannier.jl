@@ -47,7 +47,7 @@ function heisenberg_energy(moments::Vector{<:Vec3}, exchanges::Vector{Matrix{T}}
 end
 
 "Symmetrizes the hamiltonian such that it is fully periodic"
-function symmetrize!(tb_hami, structure::AbstractStructure{T}) where  T
+function symmetrize!(tb_hami::Vector{TbBlock{T}}, structure::Structure{T}) where  T
     centerh = getfirst(x->x.Rtpiba == Vec3(0,0,0), tb_hami).block
     bonds_ = bonds(structure)
     max = length(bonds_)
@@ -58,7 +58,7 @@ function symmetrize!(tb_hami, structure::AbstractStructure{T}) where  T
         block.Rtpiba == Vec3(0,0,0) && continue
         shiftedbonds!(shbonds, block.Rtpiba, structure)
         for b in bonds_, shb in shbonds
-            if b==shb
+            if b == shb
                 for (proj1, proj3) in zip(b.at1.projections, shb.at1.projections), (proj2, proj4) in zip(b.at2.projections, shb.at2.projections)
                     for (r1,r3) in zip(range(proj1),range(proj3)), (r2,r4) in zip(range(proj2),range(proj4))
                         @inbounds block.block[r3, r4] = centerh[r1, r2]

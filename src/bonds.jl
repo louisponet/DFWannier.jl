@@ -18,7 +18,7 @@ end
 
 
 import Base: ==
-@inline ==(b1::Bond, b2::Bond) = (b1.length ≈ b2.length && b1.at1.element.symbol == b2.at1.element.symbol && b1.at2.element.symbol == b2.at2.element.symbol)
+@inline ==(b1::Bond, b2::Bond) = (norm(b1.length - b2.length) < 1e-10 && b1.at1.element.symbol == b2.at1.element.symbol && b1.at2.element.symbol == b2.at2.element.symbol)
 
 bondlength(bond) = bond.length
 function bondlength(r, o1::Int, o2::Int, structure)
