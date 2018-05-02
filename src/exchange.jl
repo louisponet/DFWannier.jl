@@ -117,7 +117,8 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
     # for j=1:length(ω_grid[1:end-1])
     t_js = [[zeros(e.J) for i=1:Threads.nthreads()] for e in exchanges]
     totocc_t = [zero(Complex{T}) for i=1:Threads.nthreads()]
-    Threads.@threads for j=1:length(ω_grid[1:end-1])
+    for j=1:length(ω_grid[1:end-1])
+        println(j)
     # for j=1:length(ω_grid[1:end-1])
         tid = Threads.threadid()
         ω  = ω_grid[j]
