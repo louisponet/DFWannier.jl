@@ -1,14 +1,14 @@
 div1(x, y) = div(x - 1, y) + 1
 function sorted_eig(hami)
     eigs, eigvec = eig(hami)
-  out_eig = similar(eigs)
-  out_vec = similar(eigvec)
-  perm = sortperm(real(eigs))
-  for (i, p) in enumerate(perm)
+    out_eig = similar(eigs)
+    out_vec = similar(eigvec)
+    perm = sortperm(real(eigs))
+    for (i, p) in enumerate(perm)
     out_vec[:,i]=eigvec[:,p]
     out_eig[i] = eigs[p]
-  end
-  return out_eig, out_vec
+    end
+    return out_eig, out_vec
 end
 
 function pauli(T::Type, dir::Symbol, dim::Int)

@@ -4,6 +4,9 @@ function Hk!(out::Matrix{T}, tbhami, kpoint) where T
     for block in tbhami
         out .+= e^(-2im*pi*(block.Rtpiba ⋅ kpoint)) .* block.block
     end
+    for i=1:size(out)[1]
+        out[i,i] = real(out[i,i]) + 0.0im
+    end
 end
 function Hk(tbhami, kpoint)
     out = similar(tbhami[1].block)
@@ -47,7 +50,7 @@ function heisenberg_energy(moments::Vector{<:Vec3}, exchanges::Vector{Matrix{T}}
 end
 
 "Symmetrizes the hamiltonian such that it is fully periodic"
-function symmetrize!(tb_hami::Vector{TbBlock{T}}, structure::Structure{T}) where  T
+function symmetrize!(tb_hami::Vector{TbBlock{T}}, structure::AbstractStructure{T}) where  T
     centerh = getfirst(x->x.Rtpiba == Vec3(0,0,0), tb_hami).block
     bonds_ = bonds(structure)
     max = length(bonds_)

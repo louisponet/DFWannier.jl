@@ -90,6 +90,17 @@ function setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
     return ω_grid
 end
 
+function Gω!(G, Hk, R, ω, μ, k_grid)
+    for (ik, (k, H)) in enumerate(zip(k_grid, Hk))
+        println(eigfact(H)[:values][1:5])
+        vals, vecs = sorted_eig(H)
+        # totocc_t[tid] += sum(1. ./ (exp.((vals .- μ) ./ temp) .+ 1.))
+        G .+= vecs * diagm(1. ./(μ + ω - vals)) * vecs' * exp(-2im * π * dot(R, k))
+    end
+end
+
+
+
 #DON'T FORGET HAMIS ARE UP DOWN ORDERED!!!
 function calculate_exchanges(hamis,  structure::Structure, fermi::T;
                              nk::NTuple{3, Int} = (10, 10, 10),
@@ -126,12 +137,13 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
 
         g = [zeros(Complex{T}, n_orb, n_orb) for n=1:2]
         for (ki, Hk) in enumerate(Hks)
-            sign = ki * 2 - 3 #1=-1 2=1
-            for (ik, k) in enumerate(k_grid)
-                vals, vecs = sorted_eig(Hks[ki][ik])
-                totocc_t[tid] += sum(1. ./ (exp.((vals .- μ) ./ temp) .+ 1.))
-                g[ki] .+= vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(-2im * π * dot(sign * R, k))
-            end
+            R_ = (ki * 2 - 3) * R #1=-1 2=1
+            @time Gω!(g[ki], Hk, R, ω, μ, k_grid)
+            # for (ik, k) in enumerate(k_grid)
+            #     vals, vecs = sorted_eig(Hks[ki][ik])
+            #     # totocc_t[tid] += sum(1. ./ (exp.((vals .- μ) ./ temp) .+ 1.))
+            #     g[ki] .+= vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(-2im * π * dot(sign * R, k))
+            # end
         end
         for (eid, exch) in enumerate(exchanges)
             rm = range(exch.proj1)
