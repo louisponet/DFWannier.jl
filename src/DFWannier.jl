@@ -12,6 +12,7 @@ module DFWannier
   using StaticArrays
   using GeometryTypes
   using Optim
+  using InplaceOps
   # if gpu_enabled
   #   using CuArrays
   #   using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!

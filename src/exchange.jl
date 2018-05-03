@@ -56,18 +56,20 @@ end
 #     totocc = sum(totocc_t)
 #     return k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D
 # end
-function calculate_eig_totocc_D(hamis, k_grid)
-    Hks = [[similar(hami[1].block) for i=1:length(k_grid)] for hami in hamis]
+function DHvecvals(hamis, k_grid)
+    Hvecs = [[similar(hami[1].block) for i=1:length(k_grid)] for hami in hamis]
+    Hvals = [[similar(hami[1].block[:,1]) for i=1:length(k_grid)] for hami in hamis]
     D    = [zeros(hamis[1][1].block) for i=1:Threads.nthreads()]
-    for (j, hami) in enumerate(hamis)
-        fac = (-1)^j
-        Threads.@threads for i=1:length(k_grid)
+    Threads.@threads for i=1:length(k_grid)
+        for j=1:2
+            fac = (-1)^j
             tid = Threads.threadid()
-            hami_k = Hk!(Hks[j][i], hami, k_grid[i])
-            D[tid] .+= (-1)^j .* Hks[j][i]
+            Hk!(Hvecs[j][i], hamis[j], k_grid[i])
+            D[tid] .+= (-1)^j .* Hvecs[j][i]
+            Hvals[j][i] = eigfact!(Hermitian(Hvecs[j][i]))[:values]
         end
     end
-    return Hks, sum(D)/prod(size(k_grid))
+    return Hvecs, Hvals, sum(D)/prod(size(k_grid))
 end
 
 function setup_exchanges(atoms::Vector{Atom{T}}, orbitals) where T <: AbstractFloat
@@ -90,15 +92,31 @@ function setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
     return ω_grid
 end
 
-function Gω!(G, Hk, R, ω, μ, k_grid)
-    for (ik, (k, H)) in enumerate(zip(k_grid, Hk))
-        println(eigfact(H)[:values][1:5])
-        vals, vecs = sorted_eig(H)
-        # totocc_t[tid] += sum(1. ./ (exp.((vals .- μ) ./ temp) .+ 1.))
-        G .+= vecs * diagm(1. ./(μ + ω - vals)) * vecs' * exp(-2im * π * dot(R, k))
+function Gω!(G, ω, μ, Hvec, Hval, kphase)
+    dim = size(G)[1]
+    for iter in eachindex(G)
+        for k=1:dim
+            G[iter] += Hvec[iter.I[1], k] * 1./(ω + μ - Hval[k]) * Hvec[iter.I[2], k] * kphase
+        end
     end
 end
 
+function G!(G, cache1, cache2, cache3, ω::T, μ, Hvecs, Hvals, R, kgrid) where T
+    dim = size(G)[1]
+    for ik=1:length(kgrid)
+        fill!(cache1, zero(T))
+        fill!(cache2, zero(T))
+        cache3 .= Hvals[ik]
+        k_phase = exp(-2im * π * dot(R,kgrid[ik]))
+        # totocc_t[tid] += sum(1. ./ (exp.((vals .- μ) ./ temp) .+ 1.))
+        for x=1:dim
+            cache1[x,x] = 1./(μ + ω - cache3[x])
+        end
+        @into! cache2 = Hvecs[ik] * cache1
+        @into! cache1 = Hvecs[ik] * conj!(cache2)
+        G .+= cache1 .* k_phase
+    end
+end
 
 
 #DON'T FORGET HAMIS ARE UP DOWN ORDERED!!!
@@ -113,12 +131,13 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
                              orbitals::Array{Orbital, 1} = [d, f]) where T <: AbstractFloat
 
     @assert !isempty(structure.atoms[1].projections) "Please read a valid wannier file for structure with projections."
+    nth = Threads.nthreads()
     μ = fermi
     atoms = structure.atoms
     # k_grid = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
     k_grid = [Vec3(kx, ky, kz) for kx = 0.:1/nk[1]:1, ky = 0.:1/nk[2]:1, kz = 0.:1/nk[3]:1]
 
-    Hks, D = calculate_eig_totocc_D(hamis, k_grid)
+   Hvecs, Hvals, D = DHvecvals(hamis, k_grid)
 
     n_orb = size(D)[1]
 
@@ -126,29 +145,25 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
     exchanges = setup_exchanges(atoms, orbitals)
 
     # for j=1:length(ω_grid[1:end-1])
-    t_js = [[zeros(e.J) for i=1:Threads.nthreads()] for e in exchanges]
-    totocc_t = [zero(Complex{T}) for i=1:Threads.nthreads()]
-    for j=1:length(ω_grid[1:end-1])
-        println(j)
-    # for j=1:length(ω_grid[1:end-1])
+    t_js = [[zeros(e.J) for t=1:nth] for e in exchanges]
+    caches1 = [zeros(Complex{T}, n_orb, n_orb) for t=1:nth]
+    caches2 = [zeros(Complex{T}, n_orb, n_orb) for t=1:nth]
+    caches3 = [zeros(Complex{T}, n_orb, n_orb) for t=1:nth]
+    totocc_t = [zero(Complex{T}) for i=1:nth]
+    gs = [[zeros(Complex{T}, n_orb, n_orb) for n=1:2] for t=1:nth]
+    Threads.@threads for j=1:length(ω_grid[1:end-1])
         tid = Threads.threadid()
         ω  = ω_grid[j]
         dω = ω_grid[j + 1] - ω
-
-        g = [zeros(Complex{T}, n_orb, n_orb) for n=1:2]
-        for (ki, Hk) in enumerate(Hks)
-            R_ = (ki * 2 - 3) * R #1=-1 2=1
-            @time Gω!(g[ki], Hk, R, ω, μ, k_grid)
-            # for (ik, k) in enumerate(k_grid)
-            #     vals, vecs = sorted_eig(Hks[ki][ik])
-            #     # totocc_t[tid] += sum(1. ./ (exp.((vals .- μ) ./ temp) .+ 1.))
-            #     g[ki] .+= vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(-2im * π * dot(sign * R, k))
-            # end
+        g = gs[tid]
+        for s = 1:2
+            R_ = (s * 2 - 3) * R #1=-1 2=1
+            G!(g[s], caches1[tid], caches2[tid], caches3[tid], ω, μ, Hvecs[s], Hvals[s], R_, k_grid)
         end
         for (eid, exch) in enumerate(exchanges)
             rm = range(exch.proj1)
             rn = range(exch.proj2)
-            t_js[eid][tid] += sign(real(trace(D[rm, rm]))) * sign(real(trace(D[rn, rn]))) * imag(D[rm, rm] * g[1][rm, rn] * D[rn, rn] * g[2][rn, rm] * dω)
+            t_js[eid][tid] .+= sign(real(trace(view(D, rm, rm)))) .* sign(real(trace(view(D,rn, rn)))) .* imag(view(D,rm, rm) * view(g[1],rm, rn) * view(D,rn, rn) * view(g[2],rn, rm) * dω)
         end
     end
     for (eid, exch) in enumerate(exchanges)
