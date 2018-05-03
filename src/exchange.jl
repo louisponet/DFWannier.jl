@@ -65,7 +65,7 @@ function DHvecvals(hamis, k_grid)
             fac = (-1)^(j-1)
             tid = Threads.threadid()
             Hk!(Hvecs[j][i], hamis[j], k_grid[i])
-            D[tid] .+= (-1)^j .* Hvecs[j][i]
+            D[tid] .+= fac .* Hvecs[j][i]
             Hvals[j][i] = eigfact!(Hvecs[j][i])[:values]
         end
     end
