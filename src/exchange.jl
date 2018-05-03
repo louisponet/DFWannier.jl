@@ -64,12 +64,15 @@ function DHvecvals(hamis, k_grid)
         for j=1:2
             fac = (-1)^(j - 1)
             tid = Threads.threadid()
-            Hk!(Hvecs[j][i], hamis[j], k_grid[i])
-            D[tid] .+= fac .* Hvecs[j][i]
-            Hvals[j][i] = eigfact!(Hvecs[j][i])[:values]
+            # Hk!(Hvecs[j][i], hamis[j], k_grid[i])
+            # D[tid] .+= fac .* Hvecs[j][i]
+            # Hvals[j][i] = eigfact!(Hvecs[j][i])[:values]
+            H = Hk(hamis[j], k_grid[i])
+            D[1] += -fac * H
+            Hvals[j][i] = eigfact!(H)[:values]
         end
     end
-    return Hvecs, Hvals, sum(D)/prod(size(k_grid))
+    return Hvecs, Hvals, D[1]/prod(size(k_grid))
 end
 
 function setup_exchanges(atoms::Vector{Atom{T}}, orbitals) where T <: AbstractFloat
@@ -139,7 +142,7 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
     k_grid = [Vec3(kx, ky, kz) for kx = 0.:1/nk[1]:1, ky = 0.:1/nk[2]:1, kz = 0.:1/nk[3]:1]
 
     Hvecs, Hvals, D = DHvecvals(hamis, k_grid)
-
+    println(sum(D))
     n_orb = size(D)[1]
 
     ω_grid    = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
@@ -158,7 +161,7 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
         dω = ω_grid[j + 1] - ω
         g = gs[tid]
         for s = 1:2
-            R_ = (-1)^(s-1) * R #1=-1 2=1
+            R_ = (-1)^(s) * R #1=-1 2=1
             G!(g[s], caches1[tid], caches2[tid], caches3[tid], ω, μ, Hvecs[s], Hvals[s], R_, k_grid)
         end
         for (eid, exch) in enumerate(exchanges)
@@ -204,4 +207,126 @@ function exchange_between(atom1::Atom{T}, atom2::Atom{T}, exchanges::Array{Excha
         end
     end
     return exch
+end
+
+
+function calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi::T, temp::T, k_grid) where T <:AbstractFloat
+    totocc      = zero(Complex{T})
+    n_orb       = size(hami_raw_up[1].block)[1]
+    k_eigval_up = fill(Array{Complex{T}, 1}(n_orb), length(k_grid))
+    k_eigvec_up = fill(Array{Complex{T}, 2}(n_orb, n_orb), length(k_grid))
+    k_eigval_dn = fill(Array{Complex{T}, 1}(n_orb), length(k_grid))
+    k_eigvec_dn = fill(Array{Complex{T}, 2}(n_orb, n_orb), length(k_grid))
+    μ           = fermi
+    D           = zeros(Complex{T}, n_orb, n_orb)
+    mutex = Threads.Mutex()
+    j=1
+    for  hami in [hami_raw_up, hami_raw_dn]
+        Threads.@threads for i=1:length(k_grid)
+        # for i=1:length(k_grid)
+            k = k_grid[i]
+            hami_k         = Hk(hami, k)
+            eigval, eigvec = sorted_eig(hami_k)
+
+            if j == 1
+                k_eigval_up[i] = eigval
+                k_eigvec_up[i] = eigvec
+                Threads.lock(mutex)
+                for val in eigval
+                    totocc += 1. / (exp((val - μ) / temp) + 1.)
+                end
+                D += hami_k
+                Threads.unlock(mutex)
+            else
+                k_eigval_dn[i] = eigval
+                k_eigvec_dn[i] = eigvec
+
+                Threads.lock(mutex)
+                for val in eigval
+                    totocc += 1. / (exp((val - μ) / temp) + 1.)
+                end
+                D -= hami_k
+                Threads.unlock(mutex)
+            end
+        end
+        j+=1
+    end
+    return k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D
+end
+
+function setup_exchanges(atoms::Array{Atom{T}, 1}, orbitals) where T <: AbstractFloat
+    exchanges = Exchange{T}[]
+    for (i, at1) in enumerate(atoms), at2 in atoms[i+1:end]
+        projections1 = at1.projections
+        projections2 = at2.projections
+        for proj1 in projections1, proj2 in projections2
+            if proj1.orb in orbitals && proj2.orb in orbitals
+                push!(exchanges, Exchange{T}(zeros(T, proj1.size, proj1.size), at1, at2, proj1, proj2))
+            end
+        end
+    end
+    return exchanges
+end
+
+function setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
+    ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
+    ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:ωv/10/n_ωv])
+    return ω_grid
+end
+
+function calculate_exchanges(hami_raw_up, hami_raw_dn,  structure::Structure, fermi::T;
+                             nk::NTuple{3, Int} = (10, 10, 10),
+                             R::Array{Int,1}    = [0, 0, 0],
+                             ωh::T              = T(-30.), #starting energy
+                             ωv::T              = T(0.5), #height of vertical contour
+                             n_ωh::Int          = 300,
+                             n_ωv::Int          = 50,
+                             temp::T            = T(0.01),
+                             orbitals::Array{Orbital, 1} = [d, f]) where T <: AbstractFloat
+
+    @assert !isempty(structure.atoms[1].projections) "Please read a valid wannier file for structure with projections."
+    μ = fermi
+    atoms = structure.atoms
+    k_grid = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
+
+    mutex = Threads.SpinLock()
+
+    k_eigval_up, k_eigval_dn, k_eigvec_up, k_eigvec_dn, totocc, D =
+        calculate_eig_totocc_D(hami_raw_up, hami_raw_dn, fermi, temp, k_grid)
+    k_infos = [zip(k_grid, k_eigvals, k_eigvecs) for (k_eigvals, k_eigvecs) in zip([k_eigval_up, k_eigval_dn],[k_eigvec_up, k_eigvec_dn])]
+    D /= prod(nk)::Int
+    println(sum(D))
+    n_orb = size(D)[1]
+    totocc /= prod(nk)::Int
+    structure.data[:totocc] = real(totocc)
+
+    ω_grid    = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
+    exchanges = setup_exchanges(atoms, orbitals)
+
+    # for j=1:length(ω_grid[1:end-1])
+    Threads.@threads for j=1:length(ω_grid[1:end-1])
+        ω  = ω_grid[j]
+        dω = ω_grid[j + 1] - ω
+
+        g = fill(zeros(Complex{T}, n_orb, n_orb), 2)
+        for (ki, k_info) in enumerate(k_infos)
+            sign = ki * 2 - 3 #1=-1 2=1
+            for (k, vals, vecs) in k_info
+                g[ki] += vecs * diagm(1. ./(μ + ω .- vals)) * vecs' * exp(2im * π * dot(sign * R, k))
+            end
+        end
+        for exch in exchanges
+            s_m = exch.proj1.start
+            l_m = exch.proj1.last
+            s_n = exch.proj2.start
+            l_n = exch.proj2.last
+            Threads.lock(mutex)
+            exch.J += sign(real(trace(D[s_m:l_m, s_m:l_m]))) * sign(real(trace(D[s_n:l_n, s_n:l_n]))) * imag(D[s_m:l_m, s_m:l_m] * g[1][s_m:l_m, s_n:l_n] * D[s_n:l_n, s_n:l_n] * g[2][s_n:l_n, s_m:l_m] * dω)
+            Threads.unlock(mutex)
+        end
+    end
+    for exch in exchanges
+        exch.J *= 1e3 / (2π * prod(nk)^2)
+    end
+    structure.data[:exchanges] = exchanges
 end
