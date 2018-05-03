@@ -66,7 +66,7 @@ function DHvecvals(hamis, k_grid)
             tid = Threads.threadid()
             Hk!(Hvecs[j][i], hamis[j], k_grid[i])
             D[tid] .+= (-1)^j .* Hvecs[j][i]
-            Hvals[j][i] = eigfact!(Hermitian(Hvecs[j][i]))[:values]
+            Hvals[j][i] = eigfact!(Hvecs[j][i])[:values]
         end
     end
     return Hvecs, Hvals, sum(D)/prod(size(k_grid))
