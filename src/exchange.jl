@@ -60,7 +60,7 @@ function DHvecvals(hamis, k_grid)
     Hvecs = [[similar(hami[1].block) for i=1:length(k_grid)] for hami in hamis]
     Hvals = [[similar(hami[1].block[:,1]) for i=1:length(k_grid)] for hami in hamis]
     D    = [zeros(hamis[1][1].block) for i=1:Threads.nthreads()]
-    for i=1:length(k_grid)
+    Threads.@threads for i=1:length(k_grid)
         for j=1:2
             fac = (-1)^j
             tid = Threads.threadid()
@@ -151,7 +151,7 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
     caches3 = [zeros(Complex{T}, n_orb, n_orb) for t=1:nth]
     totocc_t = [zero(Complex{T}) for i=1:nth]
     gs = [[zeros(Complex{T}, n_orb, n_orb) for n=1:2] for t=1:nth]
-    for j=1:length(ω_grid[1:end-1])
+    Threads.@threads for j=1:length(ω_grid[1:end-1])
         tid = Threads.threadid()
         ω  = ω_grid[j]
         dω = ω_grid[j + 1] - ω
