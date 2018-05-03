@@ -60,9 +60,9 @@ function DHvecvals(hamis, k_grid)
     Hvecs = [[similar(hami[1].block) for i=1:length(k_grid)] for hami in hamis]
     Hvals = [[similar(hami[1].block[:,1]) for i=1:length(k_grid)] for hami in hamis]
     D    = [zeros(hamis[1][1].block) for i=1:Threads.nthreads()]
-    Threads.@threads for i=1:length(k_grid)
+    for i=1:length(k_grid)
         for j=1:2
-            fac = (-1)^(j-1)
+            fac = (-1)^(j - 1)
             tid = Threads.threadid()
             Hk!(Hvecs[j][i], hamis[j], k_grid[i])
             D[tid] .+= fac .* Hvecs[j][i]
@@ -112,9 +112,10 @@ function G!(G, cache1, cache2, cache3, ω::T, μ, Hvecs, Hvals, R, kgrid) where 
         for x=1:dim
             cache1[x,x] = 1./(μ + ω - cache3[x])
         end
-        @into! cache2 = Hvecs[ik] * cache1
-        @into! cache1 = Hvecs[ik] * conj!(cache2)
-        G .+= cache1 .* k_phase
+        # @into! cache2 = Hvecs[ik] * cache1
+        # @into! cache1 = Hvecs[ik] * conj!(cache2)
+        # G .+= cache1 .* k_phase
+        G .+= Hvecs[ik] * cache1 * Hvecs[ik]' .* k_phase
     end
 end
 
@@ -137,7 +138,7 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
     # k_grid = [[kx, ky, kz] for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
     k_grid = [Vec3(kx, ky, kz) for kx = 0.:1/nk[1]:1, ky = 0.:1/nk[2]:1, kz = 0.:1/nk[3]:1]
 
-   Hvecs, Hvals, D = DHvecvals(hamis, k_grid)
+    Hvecs, Hvals, D = DHvecvals(hamis, k_grid)
 
     n_orb = size(D)[1]
 
