@@ -157,7 +157,7 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
         dω = ω_grid[j + 1] - ω
         g = gs[tid]
         for s = 1:2
-            R_ = (s * 2 - 3) * R #1=-1 2=1
+            R_ = (-1)^(s-1) * R #1=-1 2=1
             G!(g[s], caches1[tid], caches2[tid], caches3[tid], ω, μ, Hvecs[s], Hvals[s], R_, k_grid)
         end
         for (eid, exch) in enumerate(exchanges)
