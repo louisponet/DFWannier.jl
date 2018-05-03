@@ -62,7 +62,7 @@ function DHvecvals(hamis, k_grid)
     D    = [zeros(hamis[1][1].block) for i=1:Threads.nthreads()]
     Threads.@threads for i=1:length(k_grid)
         for j=1:2
-            fac = (-1)^j
+            fac = (-1)^(j-1)
             tid = Threads.threadid()
             Hk!(Hvecs[j][i], hamis[j], k_grid[i])
             D[tid] .+= (-1)^j .* Hvecs[j][i]
