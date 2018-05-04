@@ -84,17 +84,15 @@ end
 function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T}}}, structure::AbstractStructure{T}) where  T
     atoms = structure.atoms
     cell = structure.cell
-    counter = 0
     for j=1:2
-    counter = 0
         hami = tb_hamis[j]
         centerh = getfirst(x->x.Rtpiba == Vec3(0,0,0), tb_hamis[3-j]).block
         for i=1:length(hami)
             hb = hami[i]
             H = hb.block
-            norm(hb.Rtpiba) != 1 && continue
+            norm(hb.Rtpiba[1]) != 1 && norm(hb.Rtpiba[2]) != 0 && norm(hb.Rtpiba[3]) != 0 && continue
             oppositeh = getfirst(x->x.Rtpiba == -hb.Rtpiba, tb_hamis[j]).block
-            R = cell' * hb.Rtpiba
+            R = hb.Rcart
             # for (a1, at1) in enumerate(atoms), (a2, at2) in enumerate(atoms), (a3, at3) in enumerate(atoms), (a4,at4) in enumerate(atoms)
             for at1 in atoms, at2 in atoms, at3 in atoms, at4 in atoms
                 if isAFMperiodic(at1, at2, at3, at4, R)
