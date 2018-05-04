@@ -74,8 +74,8 @@ end
 
 
 function isAFMperiodic(at1, at2, at3, at4, R)
-    pos1 = at1.position - R/2
-    pos2 = at2.position + R/2
+    pos1 = at1.position + R/2
+    pos2 = at2.position - R/2
     return (norm(at3.position-pos1) < 1.0e-7&& at3.element.symbol == at1.element.symbol && norm(at4.position-pos2) < 1.0e-7 && at4.element.symbol == at2.element.symbol)
     # return ( at3.element.symbol == at1.element.symbol &&  at4.element.symbol == at2.element.symbol)
 end
@@ -99,10 +99,10 @@ function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T}}}, structure::Abstrac
                     # println("id1: $a1, id2: $a2, id3: $a3, id4:$a4, R: $(hb.Rtpiba)")
                     for proj1 in at1.projections, proj2 in at2.projections, proj3 in at3.projections, proj4 in at4.projections
                         for (r1, r3) in zip(range(proj1), range(proj3)), (r2, r4) in zip(range(proj2),range(proj4))
-                            centerh[r2,r1]= (centerh[r2,r1] + H[r4, r3])/2
-                            centerh[r1,r2] = conj(centerh[r2,r1])
-                            H[r4,r3] = centerh[r2,r1]
-                            oppositeh[r3, r4] = conj(H[r4,r3])
+                            centerh[r1,r2]= (centerh[r1,r2] + H[r3, r4])/2
+                            centerh[r2,r1] = conj(centerh[r1,r2])
+                            H[r3,r4] = centerh[r1,r2]
+                            oppositeh[r4, r3] = conj(H[r3,r4])
                         end
                     end
                 end
