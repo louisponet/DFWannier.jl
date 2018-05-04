@@ -74,8 +74,8 @@ end
 
 
 function isAFMperiodic(at1, at2, at3, at4, R)
-    pos1 = at1.position + R/2
-    pos2 = at2.position - R/2
+    pos1 = at1.position - R/2
+    pos2 = at2.position + R/2
     return (norm(at3.position-pos1) < 1.0e-7&& at3.element.symbol == at1.element.symbol && norm(at4.position-pos2) < 1.0e-7 && at4.element.symbol == at2.element.symbol)
     # return ( at3.element.symbol == at1.element.symbol &&  at4.element.symbol == at2.element.symbol)
 end
