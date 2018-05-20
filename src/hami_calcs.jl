@@ -49,63 +49,45 @@ function heisenberg_energy(moments::Vector{<:Vec3}, exchanges::Vector{Matrix{T}}
     return energy
 end
 
-# "Symmetrizes the hamiltonian such that it is fully periodic"
-# function symmetrize!(tb_hami::Vector{TbBlock{T}}, structure::AbstractStructure{T}) where  T
-#     centerh = getfirst(x->x.Rtpiba == Vec3(0,0,0), tb_hami).block
-#     bonds_ = bonds(structure)
-#     max = length(bonds_)
-#     shbonds = [Bond(bond.at1, bond.at2, zero(T)) for bond in bonds_]
-#     atoms  = structure.atoms
-#     Threads.@threads for i=1:length(tb_hami)
-#         block = tb_hami[i]
-#         block.Rtpiba == Vec3(0,0,0) && continue
-#         shiftedbonds!(shbonds, block.Rtpiba, structure)
-#         for b in bonds_, shb in shbonds
-#             if b == shb
-#                 for (proj1, proj3) in zip(b.at1.projections, shb.at1.projections), (proj2, proj4) in zip(b.at2.projections, shb.at2.projections)
-#                     for (r1,r3) in zip(range(proj1),range(proj3)), (r2,r4) in zip(range(proj2),range(proj4))
-#                         @inbounds block.block[r3, r4] = centerh[r1, r2]
-#                     end
-#                 end
-#             end
-#         end
-#     end
-# end
-
-
-function isAFMperiodic(at1, at2, at3, at4, R)
-    pos1 = at1.position + R/2
-    pos2 = at2.position - R/2
-    return (norm(at3.position-pos1) < 1.0e-7&& at3.element.symbol == at1.element.symbol && norm(at4.position-pos2) < 1.0e-7 && at4.element.symbol == at2.element.symbol)
-    # return ( at3.element.symbol == at1.element.symbol &&  at4.element.symbol == at2.element.symbol)
+function AFMmap(structure, Rcryst)
+    R = structure.cell' * Rcryst/2
+    atoms = structure.atoms
+    map1 = Dict{AbstractAtom, AbstractAtom}()
+    for at1 in atoms, at2 in atoms
+        if norm(at2.position - at1.position - R) < 1.0e-7
+            map1[at1] = at2
+        end
+    end
+    return map1
 end
 
-"Symmetrizes the hamiltonian such that it is fully periodic"
+function rs(R, r1, r2, r3, r4)
+    sig =
+    if sign(R) < 0
+        return r4, r3, r2, r1
+    else
+        return r1, r2, r3, r4
+    end
+end
+
 function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T}}}, structure::AbstractStructure{T}) where  T
-    atoms = structure.atoms
-    cell = structure.cell
-    for j=1:2
-        hami = tb_hamis[j]
-        centerh = getfirst(x->x.Rtpiba == Vec3(0,0,0), tb_hamis[3-j]).block
-        for i=1:length(hami)
-            hb = hami[i]
-            H = hb.block
-            norm(hb.Rtpiba[1]) != 1 && norm(hb.Rtpiba[2]) != 0 && norm(hb.Rtpiba[3]) != 0 && continue
-            oppositeh = getfirst(x->x.Rtpiba == -hb.Rtpiba, tb_hamis[j]).block
-            R = hb.Rcart
-            # for (a1, at1) in enumerate(atoms), (a2, at2) in enumerate(atoms), (a3, at3) in enumerate(atoms), (a4,at4) in enumerate(atoms)
-            for at1 in atoms, at2 in atoms, at3 in atoms, at4 in atoms
-                if isAFMperiodic(at1, at2, at3, at4, R)
-                    # println("id1: $a1, id2: $a2, id3: $a3, id4:$a4, R: $(hb.Rtpiba)")
-                    for proj1 in at1.projections, proj2 in at2.projections, proj3 in at3.projections, proj4 in at4.projections
-                        for (r1, r3) in zip(range(proj1), range(proj3)), (r2, r4) in zip(range(proj2),range(proj4))
-                            centerh[r1,r2]= (centerh[r1,r2] + H[r3, r4])/2
-                            centerh[r2,r1] = conj(centerh[r1,r2])
-                            H[r3,r4] = centerh[r1,r2]
-                            oppositeh[r4, r3] = conj(H[r3,r4])
-                        end
-                    end
-                end
+    forwardmap = AFMmap(structure, Vec3(1,0,0))
+    Hup = getfirst(x -> x.Rtpiba == Vec3(0,0,0), tb_hamis[1]).block
+    Hdn = getfirst(x -> x.Rtpiba == Vec3(0,0,0), tb_hamis[2]).block
+
+    for (at1, at2) in forwardmap, (at3, at4) in forwardmap
+        for (r1, r2) in zip(range.(at1.projections), range.(at2.projections)), (r3, r4) in zip(range.(at3.projections), range.(at4.projections))
+            Hup[r1, r3] .= (Hup[r1, r3] .+ Hdn[r2, r4]) ./ 2
+            Hdn[r2, r4] .= Hup[r1, r3]
+
+            for R=-1:2:1
+                Hu = getfirst(x -> x.Rtpiba == Vec3(R,0,0), tb_hamis[1]).block
+                Hd = getfirst(x -> x.Rtpiba == Vec3(R,0,0), tb_hamis[2]).block
+                r1_, r2_, r3_, r4_ = rs(R, r1, r2, r3, r4)
+                Hu[r2_, r3_] .= (Hu[r2_, r3_] .+ Hdn[r1_, r4_]) ./ 2
+                Hdn[r1_, r4_] .= Hu[r2_, r3_]
+                Hd[r2_, r3_]  .= (Hd[r2_, r3_] .+ Hup[r1_, r4_]) ./ 2
+                Hup[r1_, r4_] .= Hd[r2_, r3_]
             end
         end
     end
