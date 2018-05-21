@@ -32,6 +32,29 @@ function WannierBand(kpoints::Vector{Vec3{T}}) where T
     klen = length(kpoints)
     WannierBand{T}(Vector{T}(klen), Vector{Vector{Complex{T}}}(klen), Vector{Point3{T}}(klen), Vector{Vector{Point3{T}}}(klen), Vector{Vector{Point3{T}}}(klen), kpoints)
 end
+
+wannierbands(n, kpoints) = [WannierBand(kpoints) for i=1:n]
+
+function wannierbands(dfbands::Vector{DFBand{T}}, tbhamis) where T
+    matdim = size(tbhamis[1].block)[1]
+    kpoints = dfbands[1].k_points_cryst
+    outbands = wannierbands(matdim, kpoints)
+
+    for (i, k) in enumerate(kpoints)
+        hami = Hk(tbhamis, k)
+        eigvals, eigvecs = sorted_eig(hami)
+        eigvals_k = real(eigvals)
+        for e=1:length(eigvals_k)
+            outbands[e].eigvals[i] = eigvals_k[e]
+            outbands[e].eigvec[i] = eigvecs[:,e]
+            outbands[e].k_points[i] = k
+        end
+    end
+    return outbands
+end
+
+
+
 #
 # if gpu_enabled
 #     mutable struct Wfc3D_gpu{T} <: Wfc{T}

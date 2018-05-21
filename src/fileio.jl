@@ -91,27 +91,26 @@ function read_hami_file(filename::String, structure::AbstractStructure{T}) where
     open(filename) do f
         out = TbBlock{T}[]
         degen = Int64[]
-        line_nr = 0
+        linenr = 0
         readline(f)
-        n_wanfun = parse(Int64, readline(f))
-        l = readline(f)
-
+        nwanfun = parse(Int64, readline(f))
+        ndegen  = parse(Int64, readline(f))
+        while length(degen) < ndegen
+            push!(degen, parse.(Int, split(readline(f)))...)
+        end
         while !eof(f)
             l = split(readline(f))
-            if length(l)==7
-                line_nr += 1
-                Rtpiba = Vec3(parse(Int, l[1]), parse(Int,l[2]), parse(Int,l[3]))
-                block = getfirst(x -> x.Rtpiba == Rtpiba, out)
-
-                if block == nothing
-                    block = TbBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Complex{T}}(n_wanfun, n_wanfun))
-                    push!(out, block)
-                end
-                complex = Complex{T}(parse(T, l[6]),parse(T, l[7]))/degen[div(line_nr-1,n_wanfun^2)+1]
-                block.block[parse(Int, l[4]), parse(Int,l[5])] = complex
-            elseif length(l)!=7
-                push!(degen,parse.(Int,l)...)
+            linenr += 1
+            rpt = div(linenr - 1, nwanfun^2) + 1
+            Rtpiba = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
+            if length(out) < rpt
+                block = TbBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Complex{T}}(nwanfun, nwanfun))
+                push!(out, block)
+            else
+                block = out[rpt]
             end
+            complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) / degen[rpt]
+            block.block[parse(Int, l[4]), parse(Int, l[5])] = complex
         end
         return out
     end

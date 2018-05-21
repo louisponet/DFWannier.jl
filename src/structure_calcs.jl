@@ -4,25 +4,13 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{Vec3{T}}, 
     klen = length(kpoints)
     calc_angmoms!(structure)
     Sx, Sy, Sz = calc_spins(structure)
-    outbands = WannierBand{T}[]
-    if soc
-        for i =1:2*matdim
-            push!(outbands, WannierBand(kpoints))
-        end
-    else
-        for i =1:matdim
-            push!(outbands, WannierBand(kpoints))
-        end
-    end
-
+    outbands = soc ? wannierbands(2*matdim, kpoints) : wannierbands(matdim, kpoints)
     Threads.@threads for i=1:klen
         k = kpoints[i]
         t_hami, dips = hami_dip_from_k(structure.tbhami, structure.tbdip, k)
-        if soc
-            hami = construct_soc_hami(t_hami, structure)
-        else
-            hami = t_hami
-        end
+
+        hami = soc ? construct_soc_hami(t_hami, structure) : t_hami
+
         eigvals, eigvecs = sorted_eig(hami)
         eigvals_k = real(eigvals)
         cm_k      = eigcm(dips, eigvecs)

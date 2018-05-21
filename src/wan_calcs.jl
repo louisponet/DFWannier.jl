@@ -1,14 +1,14 @@
 
 "Constructs the bloch sum at k for the wavefunction supplied"
-function construct_bloch_sum(wfc::Wfc3D{T}, k::Array) where T<:AbstractFloat
+function construct_bloch_sum(wfc::Wfc3D{T}, k::Vec3{T}) where T<:AbstractFloat
   points = zeros(Complex{T},size(wfc.points))
   dim_a = size(points)[1]
   dim_b = size(points)[2]
   dim_c = size(points)[3]
   R::Point3{T} = Point3(0.0)
-  for R1=-1:1,R2=-1:1,R3=-1:1
+  for R1=-1:1, R2=-1:1, R3=-1:1
     R= R1*wfc.cell[1]+R2*wfc.cell[2]+R3*wfc.cell[3]
-    c = exp(dot(-2*pi*k,[R1,R2,R3])*1im)
+    c = exp(dot(-2im*pi*k, Vec3(R1, R2, R3)))
     ind1,ind2 = find_start(wfc,R,27)
     i3 = ind1[3]
     j3 = ind2[3]

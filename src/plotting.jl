@@ -9,7 +9,7 @@
   end
   ks[1:div(length(ks),2)]=-ks[1:div(length(ks),2)]
   if fermi != 0
-    band = apply_fermi_level(band,fermi)
+    band = DFControl.apply_fermi_level(band,fermi)
   end
   linewidth --> linewidth
   out = []

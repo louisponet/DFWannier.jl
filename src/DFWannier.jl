@@ -22,6 +22,7 @@ module DFWannier
   #   ctx = CuContext(dev)
   #   end
   include("types.jl")
+  export wannierbands
   include("bonds.jl")
   include("typedefs.jl")
   #---#
