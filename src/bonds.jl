@@ -1,30 +1,30 @@
+import DFControl: bondlength, orbital2atom
 mutable struct Bond{T<:AbstractFloat}
-    at1::DFControl.Atom{T}
-    at2::DFControl.Atom{T}
+    at1::AbstractAtom{T}
+    at2::AbstractAtom{T}
     length::T
 end
 
-bonds(structure) = [Bond(at1, at2, norm(at1.position - at2.position)) for at1 in structure.atoms, at2 in structure.atoms]
+Base.length(bond::Bond) = bond.length
 
+bonds(structure)  = [Bond(at1, at2, bondlength(at1,at2)) for at1 in structure.atoms, at2 in structure.atoms]
+bondlength(bond::Bond) = length(bond)
 
-shiftedbonds(r, structure) = [Bond(at1, at2, norm(at1.position - (at2.position + structure.cell' * r))) for at1 in structure.atoms, at2 in structure.atoms]
+shiftedbonds(r, structure) = [Bond(at1, at2, bondlength(at1, at2, structure.cell' * r)) for at1 in structure.atoms, at2 in structure.atoms]
 function shiftedbonds!(bonds, r, structure)
     for i=1:length(bonds)
-        pos1 = bonds[i].at1.position
-        pos2 = bonds[i].at2.position
-        bonds[i].length = norm(pos1 - (pos2 + structure.cell' * r))
+        pos1 = position(bonds[i].at1)
+        pos2 = position(bonds[i].at2)
+        bonds[i].length = bondlength(at1, at2, structure.cell' * r)
     end
 end
-
-
 import Base: ==
-@inline ==(b1::Bond, b2::Bond) = (norm(b1.length - b2.length) < 1e-10 && b1.at1.element.symbol == b2.at1.element.symbol && b1.at2.element.symbol == b2.at2.element.symbol)
 
-bondlength(bond) = bond.length
+@inline ==(b1::Bond, b2::Bond) = (norm(length(b1) - length(b2)) < 1e-10 && elsym(b1.at1) == elsym(b2.at1) && elsym(b1.at2) == elsym(b2.at2))
+
 function bondlength(r, o1::Int, o2::Int, structure)
     atoms = structure.atoms
-    at1 = DFControl.orbital2atom(o1, atoms)
-    at2 = DFControl.orbital2atom(o2, atoms)
-    return bondlength(r, at1, at2, structure.cell)
+    at1 = orbital2atom(o1, atoms)
+    at2 = orbital2atom(o2, atoms)
+    return bondlength(at1, at2, structure.cell' * r)
 end
-bondlength(r, at1::DFControl.Atom, at2::DFControl.Atom, cell) = norm(at1.position - (cell' * r + at2.position))

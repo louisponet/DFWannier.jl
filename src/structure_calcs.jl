@@ -87,7 +87,7 @@ function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T
                     c2 = eigvec[i2]
 
                     if blockid1 == blockid2
-                        L += conj(c1) * c2 * at.angmom[wfi1, wfi2]::Vec3{Complex{T}}
+                        L += conj(c1) * c2 * agmom(at)[wfi1, wfi2]::Vec3{Complex{T}}
                     else
                         S += conj(c1) * c2 * Vec3(Sx[i1, i2], Sy[i1, i2], Sz[i1, i2])
                     end
@@ -121,8 +121,8 @@ function wfc2atindex(atoms::Vector{<:WanAtom}, wfci)
     i = 1
     outi = 1
     while true
-        len = length(atoms[i].wfcs)
-        wfcounter += length(atoms[i].wfcs)
+        len = length(wfcs(atoms[i]))
+        wfcounter += len
         if wfcounter >= wfci
             return i, div1(outi, length(atoms)), len - wfcounter + wfci
         else

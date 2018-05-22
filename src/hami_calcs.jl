@@ -22,10 +22,12 @@ function construct_soc_hami(hami, structure::WanStructure{T})::Matrix{Complex{T}
     Lz_soc = zeros(Complex{T}, dim, dim)
     i = 1
     for at in structure.atoms
+        soc = lsoc(at)
+        mom = angmom(at)
         len = length(at.wfcs)-1
-        Lx_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * getindex.(at.angmom, 1)
-        Ly_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * getindex.(at.angmom, 2)
-        Lz_soc[i:i+len, i:i+len] = 0.5 * at.lsoc * getindex.(at.angmom, 3)
+        Lx_soc[i:i+len, i:i+len] = 0.5 * soc * getindex.(mom, 1)
+        Ly_soc[i:i+len, i:i+len] = 0.5 * soc * getindex.(mom, 2)
+        Lz_soc[i:i+len, i:i+len] = 0.5 * soc * getindex.(mom, 3)
         i += len + 1
     end
     Lx_soc = (Lx_soc+Lx_soc')/2
@@ -54,7 +56,7 @@ function AFMmap(structure, Rcryst)
     atoms = structure.atoms
     map1 = Dict{AbstractAtom, AbstractAtom}()
     for at1 in atoms, at2 in atoms
-        if norm(at2.position - at1.position - R) < 1.0e-7
+        if bondlength(at2, at1, R) < 1.0e-7
             map1[at1] = at2
         end
     end
@@ -76,7 +78,7 @@ function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T}}}, structure::Abstrac
     Hdn = getfirst(x -> x.Rtpiba == Vec3(0,0,0), tb_hamis[2]).block
 
     for (at1, at2) in forwardmap, (at3, at4) in forwardmap
-        for (r1, r2) in zip(range.(at1.projections), range.(at2.projections)), (r3, r4) in zip(range.(at3.projections), range.(at4.projections))
+        for (r1, r2) in zip(range.(projections(at1)), range.(projections(at2))), (r3, r4) in zip(range.(projections(at3)), range.(projections(at4)))
             Hup[r1, r3] .= (Hup[r1, r3] .+ Hdn[r2, r4]) ./ 2
             Hdn[r2, r4] .= Hup[r1, r3]
 

@@ -1,48 +1,40 @@
-import DFControl: Element, Projection
+import DFControl: AbstractAtom, Element, Projection, element, position, elsym, id, pseudo, projections, setpseudo!
 
-mutable struct WanAtom{T<:AbstractFloat} <: AbstractAtom{T}
-    id          ::Symbol
-    element     ::Element
-    position    ::Point3{T}
-    pseudo      ::String
-    projections ::Array{Projection, 1}
-    lsoc        ::T
-    wfcs        ::Vector{Array{WfcPoint3{T}, 3}}
-    magmoment   ::Vec3{T}
-    angmom      ::AbstractMatrix{Vec3{Complex{T}}}
-    function WanAtom(atom::Atom{T}, args::Pair...) where T <: AbstractFloat
-        out          = new{T}()
-        for f in fieldnames(Atom)
-            if isdefined(atom, f) && f in fieldnames(WanAtom)
-                setfield!(out, f, getfield(atom, f))
-            end
-        end
-        names = fieldnames(WanAtom)
-        types = fieldtype.(WanAtom, names)
-        for (name, typ) in zip(names[4:end], types[4:end])
-            found = false
-            for (field, value) in args
-                if field == name
-                    if typeof(value) == typ
-                        setfield!(out, field, value)
-                    else
-                        setfield!(out, field, convert(typ, value))
-                    end
-                    found = true
-                end
-            end
-            if !found
-                try
-                    setfield!(out, field, zero(typ))
-                end
-            end
-        end
-        return out
-    end
+mutable struct WanAtData{T <: AbstractFloat}
+    lsoc      ::T
+    wfcs      ::Vector{Array{WfcPoint3{T}, 3}}
+    magmoment ::Vec3{T}
+    angmom    ::AbstractMatrix{Vec3{Complex{T}}}
 end
+
+WanData(wfcs::Vector{Array{WfcPoint3{T}, 3}}) where T = WanData(zero(T), wfcs, zero(Vec3{T}), zeros(Vec3{Complex{T}}, 1,1))
+
+struct WanAtom{T<:AbstractFloat} <: AbstractAtom{T}
+    atom    ::Atom{T}
+    wandata ::WanAtData{T}
+end
+
 WanAtom(atom::Atom{T}, lsoc::T, wfcs::Vector{Array{WfcPoint3{T}, 3}}, magmoment::Vec3{T}) where T<:AbstractFloat =
-    WanAtom(atom, :lsoc => lsoc, :wfcs => wfcs, :magmoment => magmoment)
+    WanAtom(atom, WanAtData(lsoc, wfcs, magmoment, zeros(Vec3{Complex{T}}, 1, 1))
 WanAtom(atom::Atom{T}, magmoment::Vec3{T}) where T<:AbstractFloat =
-    WanAtom(atom, zero(T), Array{WfcPoint3{T}, 3}[], magmoment)
-WanAtom(atom::Atom{T}, lsoc, wfcs) where T =
-    WanAtom(atom, :lsoc => lsoc, :wfcs => wfcs, :magmoment => SVector(zeros(T,3)...))
+    WanAtom(atom, WanAtData(zero(T), Array{WfcPoint3{T}, 3}[], magmoment,zeros(Vec3{Complex{T}}, 1,1) ))
+
+#implementation of the AbstractAtom interface
+position(atom::WanAtom)    = position(atom.atom)
+element(atom::WanAtom)     = element(atom.atom)
+id(atom::WanAtom)          = id(atom.atom)
+pseudo(atom::WanAtom)      = pseudo(atom.atom)
+projections(atom::WanAtom) = projections(atom.atom)
+setpseudo!(atom::WanAtom, pseudo)  = setpseudo!(atom.atom, pseudo)
+setprojections!(atom::WanAtom, projections)  = setprojections!(atom.atom, projections)
+
+lsoc(atom::WanAtom)      = atom.wandata.lsoc
+wfcs(atom::WanAtom)      = atom.wandata.wfcs
+magmoment(atom::WanAtom) = atom.wandata.magmoment
+angmom(atom::WanAtom)    = atom.wandata.angmom
+
+
+function setlsoc!(atom::WanAtom, lsoc) atom.wandata.lsoc = lsoc end
+function setwfcs!(atom::WanAtom, wfcs) atom.wandata.wfcs = wfcs end
+function setmagmoment!(atom::WanAtom, magmoment) atom.wandata.magmoment = magmoment end
+function setangmom!(atom::WanAtom, setangmom) atom.wandata.angmom = angmom end
