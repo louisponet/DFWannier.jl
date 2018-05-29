@@ -1,4 +1,4 @@
-import DFControl: AbstractAtom, Element, Projection, element, position, elsym, id, pseudo, projections, setpseudo!
+import DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, id, pseudo, projections, setpseudo!
 
 mutable struct WanAtData{T <: AbstractFloat}
     lsoc      ::T
@@ -15,9 +15,9 @@ struct WanAtom{T<:AbstractFloat} <: AbstractAtom{T}
 end
 
 WanAtom(atom::Atom{T}, lsoc::T, wfcs::Vector{Array{WfcPoint3{T}, 3}}, magmoment::Vec3{T}) where T<:AbstractFloat =
-    WanAtom(atom, WanAtData(lsoc, wfcs, magmoment, zeros(Vec3{Complex{T}}, 1, 1))
+    WanAtom(atom, WanAtData(lsoc, wfcs, magmoment, zeros(Vec3{Complex{T}}, 1, 1)))
 WanAtom(atom::Atom{T}, magmoment::Vec3{T}) where T<:AbstractFloat =
-    WanAtom(atom, WanAtData(zero(T), Array{WfcPoint3{T}, 3}[], magmoment,zeros(Vec3{Complex{T}}, 1,1) ))
+    WanAtom(atom, WanAtData(zero(T), Array{WfcPoint3{T}, 3}[], magmoment,zeros(Vec3{Complex{T}}, 1,1)))
 
 #implementation of the AbstractAtom interface
 position(atom::WanAtom)    = position(atom.atom)

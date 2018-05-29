@@ -1,4 +1,4 @@
-import DFControl: bondlength, orbital2atom
+import DFControl: bondlength, orbital2atom, AbstractAtom
 mutable struct Bond{T<:AbstractFloat}
     at1::AbstractAtom{T}
     at2::AbstractAtom{T}

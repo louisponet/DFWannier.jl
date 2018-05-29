@@ -1,4 +1,4 @@
-import DFControl: search_dir, parse_block
+import DFControl: searchdir, parse_block, AbstractStructure
 
 struct TbBlock{T<:AbstractFloat}
     Rcart::Vec3{T}
@@ -33,10 +33,10 @@ WanStructure(structure::AbstractStructure, tbhami) =
 #TODO handle so that the previous job doesn't get destroyed I mean it's not necessary
 #     it also doesn't agree with the paradigm of julia
 function add_wan_data(structure::AbstractStructure{T}, job_dir::String) where T
-    search_dir(str) = job_dir .* DFControl.search_dir(job_dir, str)
-    xsf_files  = search_dir(".xsf")
-    hami_file  = search_dir("_hr.dat")[1]
-    r_file     = search_dir("_r.dat")[1]
+    searchdir(str) = job_dir .* DFControl.searchdir(job_dir, str)
+    xsf_files  = searchdir(".xsf")
+    hami_file  = searchdir("_hr.dat")[1]
+    r_file     = searchdir("_r.dat")[1]
 
     new_atoms = WanAtom{T}[]
     for at in structure.atoms
@@ -58,7 +58,7 @@ function add_wan_data(structure::AbstractStructure{T}, job_dir::String) where T
         push!(wfcs(t_at), wfc)
     end
 
-    tbhami          = read_hami_file(hami_file, structure)
+    tbhami          = readhami(hami_file, structure)
     tbdip           = read_dipole_file(r_file, structure)
     return WanStructure(structure,new_atoms, tbhami, tbdip)
 end
@@ -86,13 +86,13 @@ function setsoc!(structure::AbstractStructure{T}, socs...) where T
 end
 
 """
-    set_soc!(job::DFJob, socs...)
+    setsoc!(job::DFJob, socs...)
 
 Accepts a varargs list of atom symbols => soc,
 which will set the soc of the atoms in the job structure to the specified values.
 """
-function set_soc!(job::DFJob, socs...)
-    set_soc!(job.structure, socs...)
+function setsoc!(job::DFJob, socs...)
+    setsoc!(job.structure, socs...)
     return job
 end
 

@@ -1,3 +1,4 @@
+import DFControl: searchdir
 #does this really need the checking for corruption stuff?
 """
 read_xsf_file(filename::String, atom::Atom, T=Float64)
@@ -83,11 +84,11 @@ function write_xsf_file(filename::String,wfc::Wfc3D{T}) where T<:AbstractFloat
 end
 
 """
-read_hami_file(filename::String,structure::AbstractStructure{T})
+readhami(filename::String,structure::AbstractStructure{T})
 
 Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
-function read_hami_file(filename::String, structure::AbstractStructure{T}) where  T
+function readhami(filename::String, structure::AbstractStructure{T}) where  T
     open(filename) do f
         out = TbBlock{T}[]
         degen = Int64[]
@@ -116,6 +117,7 @@ function read_hami_file(filename::String, structure::AbstractStructure{T}) where
     end
 end
 
+readhamis(job::DFJob) = reverse(readhami.(job.local_dir .* searchdir(job.local_dir, "hr.dat"), job.structure))
 """
 read_dipole_file(filename::String, structure::AbstractStructure{T})
 

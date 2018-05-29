@@ -59,13 +59,13 @@ module DFWannier
   include("exchange.jl")
   export AtomOrbInfo
   export exchange_between
-  export calculate_exchanges
+  export calcexchanges
   include("fileio.jl")
   export read_xsf_file
   export write_xsf_file
   export read_exchanges
   export write_exchanges
-  export read_hami_file
+  export readhami, readhamis
   include("spinsims.jl")
   export calcspinspols
 end

@@ -1,4 +1,4 @@
-using DFControl: WannierDataBlock, Projection, Orbital, s, p, d, f
+using DFControl: Projection, Orbital, Structure, s, p, d, f
 
 """
     WannExchanges{T <: AbstractFloat}
@@ -124,15 +124,15 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
     structure.data[:exchanges] = exchanges
 end
 
-function calculate_exchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, args...; kwargs...)
+function calcexchanges(hami_up_file::String, hami_down_file::String, wannier_input_file::String, args...; kwargs...)
     structure = read_wannier_input(wannier_input_file)[2]
-    calculate_exchanges(symmetrize!(read_hami_file(hami_up_file,structure), structure), symmetrize!(read_hami_file(hami_down_file, structure), structure), structure, args...; kwargs...)
+    calcexchanges(symmetrize!(readhami(hami_up_file,structure), structure), symmetrize!(readhami(hami_down_file, structure), structure), structure, args...; kwargs...)
     return structure
 end
 
-function calculate_exchanges(hami_up, hami_down, wannier_input_file::String, args...; kwargs...)
+function calcexchanges(hami_up, hami_down, wannier_input_file::String, args...; kwargs...)
     structure = read_wannier_input(wannier_input_file)[2]
-    calculate_exchanges(hami_up, hami_down, structure, args...; kwargs...)
+    calcexchanges(hami_up, hami_down, structure, args...; kwargs...)
     return structure
 end
 

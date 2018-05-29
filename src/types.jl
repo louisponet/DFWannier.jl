@@ -1,4 +1,4 @@
-using DFControl: form_directory,search_dir
+using DFControl: form_directory,searchdir, Band, DFBand
 import Base: norm, getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 "Point of a wavefunction in 3D, holds the complex value of the wavefunction and the cartesian coordinate."
