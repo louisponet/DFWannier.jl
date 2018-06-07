@@ -1,4 +1,4 @@
-using DFControl: form_directory,searchdir, Band, DFBand
+using DFControl: form_directory, searchdir, Band, DFBand
 import Base: norm, getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 "Point of a wavefunction in 3D, holds the complex value of the wavefunction and the cartesian coordinate."
@@ -33,9 +33,9 @@ function WannierBand(kpoints::Vector{Vec3{T}}) where T
     WannierBand{T}(Vector{T}(klen), Vector{Vector{Complex{T}}}(klen), Vector{Point3{T}}(klen), Vector{Vector{Point3{T}}}(klen), Vector{Vector{Point3{T}}}(klen), kpoints)
 end
 
-wannierbands(n, kpoints) = [WannierBand(kpoints) for i=1:n]
-
-function wannierbands(dfbands::Vector{DFBand{T}}, tbhamis) where T
+wannierbands(n::Int, kpoints) = [WannierBand(kpoints) for i=1:n]
+wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(dfbands, tbhamis)
+function wannierbands(dfbands::Vector{<:DFBand}, tbhamis)
     matdim = size(tbhamis[1].block)[1]
     kpoints = dfbands[1].k_points_cryst
     outbands = wannierbands(matdim, kpoints)

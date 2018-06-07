@@ -20,13 +20,7 @@ WanAtom(atom::Atom{T}, magmoment::Vec3{T}) where T<:AbstractFloat =
     WanAtom(atom, WanAtData(zero(T), Array{WfcPoint3{T}, 3}[], magmoment,zeros(Vec3{Complex{T}}, 1,1)))
 
 #implementation of the AbstractAtom interface
-position(atom::WanAtom)    = position(atom.atom)
-element(atom::WanAtom)     = element(atom.atom)
-id(atom::WanAtom)          = id(atom.atom)
-pseudo(atom::WanAtom)      = pseudo(atom.atom)
-projections(atom::WanAtom) = projections(atom.atom)
-setpseudo!(atom::WanAtom, pseudo)  = setpseudo!(atom.atom, pseudo)
-setprojections!(atom::WanAtom, projections)  = setprojections!(atom.atom, projections)
+atom(at::WanAtom) = at.atom
 
 lsoc(atom::WanAtom)      = atom.wandata.lsoc
 wfcs(atom::WanAtom)      = atom.wandata.wfcs

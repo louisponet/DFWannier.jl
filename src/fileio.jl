@@ -116,8 +116,11 @@ function readhami(filename::String, structure::AbstractStructure{T}) where  T
         return out
     end
 end
-
+"""
+    readhamis(job::DFJob)
+"""
 readhamis(job::DFJob) = reverse(readhami.(job.local_dir .* searchdir(job.local_dir, "hr.dat"), job.structure))
+
 """
 read_dipole_file(filename::String, structure::AbstractStructure{T})
 

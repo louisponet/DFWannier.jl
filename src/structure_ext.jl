@@ -28,7 +28,7 @@ WanStructure(structure::AbstractStructure,atoms, tbhami, tbdip) =
 WanStructure(structure::AbstractStructure, tbhami) =
     WanStructure(structure.name, structure.cell, structure.atoms, structure.data, tbhami, Tuple{Int,Int,Int,Int,Int,Complex{T}}[])
 
-
+structure(str::WanStructure) = Structure(name, cell, atoms, data)
 #TODO does not handle the SOC case. Or the case where there is up and down
 #TODO handle so that the previous job doesn't get destroyed I mean it's not necessary
 #     it also doesn't agree with the paradigm of julia

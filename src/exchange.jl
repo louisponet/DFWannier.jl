@@ -76,7 +76,7 @@ function G!(G, cache1, cache2, cache3, ω::T, μ, Hvecs, Hvals, R, kgrid) where 
 end
 
 #DON'T FORGET HAMIS ARE UP DOWN ORDERED!!!
-function calculate_exchanges(hamis,  structure::Structure, fermi::T;
+function calcexchanges(hamis,  structure::Structure, fermi::T;
                              nk::NTuple{3, Int} = (10, 10, 10),
                              R                  = Vec3(0, 0, 0),
                              ωh::T              = T(-30.), #starting energy
@@ -115,6 +115,7 @@ function calculate_exchanges(hamis,  structure::Structure, fermi::T;
             rm = range(exch.proj1)
             rn = range(exch.proj2)
             t_js[eid][tid] .+= sign(real(trace(view(D, rm, rm)))) .* sign(real(trace(view(D,rn, rn)))) .* imag(view(D,rm, rm) * view(g[1],rm, rn) * view(D,rn, rn) * view(g[2],rn, rm) * dω)
+            # t_js[eid][tid] .+= imag(view(D,rm, rm) * view(g[1],rm, rn) * view(D,rn, rn) * view(g[2],rn, rm) * dω)
         end
     end
     for (eid, exch) in enumerate(exchanges)
