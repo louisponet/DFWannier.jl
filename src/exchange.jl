@@ -86,7 +86,7 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
                              temp::T            = T(0.01),
                              orbitals::Array{Orbital, 1} = [d, f]) where T <: AbstractFloat
 
-    @assert !all(isempty.(projections.(atoms(structure)))) "Please read a valid wannier file for structure with projections."
+    @assert !all(isempty.(projections.(DFControl.atoms(structure)))) "Please read a valid wannier file for structure with projections."
     nth = Threads.nthreads()
     μ = fermi
     atoms = structure.atoms
