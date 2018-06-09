@@ -1,4 +1,4 @@
-import DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, id, pseudo, projections, setpseudo!
+import DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, id, pseudo, projections, setpseudo!, atom
 
 mutable struct WanAtData{T <: AbstractFloat}
     lsoc      ::T

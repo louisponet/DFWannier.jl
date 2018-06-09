@@ -81,12 +81,12 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
                              R                  = Vec3(0, 0, 0),
                              ωh::T              = T(-30.), #starting energy
                              ωv::T              = T(0.5), #height of vertical contour
-                             n_ωh::Int          = 30,
-                             n_ωv::Int          = 5,
+                             n_ωh::Int          = 300,
+                             n_ωv::Int          = 50,
                              temp::T            = T(0.01),
                              orbitals::Array{Orbital, 1} = [d, f]) where T <: AbstractFloat
 
-    @assert !isempty(projections(structure.atoms[1])) "Please read a valid wannier file for structure with projections."
+    @assert !all(isempty.(projections.(atoms(structure)))) "Please read a valid wannier file for structure with projections."
     nth = Threads.nthreads()
     μ = fermi
     atoms = structure.atoms

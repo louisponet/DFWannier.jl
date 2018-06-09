@@ -12,7 +12,7 @@ function optimize_l()
 
     bands = read_qe_bands_file("/home/ponet/HfO2/SOC/bands.out", T)[b:e]
 
-    at_ids = getfield.(unique_atoms(wanjob.structure.atoms), :id)
+    at_ids = getfield.(unique(wanjob.structure.atoms), :id)
 
     lsocs = OrderedDict{Symbol, T}()
     for id in at_ids
