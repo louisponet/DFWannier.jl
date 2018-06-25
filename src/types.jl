@@ -35,9 +35,9 @@ end
 
 wannierbands(n::Int, kpoints) = [WannierBand(kpoints) for i=1:n]
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(dfbands, tbhamis)
-function wannierbands(dfbands::Vector{<:DFBand}, tbhamis)
+
+function wannierbands(kpoints::Vector{<:Vec3}, tbhamis)
     matdim = size(tbhamis[1].block)[1]
-    kpoints = dfbands[1].k_points_cryst
     outbands = wannierbands(matdim, kpoints)
 
     for (i, k) in enumerate(kpoints)
@@ -52,6 +52,7 @@ function wannierbands(dfbands::Vector{<:DFBand}, tbhamis)
     end
     return outbands
 end
+wannierbands(dfbands::Vector{<:DFBand}, tbhamis) = wannierbands(dfbands[1].k_points_cryst)
 
 
 
