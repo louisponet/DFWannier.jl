@@ -50,8 +50,8 @@ end
 # end
 
 function setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
-    ω_grid = vcat(linspace(ωh, ωh + ωv*1im, n_ωv),
-                  linspace(ωh + ωv*1im, ωv*1im, n_ωh),
+    ω_grid = vcat(linspace(ωh, ωh + ωv*1im, n_ωv)[1:end-1],
+                  linspace(ωh + ωv*1im, ωv*1im, n_ωh)[1:end-1],
                   linspace(ωv*1im, 0.0, n_ωv))
     return ω_grid
 end
@@ -111,7 +111,7 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
     Threads.@threads for j=1:length(ω_grid[1:end-1])
         tid = Threads.threadid()
         ω  = ω_grid[j]
-        dω = ω_grid[j + 1] - ω
+        dω = abs(ω_grid[j + 1] - ω)
         g = gs[tid]
         for s = 1:2
             R_ = (-1)^(s) * R #1=-1 2=1
