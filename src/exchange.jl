@@ -43,12 +43,18 @@ function setup_exchanges(atoms::Vector{<:AbstractAtom{T}}, orbitals) where T <: 
     return exchanges
 end
 
+# function setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
+#     ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
+#     ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:ωv/10/n_ωv])
+#     return ω_grid
+# end
+
 function setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
-    ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
-    ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:ωv/10/n_ωv])
+    ω_grid = vcat(linspace(ωh, ωh + ωv, n_ωv),
+                  linspace(ωh + ωv, ωv, n_ωh),
+                  linspace(ωv, 0.0, n_ωv))
     return ω_grid
 end
-
 function Gω!(G, ω, μ, Hvec, Hval, kphase)
     dim = size(G)[1]
     for iter in eachindex(G)
