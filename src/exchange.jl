@@ -111,7 +111,7 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
     Threads.@threads for j=1:length(ω_grid[1:end-1])
         tid = Threads.threadid()
         ω  = ω_grid[j]
-        dω = abs(ω_grid[j + 1] - ω)
+        dω = ω_grid[j + 1] - ω
         g = gs[tid]
         for s = 1:2
             R_ = (-1)^(s) * R #1=-1 2=1
