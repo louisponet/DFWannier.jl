@@ -1,5 +1,5 @@
 function calc_observables(structure::WanStructure{T}, kpoints::Vector{Vec3{T}}, soc::Bool=false) where T
-    nat = length(structure.atoms)
+    nat = length(atoms(structure))
     matdim = getwandim(structure)
     klen = length(kpoints)
     calc_angmoms!(structure)

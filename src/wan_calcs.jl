@@ -149,14 +149,14 @@ function calc_angmoms(wfcs::Array{Wfc3D{T}}) where T<:AbstractFloat
 end
 
 function calc_angmoms!(structure::WanStructure{T}) where T
-    for at in structure.atoms
+    for at in atoms(structure)
         if isdefined(at, :angmom)
             continue
         end
-        dim = length(at.wfcs)
+        dim = length(wfcs(at))
         ang = MMatrix{dim, dim, Vec3{Complex{T}}}()
         for i=1:dim, j=1:dim
-            ang[i, j] = Vec3(calc_angmom(at.wfcs[i], at.wfcs[j], position(at))...)
+            ang[i, j] = Vec3(calc_angmom(wfcs(at)[i], wfcs(at)[j], position(at))...)
         end
         at.angmom = ang
     end
