@@ -7,7 +7,7 @@ mutable struct WanAtData{T <: AbstractFloat}
     angmom    ::AbstractMatrix{Vec3{Complex{T}}}
 end
 
-WanData(wfcs::Vector{Array{WfcPoint3{T}, 3}}) where T = WanData(zero(T), wfcs, zero(Vec3{T}), zeros(Vec3{Complex{T}}, 1,1))
+WanAtData(wfcs::Vector{Array{WfcPoint3{T}, 3}}) where T = WanAtData(zero(T), wfcs, zero(Vec3{T}), zeros(Vec3{Complex{T}}, 1, 1))
 
 struct WanAtom{T<:AbstractFloat} <: AbstractAtom{T}
     atom    ::Atom{T}
@@ -17,7 +17,7 @@ end
 WanAtom(atom::Atom{T}, lsoc::T, wfcs::Vector{Array{WfcPoint3{T}, 3}}, magmoment::Vec3{T}) where T<:AbstractFloat =
     WanAtom(atom, WanAtData(lsoc, wfcs, magmoment, zeros(Vec3{Complex{T}}, 1, 1)))
 WanAtom(atom::Atom{T}, magmoment::Vec3{T}) where T<:AbstractFloat =
-    WanAtom(atom, WanAtData(zero(T), Array{WfcPoint3{T}, 3}[], magmoment,zeros(Vec3{Complex{T}}, 1,1)))
+    WanAtom(atom, WanAtData(zero(T), Array{WfcPoint3{T}, 3}[], magmoment, zeros(Vec3{Complex{T}}, 1, 1)))
 
 #implementation of the AbstractAtom interface
 atom(at::WanAtom) = at.atom
