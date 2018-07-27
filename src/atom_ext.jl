@@ -27,8 +27,7 @@ wfcs(atom::WanAtom)      = atom.wandata.wfcs
 magmoment(atom::WanAtom) = atom.wandata.magmoment
 angmom(atom::WanAtom)    = atom.wandata.angmom
 
-
-function setlsoc!(atom::WanAtom, lsoc) atom.wandata.lsoc = lsoc end
-function setwfcs!(atom::WanAtom, wfcs) atom.wandata.wfcs = wfcs end
-function setmagmoment!(atom::WanAtom, magmoment) atom.wandata.magmoment = magmoment end
-function setangmom!(atom::WanAtom, setangmom) atom.wandata.angmom = angmom end
+setlsoc!(atom::WanAtom, lsoc) = (atom.wandata.lsoc = lsoc)
+setwfcs!(atom::WanAtom, wfcs) = (atom.wandata.wfcs = wfcs)
+setmagmoment!(atom::WanAtom, magmoment) = (atom.wandata.magmoment = magmoment)
+setangmom!(atom::WanAtom, setangmom) = (atom.wandata.angmom = angmom)

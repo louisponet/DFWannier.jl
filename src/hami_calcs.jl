@@ -24,7 +24,7 @@ function construct_soc_hami(hami, structure::WanStructure{T})::Matrix{Complex{T}
     for at in structure.atoms
         soc = lsoc(at)
         mom = angmom(at)
-        len = length(at.wfcs)-1
+        len = length(wfcs(at))-1
         Lx_soc[i:i+len, i:i+len] = 0.5 * soc * getindex.(mom, 1)
         Ly_soc[i:i+len, i:i+len] = 0.5 * soc * getindex.(mom, 2)
         Lz_soc[i:i+len, i:i+len] = 0.5 * soc * getindex.(mom, 3)
