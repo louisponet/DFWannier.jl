@@ -30,4 +30,4 @@ angmom(atom::WanAtom)    = atom.wandata.angmom
 setlsoc!(atom::WanAtom, lsoc) = (atom.wandata.lsoc = lsoc)
 setwfcs!(atom::WanAtom, wfcs) = (atom.wandata.wfcs = wfcs)
 setmagmoment!(atom::WanAtom, magmoment) = (atom.wandata.magmoment = magmoment)
-setangmom!(atom::WanAtom, setangmom) = (atom.wandata.angmom = angmom)
+setangmom!(atom::WanAtom, angmom) = (atom.wandata.angmom = angmom)
