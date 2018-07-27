@@ -1,4 +1,4 @@
-import DFControl: searchdir, parse_block, AbstractStructure
+import DFControl: searchdir, parse_block, AbstractStructure, getfirst
 
 struct TbBlock{T<:AbstractFloat}
     Rcart::Vec3{T}
