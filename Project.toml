@@ -5,10 +5,12 @@ repo = "https://github.com/louisponet/DFWannier.jl.git"
 version = "0.0.0"
 
 ["deps"]
+Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 DFControl = "1e31e15d-4957-550d-a244-318eced754ae"
 GeometryTypes = "4d00f742-c7ba-57c2-abde-4428a4b178cb"
 InplaceOps = "505f98c9-085e-5b2c-8e89-488be7bf1f34"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"

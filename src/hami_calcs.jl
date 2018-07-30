@@ -2,7 +2,7 @@
 function Hk!(out::AbstractMatrix{T}, tbhami, kpoint) where T
     fill!(out, zero(T))
     for block in tbhami
-        out .+= e^(-2im*pi*(block.Rtpiba ⋅ kpoint)) .* block.block
+        out .+= ℯ^(-2im*pi*(block.Rtpiba ⋅ kpoint)) .* block.block
     end
     for i=1:size(out)[1]
         out[i,i] = real(out[i,i]) + 0.0im

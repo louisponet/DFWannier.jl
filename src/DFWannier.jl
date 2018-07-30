@@ -5,6 +5,7 @@ module DFWannier
   # else
   #   gpu_enabled = false
   # end
+  using Compat
   using Reexport
   @reexport using DFControl
   using RecipesBase
@@ -12,6 +13,7 @@ module DFWannier
   using GeometryTypes
   using Optim
   using InplaceOps
+  using LinearAlgebra
   # if gpu_enabled
   #   using CuArrays
   #   using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!

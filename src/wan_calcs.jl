@@ -154,14 +154,14 @@ function calc_angmoms!(structure::WanStructure{T}) where T
             continue
         end
         dim = length(wfcs(at))
-        ang = Matrix{Vec3{Complex{T}}}(undef, dim, dim)
+        ang = Matrix{Vec3{Complex{T}}}(I, dim, dim)
         for i=1:dim, j=1:dim
             ang[i, j] = Vec3(calc_angmom(wfcs(at)[i], wfcs(at)[j], position(at))...)
         end
         setangmom!(at, ang)
     end
 end
-
+isdefined
 
 function calc_spins(structure::WanStructure{T}) where T<: AbstractFloat
     # if haskey(structure.data, :Sx)

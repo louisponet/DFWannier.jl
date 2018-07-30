@@ -5,12 +5,11 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{Vec3{T}}, 
     calc_angmoms!(structure)
     Sx, Sy, Sz = calc_spins(structure)
     outbands = soc ? wannierbands(2*matdim, kpoints) : wannierbands(matdim, kpoints)
-    Threads.@threads for i=1:klen
+    for i=1:klen
         k = kpoints[i]
         t_hami, dips = hami_dip_from_k(structure.tbhami, structure.tbdip, k)
 
         hami = soc ? construct_soc_hami(t_hami, structure) : t_hami
-
         eigvals, eigvecs = sorted_eig(hami)
         eigvals_k = real(eigvals)
         cm_k      = eigcm(dips, eigvecs)
@@ -51,18 +50,19 @@ function calc_observables(structure::WanStructure{T}, k_points, k_range::StepRan
 end
 
 function hami_dip_from_k(tbhami, tbdip, k::Vec3{T}) where T
-    outham = zeros(tbhami[1].block)
-    outdip = Matrix{Point3{Complex{T}}}(size(tbdip[1].block))
+    matdim = size(tbhami[1].block)
+    outham = zeros(Complex{T}, matdim)
+    outdip = zeros(Point3{Complex{T}}, matdim)
     for i = 1:length(tbhami)
         Rtpiba = tbhami[i].Rtpiba
         hb = tbhami[i].block
         db = tbdip[i].block
-        factor =  e^(-2im*pi*(Rtpiba ⋅ k))
+        factor =  ℯ^(-2im*pi*(Rtpiba ⋅ k))
         outham .+= factor .* hb
         outdip .+= factor .* db
     end
     outdip_ = real(outdip)
-    return outham, [outdip_ zeros(outdip_);zeros(outdip_) outdip_]
+    return outham, [outdip_ fill(zero(Point3{T}), matdim);fill(zero(Point3{T}), matdim) outdip_]
 end
 
 function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T

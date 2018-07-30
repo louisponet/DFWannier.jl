@@ -50,9 +50,9 @@ end
 # end
 
 function setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.03)
-    ω_grid = vcat(linspace(ωh, ωh - ωv*1im, n_ωv)[1:end-1],
-                  linspace(ωh - ωv*1im, offset - ωv*1im, n_ωh)[1:end-1],
-                  linspace(offset - ωv*1im, offset, n_ωv))
+    ω_grid = vcat(range(ωh, ωh - ωv*1im, n_ωv)[1:end-1],
+                  range(ωh - ωv*1im, offset - ωv*1im, n_ωh)[1:end-1],
+                  range(offset - ωv*1im, offset, n_ωv))
     return ω_grid
 end
 function Gω!(G, ω, μ, Hvec, Hval, kphase)

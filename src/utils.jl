@@ -1,6 +1,6 @@
 div1(x, y) = div(x - 1, y) + 1
 function sorted_eig(hami)
-    eigs, eigvec = eig(hami)
+    eigs, eigvec = (eigen(hami)...,)
     out_eig = similar(eigs)
     out_vec = similar(eigvec)
     perm = sortperm(real(eigs))
@@ -14,14 +14,14 @@ end
 function pauli(T::Type, dir::Symbol, dim::Int)
   out = zeros(Complex{T}, dim, dim)
   if dir == :x
-    out[1:div(dim,2),div(dim,2)+1:end]=0.5*eye(T,div(dim,2),div(dim,2))
-    out[div(dim,2)+1:end,1:div(dim,2)]=0.5*eye(T,div(dim,2),div(dim,2))
+    out[1:div(dim,2),div(dim,2)+1:end]=0.5*Matrix{T}(I,div(dim,2),div(dim,2))
+    out[div(dim,2)+1:end,1:div(dim,2)]=0.5*Matrix{T}(I,div(dim,2),div(dim,2))
   elseif dir == :y
-    out[1:div(dim,2),div(dim,2)+1:end]=-0.5im*eye(T,div(dim,2),div(dim,2))
-    out[div(dim,2)+1:end,1:div(dim,2)]=0.5im*eye(T,div(dim,2),div(dim,2))
+    out[1:div(dim,2),div(dim,2)+1:end]=-0.5im*Matrix{T}(I,div(dim,2),div(dim,2))
+    out[div(dim,2)+1:end,1:div(dim,2)]=0.5im*Matrix{T}(I,div(dim,2),div(dim,2))
   else
-    out[1:div(dim,2),1:div(dim,2)]=0.5eye(T,div(dim,2),div(dim,2))
-    out[div(dim,2)+1:end,div(dim,2)+1:end]=-0.5*eye(T,div(dim,2),div(dim,2))
+    out[1:div(dim,2),1:div(dim,2)]=0.5Matrix{T}(I,div(dim,2),div(dim,2))
+    out[div(dim,2)+1:end,div(dim,2)+1:end]=-0.5*Matrix{T}(I,div(dim,2),div(dim,2))
   end
   return out
 end

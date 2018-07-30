@@ -1,5 +1,5 @@
 using DFControl: formdirectory, searchdir, Band, DFBand
-import Base: norm, getindex, zero, show, -, +, ==, !=, *, /
+import Base: getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 "Point of a wavefunction in 3D, holds the complex value of the wavefunction and the cartesian coordinate."
 struct WfcPoint3{T<:AbstractFloat}
@@ -30,7 +30,7 @@ end
 
 function WannierBand(kpoints::Vector{Vec3{T}}) where T
     klen = length(kpoints)
-    WannierBand{T}(Vector{T}(klen), Vector{Vector{Complex{T}}}(klen), Vector{Point3{T}}(klen), Vector{Vector{Point3{T}}}(klen), Vector{Vector{Point3{T}}}(klen), kpoints)
+    WannierBand{T}(zeros(T, klen), fill([zero(Complex{T})], klen), zeros(Point3{T}, klen), fill([zero(Point3{T})], klen), fill([zero(Point3{T})], klen), kpoints)
 end
 
 wannierbands(n::Int, kpoints) = [WannierBand(kpoints) for i=1:n]
