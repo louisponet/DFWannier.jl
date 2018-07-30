@@ -51,7 +51,7 @@ function calc_observables(structure::WanStructure{T}, k_points, k_range::StepRan
 end
 
 function hami_dip_from_k(tbhami, tbdip, k::Vec3{T}) where T
-    outham = similar(tbhami[1].block)
+    outham = zeros(tbhami[1].block)
     outdip = Matrix{Point3{Complex{T}}}(size(tbdip[1].block))
     for i = 1:length(tbhami)
         Rtpiba = tbhami[i].Rtpiba
