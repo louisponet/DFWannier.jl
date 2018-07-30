@@ -154,7 +154,7 @@ function calc_angmoms!(structure::WanStructure{T}) where T
             continue
         end
         dim = length(wfcs(at))
-        ang = MMatrix{dim, dim, Vec3{Complex{T}}}()
+        ang = Matrix{Vec3{Complex{T}}}(dim, dim)
         for i=1:dim, j=1:dim
             ang[i, j] = Vec3(calc_angmom(wfcs(at)[i], wfcs(at)[j], position(at))...)
         end
