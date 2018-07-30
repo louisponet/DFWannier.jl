@@ -59,7 +59,7 @@ function Gω!(G, ω, μ, Hvec, Hval, kphase)
     dim = size(G)[1]
     for iter in eachindex(G)
         for d=1:dim
-            G[iter] += Hvec[iter.I[1], d] * 1./(ω + μ - Hval[d]) * Hvec[iter.I[2], d] * kphase
+            G[iter] += Hvec[iter.I[1], d] * 1 ./(ω + μ - Hval[d]) * Hvec[iter.I[2], d] * kphase
         end
     end
 end
@@ -71,7 +71,7 @@ function G!(G, cache1, cache2, cache3, ω::T, μ, Hvecs, Hvals, R, kgrid) where 
         fill!(cache1, zero(T))
         k_phase = exp(2im * π * dot(R,kgrid[ik]))
         for x=1:dim
-            cache1[x,x] = 1./(μ + ω - Hvals[ik][x])
+            cache1[x,x] = 1 ./(μ + ω - Hvals[ik][x])
         end
         @into! cache2 = Hvecs[ik] * cache1
         ctranspose!(cache3, Hvecs[ik])

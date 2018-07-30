@@ -37,7 +37,7 @@ function calcspinspols(atoms::Vector{WanAtom{T}}, exchanges, Hs, aniz, startconf
         tangs    = Vector{T}[]
         tconfigs = Vector{Vec{3, T}}[]
         tpols    = T[]
-        max = hi==1? 1 : itps
+        max = hi==1 ? 1 : itps
         for i=1:max
             noise = randθsϕs(T, nat) .* nstrength
             for (ia, angles) in enumerate(prevangs)

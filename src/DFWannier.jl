@@ -9,7 +9,6 @@ module DFWannier
   @reexport using DFControl
   using RecipesBase
   using LaTeXStrings
-  using StaticArrays
   using GeometryTypes
   using Optim
   using InplaceOps

@@ -436,7 +436,7 @@ function add_distribution!(distribution::Wfc3D{T},wfc1::Wfc3D{T},R::Point3{T}) w
 end
 
 function calc_pot(wfc1::Wfc3D{T},wfc2::Wfc3D{T},potential::Array{T,3}) where T<:AbstractFloat
-  dim_a,dim_b,dim_c = (size(wfc1.points)...)
+  dim_a,dim_b,dim_c = (size(wfc1.points)...,)
   i1s::Int64,i2s::Int64,i3s::Int64 = 29,29,29
   i1m::Int64,i2m::Int64,i3m::Int64 = dim_a*2/3+1,dim_b*2/3+1,dim_c*2/3+1
   out = zero(Complex{T})
