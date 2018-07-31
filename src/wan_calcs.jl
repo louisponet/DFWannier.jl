@@ -150,7 +150,7 @@ end
 
 function calc_angmoms!(structure::WanStructure{T}) where T
     for at in atoms(structure)
-        if isdefined(at.wandata, :angmom)
+        if angmom(at)[1, 1] != 0.0
             continue
         end
         dim = length(wfcs(at))
@@ -175,7 +175,7 @@ function calc_spins(structure::WanStructure{T}) where T<: AbstractFloat
     structure.data[:Sy] = s_y
     structure.data[:Sz] = s_z
     return s_x, s_y, s_z
-end
+end!
 
 "Calculates the spins between the supplied wavefunctions"
 function calc_spins(wfcs::Array{<:Wfc3D{T},1}) where T<:AbstractFloat
