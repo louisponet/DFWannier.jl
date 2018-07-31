@@ -43,7 +43,7 @@ function add_wan_data(structure::AbstractStructure{T}, job_dir::String) where T
         push!(new_atoms, WanAtom(at, WanAtData(Wfc3D{T}[])))
     end
     t_wfcs = Array{Array{WfcPoint3{T},3},1}(length(xsf_files))
-    Threads.@threads for i=1:length(xsf_files)
+    for i=1:length(xsf_files)
         t_wfcs[i] = read_xsf_file(xsf_files[i], T)
     end
 

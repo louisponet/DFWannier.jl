@@ -5,7 +5,7 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{Vec3{T}}, 
     calc_angmoms!(structure)
     Sx, Sy, Sz = calc_spins(structure)
     outbands = soc ? wannierbands(2*matdim, kpoints) : wannierbands(matdim, kpoints)
-    Threads.@threads for i=1:klen
+    for i=1:klen
         k = kpoints[i]
         t_hami, dips = hami_dip_from_k(structure.tbhami, structure.tbdip, k)
 
