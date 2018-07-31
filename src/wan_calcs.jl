@@ -150,7 +150,7 @@ end
 
 function calc_angmoms!(structure::WanStructure{T}) where T
     for at in atoms(structure)
-        if angmom(at)[1, 1] != zero(T)
+        if angmom(at)[1, 1] != zero(Complex{T})
             continue
         end
         dim = length(wfcs(at))
