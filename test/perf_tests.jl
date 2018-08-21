@@ -39,7 +39,7 @@ function bench_test(t)
   end
   out
 end
-using StaticArrays
+# using StaticArrays
 function bench_test2(t)
   out = 0.0
   v = Array{perfTest2,1}(12)

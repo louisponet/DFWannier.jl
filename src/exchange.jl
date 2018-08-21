@@ -73,9 +73,9 @@ function G!(G, cache1, cache2, cache3, ω::T, μ, Hvecs, Hvals, R, kgrid) where 
         for x=1:dim
             cache1[x,x] = 1 ./(μ + ω - Hvals[ik][x])
         end
-        @into! cache2 = Hvecs[ik] * cache1
+        @! cache2 = Hvecs[ik] * cache1
         ctranspose!(cache3, Hvecs[ik])
-        @into! cache1 = cache2 * cache3
+        @! cache1 = cache2 * cache3
 
         G .+= cache1 .* k_phase
     end

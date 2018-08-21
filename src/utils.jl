@@ -34,12 +34,11 @@ end
 @inline randθsϕs(n) = randθsϕs(Float64, n)
 
 @inline polar2xyz(r, θ, ϕ) = Vec3(r * sin(θ) * cos(ϕ), r * sin(θ) * sin(ϕ), r * cos(θ))
-# if gpu_enabled
-# function host2gpu(wfc::Wfc3D)
-#   cell=wfc.cell
-#   return Wfc3D_gpu(CuArray([(p.p.x,p.p.y,p.p.z) for p in wfc.points]),CuArray([p.w for p in wfc.points]),wfc.cell,wfc.atom)
-# end
-# function gpu2host(wfc::Wfc3D_gpu)
-#   return Wfc3D([WfcPoint3(w,Point3(p...)) for (w,p) in zip(wfc.values,wfc.grid)],Array(wfc.cell),wfc.atom)
-# end
-# end
+
+function eigenwfc(wfcs, eigvec)
+    out = zeros(wfcs[1])
+    for (c, wfc) in zip(wfcs, eigvec)
+        out .+= c .* wfc
+    end
+    return out
+end
