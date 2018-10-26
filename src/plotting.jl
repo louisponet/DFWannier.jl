@@ -16,7 +16,7 @@
   if data==:eigvals
     out = band.eigvals
     title --> "Eigenvalues"
-    yguide -->(haskey(d,:yguide) ? d[:yguide] : "energy (eV)")
+    yguide -->"energy (eV)"
   else
     if data==:cm_x
       title --> "Center of Mass (X)"

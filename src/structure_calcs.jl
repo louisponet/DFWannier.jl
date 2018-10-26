@@ -32,13 +32,14 @@ function calc_observables(structure::WanStructure{T}, k_points, k_range::StepRan
     beg = Int64(k_range[1])
     steps = div(size(k_range)[1],2)
     last = Int64(k_range[end])
-    kxs = [linspace(k_points[beg][1], k_points[mid][1], steps)..., k_points[mid][1], linspace(k_points[mid][1], k_points[last][1], steps)[2:end]...]
-    kys = [linspace(k_points[beg][2],k_points[mid][2],steps)...,k_points[mid][2] ,linspace(k_points[mid][2], k_points[last][2], steps)[2:end]...]
-    kzs = [linspace(k_points[beg][3],k_points[mid][3],steps)...,k_points[mid][3] ,linspace(k_points[mid][3],k_points[last][3],steps)[2:end]...]
-    kxs_t = [linspace(k_points[beg][1],k_points[mid][1],steps*100)... ,linspace(k_points[mid][1],k_points[last][1],steps*100)[2:end]...]
-    kys_t = [linspace(k_points[beg][2],k_points[mid][2],steps*100)... ,linspace(k_points[mid][2],k_points[last][2],steps*100)[2:end]...]
-    kzs_t = [linspace(k_points[beg][3],k_points[mid][3],steps*100)... ,linspace(k_points[mid][3],k_points[last][3],steps*100)[2:end]...]
+    kxs = [range(k_points[beg][1], stop=k_points[mid][1], length=steps)..., k_points[mid][1], range(k_points[mid][1], stop=k_points[last][1], length=steps)[2:end]...]
+    kys = [range(k_points[beg][2], stop=k_points[mid][2],length=steps)...,k_points[mid][2] ,range(k_points[mid][2], stop=k_points[last][2], length=steps)[2:end]...]
+    kzs = [range(k_points[beg][3], stop=k_points[mid][3],length=steps)...,k_points[mid][3] ,range(k_points[mid][3], stop=k_points[last][3],length=steps)[2:end]...]
+    kxs_t = [range(k_points[beg][1], stop=k_points[mid][1],length=steps*100)... ,range(k_points[mid][1], stop=k_points[last][1],length=steps*100)[2:end]...]
+    kys_t = [range(k_points[beg][2], stop=k_points[mid][2],length=steps*100)... ,range(k_points[mid][2], stop=k_points[last][2],length=steps*100)[2:end]...]
+    kzs_t = [range(k_points[beg][3], stop=k_points[mid][3],length=steps*100)... ,range(k_points[mid][3], stop=k_points[last][3],length=steps*100)[2:end]...]
     # kxs[div(length(kxs),2)]+=0.00001
+
     kxs[div(length(kxs),2)] = kxs_t[div(length(kxs_t),2)]
     kxs[div(length(kxs),2)+1] = kxs_t[div(length(kxs_t),2)+2]
     kys[div(length(kxs),2)] = kys_t[div(length(kxs_t),2)]
