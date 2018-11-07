@@ -1,6 +1,7 @@
-using DFControl: formdirectory, searchdir, Band, DFBand
-import Base: norm, getindex, zero, show, -, +, ==, !=, *, /
+using DFControl: searchdir, Band, DFBand
+import Base: getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
+
 "Point of a wavefunction in 3D, holds the complex value of the wavefunction and the cartesian coordinate."
 struct WfcPoint3{T<:AbstractFloat}
     w::Complex{T}
@@ -9,14 +10,40 @@ end
 +(a::WfcPoint3,b::Point3) = WfcPoint3(a.w,a.p+b)
 +(a::WfcPoint3,b::WfcPoint3) = a.p == b.p ? WfcPoint3(a.w+b.w,a.p) : error("Can only sum two wavepoints at the same point in space!")
 -(a::WfcPoint3,b::Point3) = WfcPoint3(a.w,a.p-b)
+-(a::WfcPoint3,b::WfcPoint3) = a.p == b.p ? WfcPoint3(a.w-b.w,a.p) : error("Can only minus two wavepoints at the same point in space!")
 +(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w+b,a.p)
 *(a::WfcPoint3,b::AbstractFloat) = WfcPoint3(a.w*b,a.p)
 *(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w*b,a.p)
+*(a::WfcPoint3{T},b::WfcPoint3{T}) where T = a.p == b.p ? WfcPoint3(a.w*b.w,a.p) : error("Can only times two wavepoints at the same point in space!")
 *(b::AbstractFloat,a::WfcPoint3) = WfcPoint3(a.w*b,a.p)
 *(b::Complex{T},a::WfcPoint3{T}) where T = WfcPoint3(a.w*b,a.p)
 /(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w/b,a.p)
 show(io::IO,x::WfcPoint3)=print(io,"w = $(x.w), x = $(x.p[1]), y = $(x.p[2]), z = $(x.p[3])")
 zero(::Type{WfcPoint3{T}}) where T<:AbstractFloat = WfcPoint3(zero(Complex{T}),Point3(zero(T)))
+zero(x::WfcPoint3{T}) where T<:AbstractFloat = WfcPoint3(zero(Complex{T}), x.p)
+
+const AbstractWfc3D{T} = AbstractArray{WfcPoint3{T}, 3}
+Base.zeros(x::AbstractWfc3D) = zero.(x)
+
+function Base.sum(points::AbstractWfc3D{T}) where T
+    s = zero(Complex{T})
+    for w in points
+        s += w.w
+    end
+    return s
+end
+function LinearAlgebra.norm(points::AbstractWfc3D{T}) where T
+    s = zero(Complex{T})
+    for w in points
+        s += w.w^2
+    end
+    return s
+end
+
+LinearAlgebra.normalize(points::AbstractWfc3D) = points ./= sqrt(norm(points))
+density(wfc::AbstractWfc3D) = wfc .* wfc
+
+
 
 "Holds all the calculated values from a wannier model."
 mutable struct WannierBand{T<:AbstractFloat} <: Band
@@ -30,13 +57,13 @@ end
 
 function WannierBand(kpoints::Vector{Vec3{T}}) where T
     klen = length(kpoints)
-    WannierBand{T}(Vector{T}(klen), Vector{Vector{Complex{T}}}(klen), Vector{Point3{T}}(klen), Vector{Vector{Point3{T}}}(klen), Vector{Vector{Point3{T}}}(klen), kpoints)
+    WannierBand{T}(zeros(T, klen), fill([zero(Complex{T})], klen), zeros(Point3{T}, klen), fill([zero(Point3{T})], klen), fill([zero(Point3{T})], klen), kpoints)
 end
 
-wannierbands(n::Int, kpoints) = [WannierBand(kpoints) for i=1:n]
-wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(dfbands, tbhamis)
+wannierbands(n::Int, kpoints::Vector{<:Vec3}) = [WannierBand(kpoints) for i=1:n]
+wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands)
 
-function wannierbands(kpoints::Vector{<:Vec3}, tbhamis)
+function wannierbands(tbhamis, kpoints::Vector{<:Vec3})
     matdim = size(tbhamis[1].block)[1]
     outbands = wannierbands(matdim, kpoints)
 
@@ -52,7 +79,7 @@ function wannierbands(kpoints::Vector{<:Vec3}, tbhamis)
     end
     return outbands
 end
-wannierbands(dfbands::Vector{<:DFBand}, tbhamis) = wannierbands(dfbands[1].k_points_cryst)
+wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands[1].k_points_cryst)
 
 
 

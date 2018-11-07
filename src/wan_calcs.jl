@@ -92,7 +92,6 @@ function calc_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3{T}) where T<
   @inbounds for i2 = 2:size(wfc1)[3]-1
     @inbounds for i1 = 2:size(wfc1)[2]-1
       @inbounds for i = 2:size(wfc1)[1]-1
-
         dwx = wfc2[i+1,i1,i2].w-wfc2[i-1,i1,i2].w
         dwy = wfc2[i,i1+1,i2].w-wfc2[i,i1-1,i2].w
         dwz = wfc2[i,i1,i2+1].w-wfc2[i,i1,i2-1].w
@@ -154,14 +153,14 @@ function calc_angmoms!(structure::WanStructure{T}) where T
             continue
         end
         dim = length(wfcs(at))
-        ang = Matrix{Vec3{Complex{T}}}(dim, dim)
+        ang = Matrix{Vec3{Complex{T}}}(I, dim, dim)
         for i=1:dim, j=1:dim
             ang[i, j] = Vec3(calc_angmom(wfcs(at)[i], wfcs(at)[j], position(at))...)
         end
         setangmom!(at, ang)
     end
 end
-
+isdefined
 
 function calc_spins(structure::WanStructure{T}) where T<: AbstractFloat
     # if haskey(structure.data, :Sx)

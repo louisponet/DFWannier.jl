@@ -4,10 +4,10 @@
     ks=[]
     k_m = band.k_points[div(size(band.k_points)[1]+1,2)]
     for k in band.k_points
-      push!(ks,norm(k-k_m))
+      push!(ks, norm(k-k_m))
     end
+    ks[1:div(length(ks),2)]=-ks[1:div(length(ks),2)]
   end
-  ks[1:div(length(ks),2)]=-ks[1:div(length(ks),2)]
   if fermi != 0
     band = DFControl.apply_fermi_level(band,fermi)
   end
@@ -16,7 +16,7 @@
   if data==:eigvals
     out = band.eigvals
     title --> "Eigenvalues"
-    yguide -->(haskey(d,:yguide) ? d[:yguide] : "energy (eV)")
+    yguide -->"energy (eV)"
   else
     if data==:cm_x
       title --> "Center of Mass (X)"

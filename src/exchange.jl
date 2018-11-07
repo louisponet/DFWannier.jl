@@ -50,9 +50,9 @@ end
 # end
 
 function setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.03)
-    ω_grid = vcat(linspace(ωh, ωh - ωv*1im, n_ωv)[1:end-1],
-                  linspace(ωh - ωv*1im, offset - ωv*1im, n_ωh)[1:end-1],
-                  linspace(offset - ωv*1im, offset, n_ωv))
+    ω_grid = vcat(range(ωh, ωh - ωv*1im, n_ωv)[1:end-1],
+                  range(ωh - ωv*1im, offset - ωv*1im, n_ωh)[1:end-1],
+                  range(offset - ωv*1im, offset, n_ωv))
     return ω_grid
 end
 function Gω!(G, ω, μ, Hvec, Hval, kphase)
@@ -73,9 +73,9 @@ function G!(G, cache1, cache2, cache3, ω::T, μ, Hvecs, Hvals, R, kgrid) where 
         for x=1:dim
             cache1[x,x] = 1 ./(μ + ω - Hvals[ik][x])
         end
-        @into! cache2 = Hvecs[ik] * cache1
+        @! cache2 = Hvecs[ik] * cache1
         ctranspose!(cache3, Hvecs[ik])
-        @into! cache1 = cache2 * cache3
+        @! cache1 = cache2 * cache3
 
         G .+= cache1 .* k_phase
     end

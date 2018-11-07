@@ -10,32 +10,28 @@ function read_xsf_file(filename::String, T=Float64)
         while !eof(f)
             line = readline(f)
             if line == "PRIMVEC"
-                cell  = [Point3{T}(map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),split(readline(f)))) for i=1:3]
+                cell  = [Point3{T}.(parse.(T, split(readline(f)))) for i=1:3]
             end
 
-            if line == " DATAGRID_3D_DENSITY" || contains(line, "DATAGRID_3D_UNKNOWN")
+            if line == " DATAGRID_3D_DENSITY" || occursin("DATAGRID_3D_UNKNOWN", line)
                 nx, ny, nz = parse.(Int,split(readline(f)))
                 origin     = Point3{T}(parse.(T,split(readline(f))))
                 a_vec      = parse.(T,split(readline(f)))
                 b_vec      = parse.(T,split(readline(f)))
                 c_vec      = parse.(T,split(readline(f)))
-                a_array    = collect(T,linspace(0, 1, nx))
-                b_array    = collect(T,linspace(0, 1, ny))
-                c_array    = collect(T,linspace(0, 1, nz))
-                out        = Array{WfcPoint3{T},3}(nx,ny,nz)
+                a_array    = range(0, stop=1, length=nx)
+                b_array    = range(0, stop=1, length=ny)
+                c_array    = range(0, stop=1, length=nz)
+                out        = Array{WfcPoint3{T}}(undef, nx, ny, nz)
                 line       = readline(f)
 
-                k  = 1
-                k1 = 1
-                k2 = 1
+                k, k1, k2 = 1, 1, 1
                 while line != "END_DATAGRID_3D"
-                    #uncomment this line if there is data corruption
-                    # tmp = Array{Complex{T}}(map(x->(v = tryparse(T,x); isnull(v) ? Complex(0.0,0.0) : Complex{T}(get(v),0.0)),split(line)))
-                    for t in map(x->Complex{T}(x,zero(T)),parse.(T,split(line)))
+                    for t in map(x->Complex{T}(x, zero(T)), parse.(T, split(line)))
                         x = origin[1] + (a_vec * a_array[k])[1] + (b_vec * b_array[k1])[1] + (c_vec * c_array[k2])[1]
                         y = origin[2] + (a_vec * a_array[k])[2] + (b_vec * b_array[k1])[2] + (c_vec * c_array[k2])[2]
                         z = origin[3] + (a_vec * a_array[k])[3] + (b_vec * b_array[k1])[3] + (c_vec * c_array[k2])[3]
-                        out[k,k1,k2] = WfcPoint3{T}(t,Point3{T}(x,y,z))
+                        out[k, k1, k2] = WfcPoint3{T}(t, Point3{T}(x, y, z))
                         if k < nx
                             k += 1
                         else
@@ -65,17 +61,17 @@ write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
 
 Writes the real part of the Wfc3D to a .xsf file that is readable by XCrysden or VESTA.
 """
-function write_xsf_file(filename::String,wfc::Wfc3D{T}) where T<:AbstractFloat
+function write_xsf_file(filename::String, wfc)
     open(filename,"w") do f
-        origin = wfc.points[1,1,1].p
+        origin = wfc[1,1,1].p
         write(f,["# Generated from PhD calculations\n", "", "BEGIN_BLOCK_DATAGRID_3D\n", "3D_FIELD\n",
         "BEGIN_DATAGRID_3D_UNKNOWN\n"])
-        write(f,"$(size(wfc.points)[1])    $(size(wfc.points)[2])     $(size(wfc.points)[3])\n")
+        write(f,"$(size(wfc)[1])    $(size(wfc)[2])     $(size(wfc)[3])\n")
         write(f,"$(origin[1])   $(origin[2])   $(origin[3])\n")
-        write(f,"$(wfc.points[end,1,1].p[1]-origin[1])   $(wfc.points[end,1,1].p[2]-origin[2])   $(wfc.points[end,1,1].p[3]-origin[3])\n")
-        write(f,"$(wfc.points[1,end,1].p[1]-origin[1])   $(wfc.points[1,end,1].p[2]-origin[2])   $(wfc.points[1,end,1].p[3]-origin[3])\n")
-        write(f,"$(wfc.points[1,1,end].p[1]-origin[1])   $(wfc.points[1,1,end].p[2]-origin[2])   $(wfc.points[1,1,end].p[3]-origin[3])\n")
-        for wfp in wfc.points
+        write(f,"$(wfc[end,1,1].p[1]-origin[1])   $(wfc[end,1,1].p[2]-origin[2])   $(wfc[end,1,1].p[3]-origin[3])\n")
+        write(f,"$(wfc[1,end,1].p[1]-origin[1])   $(wfc[1,end,1].p[2]-origin[2])   $(wfc[1,end,1].p[3]-origin[3])\n")
+        write(f,"$(wfc[1,1,end].p[1]-origin[1])   $(wfc[1,1,end].p[2]-origin[2])   $(wfc[1,1,end].p[3]-origin[3])\n")
+        for wfp in wfc
             write(f,"$(real(wfp.w)) ")
         end
         write(f,"\n")
@@ -105,7 +101,7 @@ function readhami(filename::String, structure::AbstractStructure{T}) where  T
             rpt = div(linenr - 1, nwanfun^2) + 1
             Rtpiba = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
             if length(out) < rpt
-                block = TbBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Complex{T}}(nwanfun, nwanfun))
+                block = TbBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Complex{T}}(I, nwanfun, nwanfun))
                 push!(out, block)
             else
                 block = out[rpt]
@@ -130,19 +126,18 @@ function read_dipole_file(filename::String, structure::AbstractStructure{T}) whe
     open(filename) do  f
         out = DipBlock{T}[]
         readline(f)
-        n_wanfun = parse(Int64, readline(f))
+        n_wanfun = parse(Int, readline(f))
         while !eof(f)
             l= split(readline(f))
-            ints = parse.(Int, l[1:5])
-            Rtpiba = Vec3(ints[1:3]...)
+            Rtpiba = Vec3(parse.(Int, l[1:3]))
             block = getfirst(x -> x.Rtpiba == Rtpiba, out)
 
             if block == nothing
-                block = DipBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Point3{T}}(n_wanfun, n_wanfun))
+                block = DipBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Point3{T}}(I, n_wanfun, n_wanfun))
                 push!(out, block)
             end
-            dipole = Point3{T}(parse(T,l[6]),parse(T,l[8]),parse(T,l[10]))
-            block.block[ints[4], ints[5]] = dipole
+            dipole = Point3{T}(parse.(T, l[6:2:10]))
+            block.block[parse.(Int, l[4:5])...] = dipole
         end
         return out
     end
@@ -150,64 +145,55 @@ end
 
 
 #stuff that is not used currently
-"""
-read_potential_file(filename::String, T=Float64)
-
-Reads a Quantum Espresso potential output file.
-"""
-function read_potential_file(filename::String, T=Float64)
-    tmp_data=nothing
-    open(filename) do f
-        primCell = zeros(T,3,3)
-        while !eof(f)
-            line = readline(f)
-            if line == "PRIMVEC"
-                line0 = split(readline(f))
-                line1 = split(readline(f))
-                line2 = split(readline(f))
-                primCell[1,:] = map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),line0)
-                primCell[2,:] = map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),line1)
-                primCell[3,:] = map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),line2)
-            end
-            if line == "DATAGRID_3D_UNKNOWN"
-                line0 = split(readline(f))
-                line1 = split(readline(f))
-                line2 = split(readline(f))
-                line3 = split(readline(f))
-                line4 = split(readline(f))
-                nx = parse(Int,line0[1])
-                ny = parse(Int,line0[2])
-                nz = parse(Int,line0[3])
-                tmp_data=Array{T,3}(nx,ny,nz)
-                line = readline(f)
-                k=1
-                k1=1
-                k2=1
-                while line!= "END_DATAGRID_3D"
-                    tmp = Array{T}(map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),split(line)))
-                    for t in tmp
-                        tmp_data[k,k1,k2] = t
-                        if k<nx
-                            k+=1
-                        else
-                            k=1
-                            k1+=1
-                            if k1>ny
-                                k1=1
-                                k2+=1
-                                if k2>nz
-                                    k2=1
-                                end
-                            end
-                        end
-                    end
-                    line = readline(f)
-                end
-                return interpolate(tmp_data,BSpline(Cubic(Line())),OnGrid())
-            end
-        end
-    end
-end
+# """
+# read_potential_file(filename::String, T=Float64)
+#
+# Reads a Quantum Espresso potential output file.
+# """
+# function read_potential_file(filename::String, T=Float64)
+#     tmp_data=nothing
+#     open(filename) do f
+#         primCell = zeros(I, 3, 3)
+#         while !eof(f)
+#             line = readline(f)
+#             if line == "PRIMVEC"
+#                 for i=1:3
+#                     primCell[i,:] = split(readline(f)) |> parse(T)
+#                 end
+#             end
+#             if line == "DATAGRID_3D_UNKNOWN"
+#                 nx, ny, nz = parse.(Int, split(readline(f)))
+#                 for i = 1:4
+#                     split(readline(f))
+#                 end
+#                 tmp_data=Array(T, nx, ny, nz)
+#                 line = readline(f)
+#                 k, k1, k2=1, 1, 1
+#                 while line!= "END_DATAGRID_3D"
+#                     tmp = Array{T}(map(x->(v = tryparse(T,x); isnull(v) ? 0.0 : get(v)),split(line)))
+#                     for t in tmp
+#                         tmp_data[k,k1,k2] = t
+#                         if k<nx
+#                             k+=1
+#                         else
+#                             k=1
+#                             k1+=1
+#                             if k1>ny
+#                                 k1=1
+#                                 k2+=1
+#                                 if k2>nz
+#                                     k2=1
+#                                 end
+#                             end
+#                         end
+#                     end
+#                     line = readline(f)
+#                 end
+#                 return interpolate(tmp_data,BSpline(Cubic(Line())),OnGrid())
+#             end
+#         end
+#     end
+# end
 
 #-------------------------Not currently used beyond here!------------------#
 function write_dip_file(filename::String,points,cell,atoms,names,direction)
