@@ -1,6 +1,7 @@
 using DFControl: formdirectory, searchdir, Band, DFBand
 import Base: getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
+
 "Point of a wavefunction in 3D, holds the complex value of the wavefunction and the cartesian coordinate."
 struct WfcPoint3{T<:AbstractFloat}
     w::Complex{T}
@@ -20,15 +21,18 @@ end
 show(io::IO,x::WfcPoint3)=print(io,"w = $(x.w), x = $(x.p[1]), y = $(x.p[2]), z = $(x.p[3])")
 zero(::Type{WfcPoint3{T}}) where T<:AbstractFloat = WfcPoint3(zero(Complex{T}),Point3(zero(T)))
 zero(x::WfcPoint3{T}) where T<:AbstractFloat = WfcPoint3(zero(Complex{T}), x.p)
-Base.zeros(x::AbstractArray{<:WfcPoint3}) = zero.(x)
-function Base.sum(points::AbstractArray{WfcPoint3{T}}) where T
+
+const AbstractWfc3D{T} = AbstractArray{WfcPoint3{T}, 3}
+Base.zeros(x::AbstractWfc3D) = zero.(x)
+
+function Base.sum(points::AbstractWfc3D{T}) where T
     s = zero(Complex{T})
     for w in points
         s += w.w
     end
     return s
 end
-function LinearAlgebra.norm(points::AbstractArray{WfcPoint3{T}}) where T
+function LinearAlgebra.norm(points::AbstractWfc3D{T}) where T
     s = zero(Complex{T})
     for w in points
         s += w.w^2
@@ -36,7 +40,8 @@ function LinearAlgebra.norm(points::AbstractArray{WfcPoint3{T}}) where T
     return s
 end
 
-LinearAlgebra.normalize(points::AbstractArray{<:WfcPoint3}) = points ./= sqrt(norm(points))
+LinearAlgebra.normalize(points::AbstractWfc3D) = points ./= sqrt(norm(points))
+density(wfc::AbstractWfc3D) = wfc .* wfc
 
 
 

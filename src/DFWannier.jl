@@ -24,6 +24,7 @@ module DFWannier
   #   end
   include("types.jl")
   export wannierbands
+  export density
   include("bonds.jl")
   include("typedefs.jl")
   #---#
@@ -41,7 +42,7 @@ module DFWannier
   export set_soc!
 
   include("utils.jl")
-
+  export eigenwfc
   include("wan_calcs.jl")
   # if gpu_enabled
   #   include("wan_calcs_gpu.jl")

@@ -4,7 +4,7 @@ uuid = "5e267647-ebb4-5b7d-bc28-1d3eda37ab19"
 repo = "https://github.com/louisponet/DFWannier.jl.git"
 version = "0.0.0"
 
-["deps"]
+[deps]
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 DFControl = "1e31e15d-4957-550d-a244-318eced754ae"
 GeometryTypes = "4d00f742-c7ba-57c2-abde-4428a4b178cb"

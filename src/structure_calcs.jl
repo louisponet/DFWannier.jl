@@ -30,14 +30,14 @@ end
 function calc_observables(structure::WanStructure{T}, k_points, k_range::StepRangeLen, args...) where T
     mid = div(size(k_points)[1],2)+1
     beg = Int64(k_range[1])
-    steps = div(size(k_range)[1],2)
+    steps= div(size(k_range)[1],2)
     last = Int64(k_range[end])
-    kxs = [range(k_points[beg][1], stop=k_points[mid][1], length=steps)..., k_points[mid][1], range(k_points[mid][1], stop=k_points[last][1], length=steps)[2:end]...]
-    kys = [range(k_points[beg][2], stop=k_points[mid][2],length=steps)...,k_points[mid][2] ,range(k_points[mid][2], stop=k_points[last][2], length=steps)[2:end]...]
-    kzs = [range(k_points[beg][3], stop=k_points[mid][3],length=steps)...,k_points[mid][3] ,range(k_points[mid][3], stop=k_points[last][3],length=steps)[2:end]...]
-    kxs_t = [range(k_points[beg][1], stop=k_points[mid][1],length=steps*100)... ,range(k_points[mid][1], stop=k_points[last][1],length=steps*100)[2:end]...]
-    kys_t = [range(k_points[beg][2], stop=k_points[mid][2],length=steps*100)... ,range(k_points[mid][2], stop=k_points[last][2],length=steps*100)[2:end]...]
-    kzs_t = [range(k_points[beg][3], stop=k_points[mid][3],length=steps*100)... ,range(k_points[mid][3], stop=k_points[last][3],length=steps*100)[2:end]...]
+    kxs = [range(k_points[beg][1], stop = k_points[mid][1], length = steps)..., k_points[mid][1], range(k_points[mid][1], stop = k_points[last][1], length = steps)[2:end]...]
+    kys = [range(k_points[beg][2],stop = k_points[mid][2], length = steps)...,k_points[mid][2] ,range(k_points[mid][2], stop = k_points[last][2], length = steps)[2:end]...]
+    kzs = [range(k_points[beg][3],stop = k_points[mid][3], length = steps)...,k_points[mid][3] ,range(k_points[mid][3],stop = k_points[last][3],length = steps)[2:end]...]
+    kxs_t = [range(k_points[beg][1],stop = k_points[mid][1],length = steps*100)... ,range(k_points[mid][1],stop = k_points[last][1],length = steps*100)[2:end]...]
+    kys_t = [range(k_points[beg][2],stop = k_points[mid][2],length = steps*100)... ,range(k_points[mid][2],stop = k_points[last][2],length = steps*100)[2:end]...]
+    kzs_t = [range(k_points[beg][3],stop = k_points[mid][3],length = steps*100)... ,range(k_points[mid][3],stop = k_points[last][3],length = steps*100)[2:end]...]
     # kxs[div(length(kxs),2)]+=0.00001
 
     kxs[div(length(kxs),2)] = kxs_t[div(length(kxs_t),2)]
