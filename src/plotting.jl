@@ -6,8 +6,8 @@
     for k in band.k_points
       push!(ks, norm(k-k_m))
     end
+    ks[1:div(length(ks),2)]=-ks[1:div(length(ks),2)]
   end
-  ks[1:div(length(ks),2)]=-ks[1:div(length(ks),2)]
   if fermi != 0
     band = DFControl.apply_fermi_level(band,fermi)
   end

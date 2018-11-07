@@ -1,4 +1,4 @@
-using DFControl: formdirectory, searchdir, Band, DFBand
+using DFControl: searchdir, Band, DFBand
 import Base: getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 
@@ -60,10 +60,10 @@ function WannierBand(kpoints::Vector{Vec3{T}}) where T
     WannierBand{T}(zeros(T, klen), fill([zero(Complex{T})], klen), zeros(Point3{T}, klen), fill([zero(Point3{T})], klen), fill([zero(Point3{T})], klen), kpoints)
 end
 
-wannierbands(n::Int, kpoints) = [WannierBand(kpoints) for i=1:n]
-wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(dfbands, tbhamis)
+wannierbands(n::Int, kpoints::Vector{<:Vec3}) = [WannierBand(kpoints) for i=1:n]
+wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands)
 
-function wannierbands(kpoints::Vector{<:Vec3}, tbhamis)
+function wannierbands(tbhamis, kpoints::Vector{<:Vec3})
     matdim = size(tbhamis[1].block)[1]
     outbands = wannierbands(matdim, kpoints)
 
@@ -79,7 +79,7 @@ function wannierbands(kpoints::Vector{<:Vec3}, tbhamis)
     end
     return outbands
 end
-wannierbands(dfbands::Vector{<:DFBand}, tbhamis) = wannierbands(dfbands[1].k_points_cryst)
+wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands[1].k_points_cryst)
 
 
 
