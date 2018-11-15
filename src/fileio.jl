@@ -324,7 +324,7 @@ function write_exchanges(filename::String, structure::Structure)
             for atom2 in structure.atoms[i + 1:end]
                 J = exchange_between(atom1, atom2, exchanges)
                 if J != 0
-                    write(f, "$(getfirst(structure.atoms, atom1)) $(getfirst(structure.atoms, atom2)) $J\n")
+                    write(f, "$(getfirst(x-> x== atom1, structure.atoms)) $(getfirst(x->x==atom2, structure.atoms)) $J\n")
                 end
             end
         end
