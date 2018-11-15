@@ -1,4 +1,4 @@
-import DFControl: searchdir
+import DFControl: searchdir, id
 #does this really need the checking for corruption stuff?
 """
 read_xsf_file(filename::String, atom::Atom, T=Float64)
@@ -324,7 +324,7 @@ function write_exchanges(filename::String, structure::Structure)
             for atom2 in structure.atoms[i + 1:end]
                 J = exchange_between(atom1, atom2, exchanges)
                 if J != 0
-                    write(f, "$(getfirst(x-> x== atom1, structure.atoms)) $(getfirst(x->x==atom2, structure.atoms)) $J\n")
+                    write(f, "$(id(atom1)) $(id(atom2)) $J\n")
                 end
             end
         end
