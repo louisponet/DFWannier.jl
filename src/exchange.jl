@@ -103,7 +103,7 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
     ω_grid    = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
     exchanges = setup_exchanges(atoms, orbitals)
 
-    t_js = [[zeros(e.J) for t=1:nth] for e in exchanges]
+    t_js = [[zeros(T, size(e.J)) for t=1:nth] for e in exchanges]
     caches1, caches2, caches3 = [[zeros(Complex{T}, n_orb, n_orb) for t=1:nth] for i=1:3]
     totocc_t = [zero(Complex{T}) for t=1:nth]
     gs = [[zeros(Complex{T}, n_orb, n_orb) for n=1:2] for t=1:nth]
