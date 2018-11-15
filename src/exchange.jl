@@ -18,7 +18,7 @@ end
 function DHvecvals(hamis, k_grid)
     Hvecs = [[similar(hami[1].block) for i=1:length(k_grid)] for hami in hamis]
     Hvals = [[similar(hami[1].block[:,1]) for i=1:length(k_grid)] for hami in hamis]
-    D    = [zeros(hamis[1][1].block) for i=1:Threads.nthreads()]
+    D    = [zeros(eltype(hamis[1][1].block), size(hamis[1][1].block)) for i=1:Threads.nthreads()]
     Threads.@threads for i=1:length(k_grid)
         for j=1:2
             fac = (-1)^(j - 1)
