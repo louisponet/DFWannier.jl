@@ -324,7 +324,7 @@ function write_exchanges(filename::String, structure::Structure)
             for (i2, atom2) in enumerate(structure.atoms[i + 1:end])
                 J = exchange_between(atom1, atom2, exchanges)
                 if J != 0
-                    write(f, "$i:$(id(atom1)) -> $i2:$(id(atom2)) $J\n")
+                    write(f, "$i:$(id(atom1)) -> $(i2+i):$(id(atom2)) $J\n")
                 end
             end
         end
