@@ -321,10 +321,10 @@ function write_exchanges(filename::String, structure::Structure)
     open(filename, "w") do f
         exchanges = structure.data[:exchanges]
         for (i, atom1) in enumerate(structure.atoms)
-            for atom2 in structure.atoms[i + 1:end]
+            for (i2, atom2) in enumerate(structure.atoms[i + 1:end])
                 J = exchange_between(atom1, atom2, exchanges)
                 if J != 0
-                    write(f, "$(id(atom1)) $(id(atom2)) $J\n")
+                    write(f, "$i:$(id(atom1)) -> $i2:$(id(atom2)) $J\n")
                 end
             end
         end
