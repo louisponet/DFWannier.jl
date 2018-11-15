@@ -1,4 +1,4 @@
-using DFControl: Projection, Orbital, Structure, s, p, d, f
+using DFControl: Projection, Orbital, Structure, orbital
 
 """
     WannExchanges{T <: AbstractFloat}
@@ -90,8 +90,8 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
                              n_ωh::Int          = 300,
                              n_ωv::Int          = 50,
                              temp::T            = T(0.01),
-                             orbitals::Array{Orbital, 1} = [d, f]) where T <: AbstractFloat
-
+                             orbitals::Array{Symbol, 1} = [:d, :f]) where T <: AbstractFloat
+    orbitals = orbital.(orbitals)
     @assert !all(isempty.(projections.(DFControl.atoms(structure)))) "Please read a valid wannier file for structure with projections."
     nth = Threads.nthreads()
     μ = fermi
