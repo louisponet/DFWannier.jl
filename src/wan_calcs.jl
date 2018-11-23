@@ -92,12 +92,12 @@ function calc_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3{T}) where T<
   @inbounds for i2 = 2:size(wfc1)[3]-1
     @inbounds for i1 = 2:size(wfc1)[2]-1
       @inbounds for i = 2:size(wfc1)[1]-1
-        dwx = wfc2[i+1,i1,i2].w-wfc2[i-1,i1,i2].w
-        dwy = wfc2[i,i1+1,i2].w-wfc2[i,i1-1,i2].w
-        dwz = wfc2[i,i1,i2+1].w-wfc2[i,i1,i2-1].w
-        rx = wfc2[i,i1,i2].p[1]-center_x
-        ry = wfc2[i,i1,i2].p[2]-center_y
-        rz = wfc2[i,i1,i2].p[3]-center_z
+        dwx = wfc2[i+1,i1,i2].w - wfc2[i-1,i1,i2].w
+        dwy = wfc2[i,i1+1,i2].w - wfc2[i,i1-1,i2].w
+        dwz = wfc2[i,i1,i2+1].w - wfc2[i,i1,i2-1].w
+        rx = wfc2[i,i1,i2].p[1] - center_x
+        ry = wfc2[i,i1,i2].p[2] - center_y
+        rz = wfc2[i,i1,i2].p[3] - center_z
 
         ddax = dwx*dadx
         ddbx = dwy*dbdx

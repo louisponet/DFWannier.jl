@@ -5,13 +5,12 @@ module DFWannier
   # else
   #   gpu_enabled = false
   # end
-  using Compat
   using Reexport
   @reexport using DFControl
+  using DFControl.FixedSizeArrays
   using RecipesBase
   using LaTeXStrings
-  using GeometryTypes
-  using Optim
+  # using Optim
   using InplaceOps
   using LinearAlgebra
   # if gpu_enabled
@@ -68,6 +67,6 @@ module DFWannier
   export read_exchanges
   export write_exchanges
   export readhami, readhamis
-  include("spinsims.jl")
-  export calcspinspols
+  # include("spinsims.jl")
+  # export calcspinspols
 end
