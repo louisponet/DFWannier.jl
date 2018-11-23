@@ -61,7 +61,6 @@ function WannierBand(kpoints::Vector{Vec3{T}}) where T
 end
 
 wannierbands(n::Int, kpoints::Vector{<:Vec3}) = [WannierBand(kpoints) for i=1:n]
-wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands)
 
 function wannierbands(tbhamis, kpoints::Vector{<:Vec3})
     matdim = size(tbhamis[1].block)[1]
