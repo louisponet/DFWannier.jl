@@ -1,4 +1,4 @@
-using DFControl: Projection, Orbital, Structure, orbital
+using DFControl: Projection, Orbital, Structure, orbital, size
 """
     WannExchanges{T <: AbstractFloat}
 
@@ -35,7 +35,7 @@ function setup_exchanges(atoms::Vector{<:AbstractAtom{T}}, orbitals) where T <: 
     for (i, at1) in enumerate(atoms), at2 in atoms[i+1:end]
         for proj1 in projections(at1), proj2 in projections(at2)
             if proj1.orb in orbitals && proj2.orb in orbitals
-                push!(exchanges, Exchange{T}(zeros(T, size(proj1), size(proj1), at1, at2, proj1, proj2)))
+                push!(exchanges, Exchange{T}(zeros(T, orbsize(proj1), orbsize(proj1)), at1, at2, proj1, proj2))
             end
         end
     end
