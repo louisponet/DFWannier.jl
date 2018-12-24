@@ -119,7 +119,7 @@ function construct_bloch_sums(orig_wfcs::Array{Wfc3D_gpu{T},1},k_wfcs::Array{Wfc
   end
 end
 
-function calculate_angmom_kernel(wfc1::CuDeviceArray{Complex{T},3},wfc2::CuDeviceArray{Complex{T},3},points::CuDeviceArray{Tuple{T,T,T},3},dim,center,V,out_x,out_y,out_z,n1,n2) where T
+function calculate_angmom_kernel(wfc1::CuDeviceArray{Complex{T},3}, wfc2::CuDeviceArray{Complex{T},3}, points::CuDeviceArray{Tuple{T,T,T},3}, dim, center, V, out_x, out_y,out_z,n1,n2) where T
   i,i1,i2 = threadID3D()
 
   dim_a = dim[1]

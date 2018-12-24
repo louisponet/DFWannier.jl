@@ -120,7 +120,6 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
             rm = range(exch.proj1)
             rn = range(exch.proj2)
             t_js[eid][tid] .+= sign(real(tr(view(D, rm, rm)))) .* sign(real(tr(view(D,rn, rn)))) .* imag(view(D,rm, rm) * view(g[1],rm, rn) * view(D,rn, rn) * view(g[2],rn, rm) * dω)
-            # t_js[eid][tid] .+= imag(view(D,rm, rm) * view(g[1],rm, rn) * view(D,rn, rn) * view(g[2],rn, rm) * dω)
         end
     end
     for (eid, exch) in enumerate(exchanges)
