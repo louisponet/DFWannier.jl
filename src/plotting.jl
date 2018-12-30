@@ -1,21 +1,14 @@
 
 @recipe function f(band::WannierBand,data=:eigvals;ks=nothing,fermi=0,linewidth=2)
-    if ks == :relative_cart
+    if ks == :relative
         ks = []
-        k_m = band.k_points_cart[div(size(band.k_points_cart)[1] + 1, 2)]
-        for k in band.k_points_cart
-            push!(ks, norm(k - k_m))
-        end
-        ks[1:div(length(ks), 2)] = -ks[1:div(length(ks), 2)]
-    elseif ks == :relative_cryst
-        ks = []
-        k_m = band.k_points_cryst[div(size(band.k_points_cryst)[1] + 1, 2)]
-        for k in band.k_points_cryst
+        k_m = band.k_points[div(size(band.k_points)[1] + 1, 2)]
+        for k in band.k_points
             push!(ks, norm(k - k_m))
         end
         ks[1:div(length(ks), 2)] = -ks[1:div(length(ks), 2)]
     else
-        ks = collect(1:length(band.k_points_cart))
+        ks = collect(1:length(band.k_points))
     end
     if fermi != 0
         band = DFControl.apply_fermi_level(band,fermi)
@@ -195,7 +188,7 @@ end
     @series begin
         label--> "DFT Calculation"
         line--> (1,1.0,:blue)
-        dfbands[1],:relative_cryst
+        dfbands[1]
     end
     @series begin
         label--> "Wannier Interpolation"
@@ -206,7 +199,7 @@ end
         @series begin
             label--> ""
             line--> (1,1.0,:blue)
-            band,:relative_cryst
+            band
         end
     end
     for band in WannierBands[2:end]
