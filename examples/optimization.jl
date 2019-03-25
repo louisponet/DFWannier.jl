@@ -7,10 +7,10 @@ function optimize_l()
     job = ldj("/home/ponet/HfO2/NSOC/")
     wanjob = add_wan_data(job)
 
-    k_points = read_ks_from_qe_bands_file("/home/ponet/HfO2/SOC/bands.out")[2]
+    k_points = qe_read_ks_from_bands_file("/home/ponet/HfO2/SOC/bands.out")[2]
     test_eig, , , = calc_observables(wanjob.structure, kpoints[1])
 
-    bands = read_qe_bands_file("/home/ponet/HfO2/SOC/bands.out", T)[b:e]
+    bands = qe_read_bands_file("/home/ponet/HfO2/SOC/bands.out", T)[b:e]
 
     at_ids = getfield.(unique(wanjob.structure.atoms), :id)
 
