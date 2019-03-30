@@ -7,7 +7,7 @@ module DFWannier
   # end
   using Reexport
   @reexport using DFControl
-  using DFControl.FixedSizeArrays
+  using StaticArrays 
   using RecipesBase
   using LaTeXStrings
   # using Optim
@@ -21,6 +21,7 @@ module DFWannier
   #   dev = CuDevice(0)
   #   ctx = CuContext(dev)
   #   end
+  include("typedefs.jl")
   include("types.jl")
   export wannierbands
   export density
