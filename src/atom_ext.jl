@@ -18,6 +18,10 @@ WanAtom(atom::Atom{T}, lsoc::T, wfcs::Vector{Array{WfcPoint3{T}, 3}}, magmoment:
     WanAtom(atom, WanAtData(lsoc, wfcs, magmoment, zeros(Vec3{Complex{T}}, 1, 1)))
 WanAtom(atom::Atom{T}, magmoment::Vec3{T}) where T<:AbstractFloat =
     WanAtom(atom, WanAtData(zero(T), Array{WfcPoint3{T}, 3}[], magmoment, zeros(Vec3{Complex{T}}, 1, 1)))
+WanAtom(atom::Atom{T}) where T<:AbstractFloat =
+    WanAtom(atom, WanAtData(zero(T), Array{WfcPoint3{T}, 3}[], zero(Vec3{T}), zeros(Vec3{Complex{T}}, 1, 1)))
+WanAtom(atom_::WanAtom, args...) =
+    WanAtom(atom(atom_), args...)
 
 #implementation of the AbstractAtom interface
 atom(at::WanAtom) = at.atom
@@ -31,3 +35,5 @@ setlsoc!(atom::WanAtom, lsoc) = (atom.wandata.lsoc = lsoc)
 setwfcs!(atom::WanAtom, wfcs) = (atom.wandata.wfcs = wfcs)
 setmagmoment!(atom::WanAtom, magmoment) = (atom.wandata.magmoment = magmoment)
 setangmom!(atom::WanAtom, angmom) = (atom.wandata.angmom = angmom)
+
+clearangmom!(atom::WanAtom) = setangmom!(atom, zero(angmom(atom)))

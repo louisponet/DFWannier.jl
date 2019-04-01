@@ -1,59 +1,49 @@
 import DFControl: searchdir, id
 #does this really need the checking for corruption stuff?
-"""
-read_xsf_file(filename::String, atom::Atom, T=Float64)
-
-Returns a Wfc3D{T} upon reading a Wannier wavefunction file. The atom specified is used in calculations such as angular momentum calculations.
-"""
-function read_xsf_file(filename::String, T=Float64)
+function read_xsf_header(::Type{T}, filename::String) where T
     open(filename) do f
-        while !eof(f)
+        nx, ny, nz = 0, 0, 0
+        origin     = zero(Point3{T})
+        supercell  = zero(Mat3{T})
+        read_split_parse(typ) = parse.(typ, split(readline(f)))
+        lines = 0
+        while true
+            lines += 1
             line = readline(f)
-            if line == "PRIMVEC"
-                cell  = [Point3{T}.(parse.(T, split(readline(f)))) for i=1:3]
-            end
-
-            if line == " DATAGRID_3D_DENSITY" || occursin("DATAGRID_3D_UNKNOWN", line)
-                nx, ny, nz = parse.(Int,split(readline(f)))
-                origin     = Point3{T}(parse.(T,split(readline(f))))
-                a_vec      = parse.(T,split(readline(f)))
-                b_vec      = parse.(T,split(readline(f)))
-                c_vec      = parse.(T,split(readline(f)))
-                a_array    = range(0, stop=1, length=nx)
-                b_array    = range(0, stop=1, length=ny)
-                c_array    = range(0, stop=1, length=nz)
-                out        = Array{WfcPoint3{T}}(undef, nx, ny, nz)
-                line       = readline(f)
-
-                k, k1, k2 = 1, 1, 1
-                while line != "END_DATAGRID_3D"
-                    for t in map(x->Complex{T}(x, zero(T)), parse.(T, split(line)))
-                        x = origin[1] + (a_vec * a_array[k])[1] + (b_vec * b_array[k1])[1] + (c_vec * c_array[k2])[1]
-                        y = origin[2] + (a_vec * a_array[k])[2] + (b_vec * b_array[k1])[2] + (c_vec * c_array[k2])[2]
-                        z = origin[3] + (a_vec * a_array[k])[3] + (b_vec * b_array[k1])[3] + (c_vec * c_array[k2])[3]
-                        out[k, k1, k2] = WfcPoint3{T}(t, Point3{T}(x, y, z))
-                        if k < nx
-                            k += 1
-                        else
-                            k  = 1
-                            k1+=1
-                            if k1>ny
-                                k1=1
-                                k2+=1
-                                if k2>nz
-                                    k2=1
-                                end
-                            end
-                        end
-                    end
-                    line = readline(f)
-                end
-                return out
+            if line == "BEGIN_DATAGRID_3D_UNKNOWN"
+                nx, ny, nz = read_split_parse(Int)
+                origin     = Point3{T}(read_split_parse(T))
+                t = collect(hcat([read_split_parse(T) for i=1:3]...)')::Matrix{T}
+                supercell  = Mat3{T}(t)
+                lines += 1 + 1 + 3
+                break
             end
         end
+        return nx, ny, nz, origin, supercell, lines
     end
 end
 
+"""
+read_xsf_file([::Type{T}], filename::String)
+
+Returns a Wfc3D{T} upon reading a Wannier wavefunction file. The atom specified is used in calculations such as angular momentum calculations.
+"""
+function read_xsf_file(::Type{T}, filename::String) where T
+    # vals = reshape(readdlm(filename, T, skipstart=27, dims=(div(nx*ny*nz, 6), 6)), nx, ny, nz)
+    nx, ny, nz, origin, supercell, skiplines = read_xsf_header(T, filename)
+    out  = Wfc3D{T}(undef, nx, ny, nz)
+    fsz  = Int(filesize(filename)) - 38
+    a = open(filename, "r") do f
+        Mmap.mmap(f, Vector{UInt8}, (fsz,))
+    end
+    vals=reshape(readdlm(a, T, skipstart=skiplines), nx, ny, nz)::Array{T, 3}
+    t = zero(Point3{T})
+    for (iz, rz) in zip(1:nz, range(0, 1, length=nz)), (iy, ry) in zip(1:ny, range(0, 1, length=ny)), (ix, rx) in zip(1:nx, range(0, 1, length=nx))
+        out[ix, iy, iz] = WfcPoint3{T}(Complex{T}(vals[ix, iy, iz]), origin + supercell' * Point3(rx, ry, rz))
+    end
+    return out
+end
+read_xsf_file(filename::String) = read_xsf_file(Float64, filename)
 
 """
 write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
@@ -101,7 +91,7 @@ function readhami(filename::String, structure::AbstractStructure{T}) where  T
             rpt = div(linenr - 1, nwanfun^2) + 1
             Rtpiba = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
             if length(out) < rpt
-                block = TbBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Complex{T}}(I, nwanfun, nwanfun))
+                block = TbBlock{T}(cell(structure)' * Rtpiba, Rtpiba, Matrix{Complex{T}}(I, nwanfun, nwanfun))
                 push!(out, block)
             else
                 block = out[rpt]
@@ -118,22 +108,23 @@ end
 readhamis(job::DFJob) = reverse(readhami.(job.local_dir .* searchdir(job.local_dir, "hr.dat"), (job.structure,)))
 
 """
-read_dipole_file(filename::String, structure::AbstractStructure{T})
+read_rmn_file(filename::String, structure::AbstractStructure{T})
 
 Returns and array of tuples that define the dipoles between the Wannier functions in different unit cells.
 """
-function read_dipole_file(filename::String, structure::AbstractStructure{T}) where T
+function read_rmn_file(filename::String, structure::AbstractStructure{T}) where T
     open(filename) do  f
-        out = DipBlock{T}[]
+        out = RmnBlock{T}[]
         readline(f)
         n_wanfun = parse(Int, readline(f))
+        readline(f)
         while !eof(f)
             l= split(readline(f))
             Rtpiba = Vec3(parse.(Int, l[1:3]))
             block = getfirst(x -> x.Rtpiba == Rtpiba, out)
 
             if block == nothing
-                block = DipBlock{T}(structure.cell' * Rtpiba, Rtpiba, Matrix{Point3{T}}(I, n_wanfun, n_wanfun))
+                block = RmnBlock{T}(cell(structure)' * Rtpiba, Rtpiba, Matrix{Point3{T}}(I, n_wanfun, n_wanfun))
                 push!(out, block)
             end
             dipole = Point3{T}(parse.(T, l[6:2:10]))
@@ -319,9 +310,9 @@ end
 
 function write_exchanges(filename::String, structure::Structure)
     open(filename, "w") do f
-        exchanges = structure.data[:exchanges]
-        for (i, atom1) in enumerate(structure.atoms)
-            for (i2, atom2) in enumerate(structure.atoms[i + 1:end])
+        exchanges = data(structure)[:exchanges]
+        for (i, atom1) in enumerate(atoms(structure))
+            for (i2, atom2) in enumerate(atoms(structure)[i + 1:end])
                 J = exchange_between(atom1, atom2, exchanges)
                 if J != 0
                     write(f, "$i:$(id(atom1)) -> $(i2+i):$(id(atom2)) $J\n")

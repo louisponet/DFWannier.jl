@@ -44,13 +44,6 @@ function setup_exchanges(atoms::Vector{<:AbstractAtom{T}}, orbitals) where T <: 
     end
     return exchanges
 end
-
-# function setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
-#     ω_grid = [ω - ωv * 1im for ω = ωh:abs(ωh)/n_ωh:0.]
-#     ω_grid = vcat(ω_grid, [ω * 1im for ω = -ωv:ωv/n_ωv:ωv/10/n_ωv])
-#     return ω_grid
-# end
-
 function setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.00)
     ω_grid = vcat(range(ωh, stop=ωh + ωv*1im, length=n_ωv)[1:end-1],
                   range(ωh + ωv*1im, stop=offset + ωv*1im, length=n_ωh)[1:end-1],
@@ -80,7 +73,7 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
                              nk::NTuple{3, Int} = (10, 10, 10),
                              R                  = Vec3(0, 0, 0),
                              ωh::T              = T(-30.), #starting energy
-                             ωv::T              = T(0.01), #height of vertical contour
+                             ωv::T              = T(0.1), #height of vertical contour
                              n_ωh::Int          = 300,
                              n_ωv::Int          = 50,
                              temp::T            = T(0.01),
@@ -102,7 +95,6 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
     caches1, caches2, caches3 = [[zeros(Complex{T}, n_orb, n_orb) for t=1:nth] for i=1:3]
     totocc_t = [zero(Complex{T}) for t=1:nth]
     gs = [[zeros(Complex{T}, n_orb, n_orb) for n=1:2] for t=1:nth]
-    # Threads.@threads for j=1:length(ω_grid[1:end-1])
     Threads.@threads for j=1:length(ω_grid[1:end-1])
         tid = Threads.threadid()
         ω  = ω_grid[j]

@@ -160,7 +160,6 @@ function calc_angmoms!(structure::WanStructure{T}) where T
         setangmom!(at, ang)
     end
 end
-isdefined
 
 function calc_spins(structure::WanStructure{T}) where T<: AbstractFloat
     # if haskey(structure.data, :Sx)
@@ -170,9 +169,9 @@ function calc_spins(structure::WanStructure{T}) where T<: AbstractFloat
     s_x = pauli(T, :x, 2*dim)
     s_y = pauli(T, :y, 2*dim)
     s_z = pauli(T, :z, 2*dim)
-    structure.data[:Sx] = s_x
-    structure.data[:Sy] = s_y
-    structure.data[:Sz] = s_z
+    data(structure)[:Sx] = s_x
+    data(structure)[:Sy] = s_y
+    data(structure)[:Sz] = s_z
     return s_x, s_y, s_z
 end
 

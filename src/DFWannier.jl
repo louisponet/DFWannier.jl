@@ -9,10 +9,12 @@ module DFWannier
   @reexport using DFControl
   using DFControl.FixedSizeArrays
   using RecipesBase
+  using DelimitedFiles
   using LaTeXStrings
   # using Optim
   using InplaceOps
   using LinearAlgebra
+  using Mmap
   # if gpu_enabled
   #   using CuArrays
   #   using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!

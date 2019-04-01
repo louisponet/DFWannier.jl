@@ -1,3 +1,5 @@
+import DFControl: cell, atoms, data
+
 function calc_observables(structure::WanStructure{T}, kpoints::Vector{Vec3{T}}, soc::Bool=false) where T
     nat = length(atoms(structure))
     matdim = getwandim(structure)
@@ -7,13 +9,13 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{Vec3{T}}, 
     outbands = soc ? wannierbands(2*matdim, kpoints) : wannierbands(matdim, kpoints)
     Threads.@threads for i=1:klen
         k = kpoints[i]
-        t_hami, dips = hami_dip_from_k(structure.tbhami, structure.tbdip, k)
+        t_hami, dips = hami_dip_from_k(structure.tbhamis[1], structure.tbRmns[1], k)
 
         hami = soc ? construct_soc_hami(t_hami, structure) : t_hami
         eigvals, eigvecs = sorted_eig(hami)
         eigvals_k = real(eigvals)
         cm_k      = eigcm(dips, eigvecs)
-        L_k, S_k  = eigangmomspin(eigvecs, structure.atoms, Sx, Sy, Sz)
+        L_k, S_k  = eigangmomspin(eigvecs, atoms(structure), Sx, Sy, Sz)
         for j = 1:length(eigvals)
             ob = outbands[j]
             ob.eigvals[i] = eigvals_k[j]

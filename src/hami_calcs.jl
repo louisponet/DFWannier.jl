@@ -21,7 +21,7 @@ function construct_soc_hami(hami, structure::WanStructure{T})::Matrix{Complex{T}
     Ly_soc = zeros(Complex{T}, dim, dim)
     Lz_soc = zeros(Complex{T}, dim, dim)
     i = 1
-    for at in structure.atoms
+    for at in atoms(structure)
         soc = lsoc(at)
         mom = angmom(at)
         len = length(wfcs(at))-1
@@ -52,8 +52,8 @@ function heisenberg_energy(moments::Vector{<:Vec3}, exchanges::Vector{Matrix{T}}
 end
 
 function AFMmap(structure, Rcryst)
-    R = structure.cell' * Rcryst/2
-    atoms = structure.atoms
+    R = cell(structure)' * Rcryst/2
+    atoms = atoms(structure)
     map1 = Dict{AbstractAtom, AbstractAtom}()
     for at1 in atoms, at2 in atoms
         if bondlength(at2, at1, R) < 1.0e-7
