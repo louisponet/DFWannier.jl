@@ -54,6 +54,64 @@ function read_xsf_file(filename::String, T=Float64)
     end
 end
 
+function read_points_from_xsf(::Type{T}, filename::String) where {T <: AbstractFloat}
+    open(filename) do f
+        while !eof(f)
+            line = readline(f)
+            if line == " DATAGRID_3D_DENSITY" ||
+               occursin("DATAGRID_3D_UNKNOWN", line)
+
+                nx, ny, nz = parse.(Int, split(readline(f)))
+                origin     = Point3{T}(parse.(T, split(readline(f))))
+                a_vec      = Vec3{T}(parse.(T, split(readline(f))))
+                b_vec      = Vec3{T}(parse.(T, split(readline(f))))
+                c_vec      = Vec3{T}(parse.(T, split(readline(f))))
+                return [origin +
+                        ia * a_vec +
+                        ib * b_vec +
+                        ic * c_vec for ia in range(0, 1, length=nx),
+                                       ib in range(0, 1, length=ny),
+                                       ic in range(0, 1, length=nz)]
+            end
+        end
+    end
+end
+read_points_from_xsf(filename::String) = read_points_from_xsf(Float64, filename)
+
+"""
+read_values_from_xsf(filename::String, atom::Atom, T=Float64)
+
+Returns an Array from reading a Wannier wavefunction file.
+"""
+function read_values_from_xsf(::Type{T}, filename::String) where {T <: AbstractFloat}
+    open(filename) do f
+        while !eof(f)
+            line = readline(f)
+            if line == "PRIMVEC"
+                cell  = [Point3{T}.(parse.(T, split(readline(f)))) for i=1:3]
+            end
+
+            if line == " DATAGRID_3D_DENSITY" || occursin("DATAGRID_3D_UNKNOWN", line)
+                nx, ny, nz = parse.(Int, split(readline(f)))
+	            for i = 1:4
+		            readline(f)
+	            end
+                out     = Array{T}(undef, nx, ny, nz)
+                line    = readline(f)
+				counter = 1
+                while line != "END_DATAGRID_3D"
+                    for t in parse.(T, split(line))
+	                    out[counter] = t
+	                    counter += 1
+                    end
+                    line = readline(f)
+                end
+                return out
+            end
+        end
+    end
+end
+read_values_from_xsf(filename::String) = read_values_from_xsf(Float64, filename)
 
 """
 write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat

@@ -1,4 +1,4 @@
-using DFControl: searchdir, Band, DFBand
+using DFControl: searchdir, Band, DFBand, Point3, Vec3, Point, Mat3
 import Base: getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 
@@ -83,6 +83,33 @@ function wannierbands(tbhamis, kpoints::Vector{<:Vec3})
 end
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands[1].k_points_cryst)
 
+abstract type Value{T} end
+
+struct SpinlessValue{T <: AbstractFloat} <: Value{T}
+	w::Complex{T}
+end
+
+struct SpinfulValue{T <: AbstractFloat} <: Value{T}
+	w::SVector{2, Complex{T}}
+end
+
+struct WannierFunction{T, V <: Value{T}}
+	points::Array{Point{3, T}, 3}
+	values::Array{V, 3}
+end
+
+function WannierFunction(filename_re::String, filename_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
+	values = [SpinlessValue(Complex(a, b)) for (a, b) in zip(read_values_from_xsf(T, filename_re), read_values_from_xsf(T, filename_im))]
+	return WannierFunction(points, values)
+end
+
+function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
+	values = [SpinfulValue(SVector(Complex(a, b), Complex(c, d))) for (a, b, c, d) in zip(read_values_from_xsf(T, filename_up_re),
+																	              read_values_from_xsf(T, filename_up_im),
+																	              read_values_from_xsf(T, filename_down_re),
+																	              read_values_from_xsf(T, filename_down_im))]
+	return WannierFunction(points, values)
+end
 
 
 #
