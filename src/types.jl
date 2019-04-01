@@ -3,19 +3,53 @@ import DFControl: AbstractAtom, Atom, Element, Projection, element, position, el
 import Base: getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 
-# mutable struct WanAtData{N, T <: AbstractFloat}
-#     lsoc      ::T
-#     wfcs      ::Vector{WannierFunction{N, T}}
-#     magmoment ::Vec3{T}
-#     angmom    ::AbstractMatrix{Vec3{Complex{T}}}
-# end
+struct WannierFunction{N, T<:AbstractFloat}
+	points::Array{Point{3, T}, 3}
+	values::Array{SVector{N, Complex{T}}, 3}
+end
+Base.size(w::WannierFunction) = size(w.points)
+
+function WannierFunction(filename_re::String, filename_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
+	values = [SVector(Complex(a, b)) for (a, b) in zip(read_values_from_xsf(T, filename_re), read_values_from_xsf(T, filename_im))]
+	return normalize(WannierFunction(points, values))
+end
+
+function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
+	values = [SVector(Complex(a, b), Complex(c, d)) for (a, b, c, d) in zip(read_values_from_xsf(T, filename_up_re),
+																	              read_values_from_xsf(T, filename_up_im),
+																	              read_values_from_xsf(T, filename_down_re),
+																	              read_values_from_xsf(T, filename_down_im))]
+	return normalize(WannierFunction(points, values))
+end
+
++(w1::W, w2::W) where {W <: WannierFunction} = W(w1.points, w1.values + w2.values)
+-(w1::W, w2::W) where {W <: WannierFunction} = W(w1.points, w1.values - w2.values)
+*(w1::W, f::Number) where {W <: WannierFunction} = W(w1.points, f * w1.values)
+*(f::Number, w1::W) where {W <: WannierFunction}= W(w1.points, f * w1.values)
+
+function LinearAlgebra.norm(wfc::WannierFunction{T}) where T
+    s = zero(T)
+    for v in wfc.values
+        s += v' * v
+    end
+    return real(s)
+end
+
+LinearAlgebra.normalize(wfc::WannierFunction) = WannierFunction(wfc.points, wfc.values ./= sqrt(norm(wfc)))
+
+mutable struct WanAtData{N, T <: AbstractFloat}
+    lsoc      ::T
+    wfcs      ::Vector{WannierFunction{N, T}}
+    magmoment ::Vec3{T}
+    angmom    ::AbstractMatrix{Vec3{Complex{T}}}
+end
 
 # WanAtData(wfcs::Vector{WannierFunction{N, T}}) where T = WanAtData(zero(T), wfcs, zero(Vec3{T}), zeros(Vec3{Complex{T}}, 1, 1))
 
-# struct WanAtom{T<:AbstractFloat} <: AbstractAtom{T}
-#     atom    ::Atom{T}
-#     wandata ::WanAtData{T}
-# end
+struct WanAtom{T<:AbstractFloat} <: AbstractAtom{T}
+    atom    ::Atom{T}
+    wandata ::WanAtData{T}
+end
 
 # WanAtom(atom::Atom{T}, lsoc::T, wfcs::Vector{Array{WfcPoint3{T}, 3}}, magmoment::Vec3{T}) where T<:AbstractFloat =
 #     WanAtom(atom, WanAtData(lsoc, wfcs, magmoment, zeros(Vec3{Complex{T}}, 1, 1)))
@@ -39,26 +73,26 @@ import Base: getindex, zero, show, -, +, ==, !=, *, /
 # setangmom!(atom::WanAtom, angmom)       = (atom.wandata.angmom    = angmom)
 # clearangmom!(atom::WanAtom)             = setangmom!(atom, zero(angmom(atom)))
 
-# import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, read_wannier_output
-# struct TbBlock{T<:AbstractFloat}
-#     Rcart::Vec3{T}
-#     Rtpiba::Vec3{Int}
-#     block::Matrix{Complex{T}}
-# end
-# const TbHami{T} = Vector{TbBlock{T}}
+import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, read_wannier_output
+struct TbBlock{T<:AbstractFloat}
+    Rcart::Vec3{T}
+    Rtpiba::Vec3{Int}
+    block::Matrix{Complex{T}}
+end
+const TbHami{T} = Vector{TbBlock{T}}
 
-# struct RmnBlock{T<:AbstractFloat}
-#     Rcart::Vec3{T}
-#     Rtpiba::Vec3{Int}
-#     block::Matrix{Point3{T}}
-# end
-# const TbRmn{T} = Vector{RmnBlock{T}}
+struct RmnBlock{T<:AbstractFloat}
+    Rcart::Vec3{T}
+    Rtpiba::Vec3{Int}
+    block::Matrix{Point3{T}}
+end
+const TbRmn{T} = Vector{RmnBlock{T}}
 
-# mutable struct WanStructure{T<:AbstractFloat} <: AbstractStructure{T}
-#     structure ::Structure{T}
-#     tbhamis   ::Vector{TbHami{T}}
-#     tbRmns    ::Vector{TbRmn{T}}
-# end
+mutable struct WanStructure{T<:AbstractFloat} <: AbstractStructure{T}
+    structure ::Structure{T}
+    tbhamis   ::Vector{TbHami{T}}
+    tbRmns    ::Vector{TbRmn{T}}
+end
 
 # WanStructure(structure::Structure, wan_atoms::Vector{<:WanAtom}, tbhamis, tbrmns) =
 #     WanStructure(Structure(structure, wan_atoms), tbhamis, tbrmns)
@@ -203,37 +237,3 @@ function wannierbands(tbhamis, kpoints::Vector{<:Vec3})
     return outbands
 end
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands[1].k_points_cryst)
-
-struct WannierFunction{N, T<:AbstractFloat}
-	points::Array{Point{3, T}, 3}
-	values::Array{SVector{N, Complex{T}}, 3}
-end
-Base.size(w::WannierFunction) = size(w.points)
-
-function WannierFunction(filename_re::String, filename_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
-	values = [SVector(Complex(a, b)) for (a, b) in zip(read_values_from_xsf(T, filename_re), read_values_from_xsf(T, filename_im))]
-	return normalize(WannierFunction(points, values))
-end
-
-function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
-	values = [SVector(Complex(a, b), Complex(c, d)) for (a, b, c, d) in zip(read_values_from_xsf(T, filename_up_re),
-																	              read_values_from_xsf(T, filename_up_im),
-																	              read_values_from_xsf(T, filename_down_re),
-																	              read_values_from_xsf(T, filename_down_im))]
-	return normalize(WannierFunction(points, values))
-end
-
-+(w1::W, w2::W) where {W <: WannierFunction} = W(w1.points, w1.values + w2.values)
--(w1::W, w2::W) where {W <: WannierFunction} = W(w1.points, w1.values - w2.values)
-*(w1::W, f::Number) where {W <: WannierFunction} = W(w1.points, f * w1.values)
-*(f::Number, w1::W) where {W <: WannierFunction}= W(w1.points, f * w1.values)
-
-function LinearAlgebra.norm(wfc::WannierFunction{T}) where T
-    s = zero(T)
-    for v in wfc.values
-        s += v' * v
-    end
-    return real(s)
-end
-
-LinearAlgebra.normalize(wfc::WannierFunction) = WannierFunction(wfc.points, wfc.values ./= sqrt(norm(wfc)))

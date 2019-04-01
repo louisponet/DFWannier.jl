@@ -38,53 +38,53 @@ end
 
 
 
-"Calculates the angular momenta between all the supplied wavefunctions"
-function calc_angmoms(wfcs::Array{Wfc3D{T}}) where T<:AbstractFloat
-  out = Array{Array{Complex{T},1},2}((size(wfcs)[1],size(wfcs)[1]))
-  for (i,wfc1) in enumerate(wfcs)
-    for (i1,wfc2) in enumerate(wfcs)
-      out[i,i1]=[calc_angmom(wfc1,wfc2)...]
-    end
-  end
-  return [out fill([zero(Complex{T}) for i=1:3],size(out));fill([zero(Complex{T}) for i=1:3],size(out)) out]
-end
+# "Calculates the angular momenta between all the supplied wavefunctions"
+# function calc_angmoms(wfcs::Array{Wfc3D{T}}) where T<:AbstractFloat
+#   out = Array{Array{Complex{T},1},2}((size(wfcs)[1],size(wfcs)[1]))
+#   for (i,wfc1) in enumerate(wfcs)
+#     for (i1,wfc2) in enumerate(wfcs)
+#       out[i,i1]=[calc_angmom(wfc1,wfc2)...]
+#     end
+#   end
+#   return [out fill([zero(Complex{T}) for i=1:3],size(out));fill([zero(Complex{T}) for i=1:3],size(out)) out]
+# end
 
-function calc_angmoms!(structure::WanStructure{T}) where T
-    for at in atoms(structure)
-        if angmom(at)[1, 1] != zero(Point3{Complex{T}})
-            continue
-        end
-        dim = length(wfcs(at))
-        ang = Matrix{Vec3{Complex{T}}}(I, dim, dim)
-        for i=1:dim, j=1:dim
-            ang[i, j] = Vec3(calc_angmom(wfcs(at)[i], wfcs(at)[j], position(at))...)
-        end
-        setangmom!(at, ang)
-    end
-end
+# function calc_angmoms!(structure::WanStructure{T}) where T
+#     for at in atoms(structure)
+#         if angmom(at)[1, 1] != zero(Point3{Complex{T}})
+#             continue
+#         end
+#         dim = length(wfcs(at))
+#         ang = Matrix{Vec3{Complex{T}}}(I, dim, dim)
+#         for i=1:dim, j=1:dim
+#             ang[i, j] = Vec3(calc_angmom(wfcs(at)[i], wfcs(at)[j], position(at))...)
+#         end
+#         setangmom!(at, ang)
+#     end
+# end
 
-function calc_spins(structure::WanStructure{T}) where T<: AbstractFloat
-    # if haskey(structure.data, :Sx)
-    #     return structure.data[:Sx], structure.data[:Sy], structure.data[:Sz]
-    # end
-    dim = getwandim(structure)
-    s_x = pauli(T, :x, 2*dim)
-    s_y = pauli(T, :y, 2*dim)
-    s_z = pauli(T, :z, 2*dim)
-    data(structure)[:Sx] = s_x
-    data(structure)[:Sy] = s_y
-    data(structure)[:Sz] = s_z
-    return s_x, s_y, s_z
-end
+# function calc_spins(structure::WanStructure{T}) where T<: AbstractFloat
+#     # if haskey(structure.data, :Sx)
+#     #     return structure.data[:Sx], structure.data[:Sy], structure.data[:Sz]
+#     # end
+#     dim = getwandim(structure)
+#     s_x = pauli(T, :x, 2*dim)
+#     s_y = pauli(T, :y, 2*dim)
+#     s_z = pauli(T, :z, 2*dim)
+#     data(structure)[:Sx] = s_x
+#     data(structure)[:Sy] = s_y
+#     data(structure)[:Sz] = s_z
+#     return s_x, s_y, s_z
+# end
 
-"Calculates the spins between the supplied wavefunctions"
-function calc_spins(wfcs::Array{<:Wfc3D{T},1}) where T<:AbstractFloat
-  dim = length(wfcs)
-  s_x = pauli(T,:x,2*dim)
-  s_y = pauli(T,:y,2*dim)
-  s_z = pauli(T,:z,2*dim)
-  return s_x,s_y,s_z
-end
+# "Calculates the spins between the supplied wavefunctions"
+# function calc_spins(wfcs::Array{<:Wfc3D{T},1}) where T<:AbstractFloat
+#   dim = length(wfcs)
+#   s_x = pauli(T,:x,2*dim)
+#   s_y = pauli(T,:y,2*dim)
+#   s_z = pauli(T,:z,2*dim)
+#   return s_x,s_y,s_z
+# end
 
 "Calculates the dipole term between two wavefunctions. Make sure the wavefunctions are normalized!"
 function calc_dip(wfc1::WannierFunction{N, T}, wfc2::WannierFunction{N, T}, points::Array{Point3{T}, 3}) where {N, T <: AbstractFloat}
