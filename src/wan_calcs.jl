@@ -124,7 +124,7 @@ function calc_angmom(wfc1::Wfc3D{T}, wfc2::Wfc3D{T}, center::Point3{T}) where T<
   end
   n=sqrt(n1*n2)
   # return Lx,Ly,Lz
-  return -1im*Lx/n,-1im*Ly/n,-1im*Lz/n
+  return -1im*Lx/2n,-1im*Ly/2n,-1im*Lz/2n
 end
 
 "Calculates the angular momenta between two wavefunctions, around the atom of the second wavefunction."

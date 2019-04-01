@@ -16,13 +16,16 @@ end
 *(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w*b,a.p)
 *(a::WfcPoint3{T},b::WfcPoint3{T}) where T = a.p == b.p ? WfcPoint3(a.w*b.w,a.p) : error("Can only times two wavepoints at the same point in space!")
 *(b::AbstractFloat,a::WfcPoint3) = WfcPoint3(a.w*b,a.p)
-*(b::Complex{T},a::WfcPoint3{T}) where T = WfcPoint3(a.w*b,a.p)
-/(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w/b,a.p)
+*(b::Complex{T},a::WfcPoint3{T}) where T = WfcPoint3(a.w*b, a.p)
+/(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w/b, a.p)
+/(a::WfcPoint3{T},b::T) where T = WfcPoint3(a.w/b, a.p)
 show(io::IO,x::WfcPoint3)=print(io,"w = $(x.w), x = $(x.p[1]), y = $(x.p[2]), z = $(x.p[3])")
 zero(::Type{WfcPoint3{T}}) where T<:AbstractFloat = WfcPoint3(zero(Complex{T}),Point3(zero(T)))
 zero(x::WfcPoint3{T}) where T<:AbstractFloat = WfcPoint3(zero(Complex{T}), x.p)
 
 const AbstractWfc3D{T} = AbstractArray{WfcPoint3{T}, 3}
+const Wfc3D{T} = Array{WfcPoint3{T}, 3}
+
 Base.zeros(x::AbstractWfc3D) = zero.(x)
 
 function Base.sum(points::AbstractWfc3D{T}) where T
@@ -33,9 +36,9 @@ function Base.sum(points::AbstractWfc3D{T}) where T
     return s
 end
 function LinearAlgebra.norm(points::AbstractWfc3D{T}) where T
-    s = zero(Complex{T})
+    s = zero(T)
     for w in points
-        s += w.w^2
+        s += abs2(w.w)
     end
     return s
 end

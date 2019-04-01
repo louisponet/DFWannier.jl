@@ -80,10 +80,10 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
                              orbitals::Array{Symbol, 1} = [:d, :f]) where T <: AbstractFloat
     orbitals = orbital.(orbitals)
     @assert !all(isempty.(projections.(DFControl.atoms(structure)))) "Please read a valid wannier file for structure with projections."
-    nth = Threads.nthreads()
-    μ = fermi
-    atoms = structure.atoms
-    k_grid = [Vec3(kx, ky, kz) for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
+    nth      = Threads.nthreads()
+    μ        = fermi
+    atoms    = structure.atoms
+    k_grid   = [Vec3(kx, ky, kz) for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
 
     Hvecs, Hvals, D = DHvecvals(hamis, k_grid)
     n_orb = size(D)[1]
@@ -91,15 +91,16 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
     ω_grid    = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
     exchanges = setup_exchanges(atoms, orbitals)
 
-    t_js = [[zeros(T, size(e.J)) for t=1:nth] for e in exchanges]
+    t_js                      = [[zeros(T, size(e.J)) for t=1:nth] for e in exchanges]
     caches1, caches2, caches3 = [[zeros(Complex{T}, n_orb, n_orb) for t=1:nth] for i=1:3]
-    totocc_t = [zero(Complex{T}) for t=1:nth]
-    gs = [[zeros(Complex{T}, n_orb, n_orb) for n=1:2] for t=1:nth]
+    totocc_t                  = [zero(Complex{T}) for t=1:nth]
+    gs                        = [[zeros(Complex{T}, n_orb, n_orb) for n=1:2] for t  =1:nth]
+    # Threads.@threads for j=1:length(ω_grid[1:end-1])
     Threads.@threads for j=1:length(ω_grid[1:end-1])
         tid = Threads.threadid()
-        ω  = ω_grid[j]
-        dω = ω_grid[j + 1] - ω
-        g = gs[tid]
+        ω   = ω_grid[j]
+        dω  = ω_grid[j + 1] - ω
+        g   = gs[tid]
         for s = 1:2
             R_ = (-1)^(s-1) * R #R for spin up (-1)^(0) == 1, -R for spin down
             G!(g[s], caches1[tid], caches2[tid], caches3[tid], ω, μ, Hvecs[s], Hvals[s], R_, k_grid)
