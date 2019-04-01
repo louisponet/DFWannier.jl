@@ -23,27 +23,64 @@ function read_xsf_header(::Type{T}, filename::String) where T
     end
 end
 
-"""
-read_xsf_file([::Type{T}], filename::String)
+function read_points_from_xsf(::Type{T}, filename::String) where {T <: AbstractFloat}
+    open(filename) do f
+        while !eof(f)
+            line = readline(f)
+            if line == " DATAGRID_3D_DENSITY" ||
+               occursin("DATAGRID_3D_UNKNOWN", line)
 
-Returns a Wfc3D{T} upon reading a Wannier wavefunction file. The atom specified is used in calculations such as angular momentum calculations.
-"""
-function read_xsf_file(::Type{T}, filename::String) where T
-    # vals = reshape(readdlm(filename, T, skipstart=27, dims=(div(nx*ny*nz, 6), 6)), nx, ny, nz)
-    nx, ny, nz, origin, supercell, skiplines = read_xsf_header(T, filename)
-    out  = Wfc3D{T}(undef, nx, ny, nz)
-    fsz  = Int(filesize(filename)) - 38
-    a = open(filename, "r") do f
-        Mmap.mmap(f, Vector{UInt8}, (fsz,))
+                nx, ny, nz = parse.(Int, split(readline(f)))
+                origin     = Point3{T}(parse.(T, split(readline(f))))
+                a_vec      = Vec3{T}(parse.(T, split(readline(f))))
+                b_vec      = Vec3{T}(parse.(T, split(readline(f))))
+                c_vec      = Vec3{T}(parse.(T, split(readline(f))))
+                return [origin +
+                        ia * a_vec +
+                        ib * b_vec +
+                        ic * c_vec for ia in range(0, 1, length=nx),
+                                       ib in range(0, 1, length=ny),
+                                       ic in range(0, 1, length=nz)]
+            end
+        end
     end
-    vals=reshape(readdlm(a, T, skipstart=skiplines), nx, ny, nz)::Array{T, 3}
-    t = zero(Point3{T})
-    for (iz, rz) in zip(1:nz, range(0, 1, length=nz)), (iy, ry) in zip(1:ny, range(0, 1, length=ny)), (ix, rx) in zip(1:nx, range(0, 1, length=nx))
-        out[ix, iy, iz] = WfcPoint3{T}(Complex{T}(vals[ix, iy, iz]), origin + supercell' * Point3(rx, ry, rz))
-    end
-    return out
 end
-read_xsf_file(filename::String) = read_xsf_file(Float64, filename)
+read_points_from_xsf(filename::String) = read_points_from_xsf(Float64, filename)
+
+"""
+read_values_from_xsf(filename::String, atom::Atom, T=Float64)
+
+Returns an Array from reading a Wannier wavefunction file.
+"""
+function read_values_from_xsf(::Type{T}, filename::String) where {T <: AbstractFloat}
+    open(filename) do f
+        while !eof(f)
+            line = readline(f)
+            if line == "PRIMVEC"
+                cell  = [Point3{T}.(parse.(T, split(readline(f)))) for i=1:3]
+            end
+
+            if line == " DATAGRID_3D_DENSITY" || occursin("DATAGRID_3D_UNKNOWN", line)
+                nx, ny, nz = parse.(Int, split(readline(f)))
+	            for i = 1:4
+		            readline(f)
+	            end
+                out     = Array{T}(undef, nx, ny, nz)
+                line    = readline(f)
+				counter = 1
+                while line != "END_DATAGRID_3D"
+                    for t in parse.(T, split(line))
+	                    out[counter] = t
+	                    counter += 1
+                    end
+                    line = readline(f)
+                end
+                return out
+            end
+        end
+    end
+end
+read_values_from_xsf(filename::String) = read_values_from_xsf(Float64, filename)
 
 """
 write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat

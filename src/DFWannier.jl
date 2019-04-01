@@ -14,21 +14,10 @@ module DFWannier
   # using Optim
   using InplaceOps
   using LinearAlgebra
-  using Mmap
-  # if gpu_enabled
-  #   using CuArrays
-  #   using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
-  #   using CUDAnative
-  #
-  #   dev = CuDevice(0)
-  #   ctx = CuContext(dev)
-  #   end
-  include("typedefs.jl")
   include("types.jl")
   export wannierbands
   export density
   include("bonds.jl")
-  include("typedefs.jl")
   #---#
   export WfcPoint3
   export Wfc3D
