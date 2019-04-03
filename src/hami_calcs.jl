@@ -11,10 +11,10 @@ function sorted_eig(hami)
     return out_eig, out_vec
 end
 
-function Hk!(out::AbstractMatrix{T}, tbhami, kpoint) where T
-    fill!(out, zero(T))
+function Hk!(out::AbstractMatrix{Complex{T}}, tbhami::TbHami{T}, kpoint::Vec3{T}) where T
+    fill!(out, zero(Complex{T}))
     for block in tbhami
-        out .+= ℯ^(-2im*pi*(block.Rtpiba ⋅ kpoint)) .* block.block
+        out .+= ℯ^(-2im*pi*(block.R_cryst ⋅ kpoint)) .* block.block
     end
     for i=1:size(out)[1]
         out[i,i] = real(out[i,i]) + 0.0im
@@ -86,8 +86,8 @@ end
 
 function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T}}}, structure::AbstractStructure{T}) where  T
     forwardmap = AFMmap(structure, Vec3(1,0,0))
-    Hup = getfirst(x -> x.Rtpiba == Vec3(0,0,0), tb_hamis[1]).block
-    Hdn = getfirst(x -> x.Rtpiba == Vec3(0,0,0), tb_hamis[2]).block
+    Hup = getfirst(x -> x.R_cryst == Vec3(0,0,0), tb_hamis[1]).block
+    Hdn = getfirst(x -> x.R_cryst == Vec3(0,0,0), tb_hamis[2]).block
 
     for (at1, at2) in forwardmap, (at3, at4) in forwardmap
         for (r1, r2) in zip(range.(projections(at1)), range.(projections(at2))), (r3, r4) in zip(range.(projections(at3)), range.(projections(at4)))
@@ -95,8 +95,8 @@ function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T}}}, structure::Abstrac
             Hdn[r2, r4] .= Hup[r1, r3]
 
             for R=-1:2:1
-                Hu = getfirst(x -> x.Rtpiba == Vec3(R,0,0), tb_hamis[1]).block
-                Hd = getfirst(x -> x.Rtpiba == Vec3(R,0,0), tb_hamis[2]).block
+                Hu = getfirst(x -> x.R_cryst == Vec3(R,0,0), tb_hamis[1]).block
+                Hd = getfirst(x -> x.R_cryst == Vec3(R,0,0), tb_hamis[2]).block
                 r1_, r2_, r3_, r4_ = rs(R, r1, r2, r3, r4)
                 Hu[r2_, r3_] .= (Hu[r2_, r3_] .+ Hdn[r1_, r4_]) ./ 2
                 Hdn[r1_, r4_] .= Hu[r2_, r3_]

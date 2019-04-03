@@ -44,6 +44,7 @@ function setup_exchanges(atoms::Vector{<:AbstractAtom{T}}, orbitals) where T <: 
     end
     return exchanges
 end
+
 function setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.00)
     ω_grid = vcat(range(ωh, stop=ωh + ωv*1im, length=n_ωv)[1:end-1],
                   range(ωh + ωv*1im, stop=offset + ωv*1im, length=n_ωh)[1:end-1],
@@ -56,7 +57,7 @@ function G!(G, cache1, cache2, cache3, ω::T, μ, Hvecs, Hvals, R, kgrid) where 
     fill!(G, zero(T))
     for ik=1:length(kgrid)
         fill!(cache1, zero(T))
-        k_phase = exp(2im * π * dot(R,kgrid[ik]))
+        k_phase = exp(2im * π * dot(R, kgrid[ik]))
         for x=1:dim
             cache1[x, x] = 1.0 /(μ + ω - Hvals[ik][x])
         end
@@ -116,6 +117,98 @@ function calcexchanges(hamis,  structure::Structure, fermi::T;
     end
     structure.data[:totocc] = real(totocc(Hvals, fermi, temp))
     structure.data[:exchanges] = exchanges
+end
+
+mutable struct AnisotropicExchange{T <: AbstractFloat}
+    J       ::Matrix{Matrix{T}}
+    atom1   ::AbstractAtom{T}
+    atom2   ::AbstractAtom{T}
+    proj1   ::Projection
+    proj2   ::Projection
+end
+
+commutator(A1, A2) where T = A1*A2 - A2*A1
+
+function DHvecvals(hami::TbHami{T}, k_grid, projections, J) where T
+    Hvecs = [similar(hami[1].block) for i=1:length(k_grid)]
+    Hvals = [similar(hami[1].block[:,1]) for i=1:length(k_grid)]
+    δH = [[[zeros(Complex{T}, orbsize(projection), orbsize(projection)) for i=1:3] for projection in projections] for n = 1:Threads.nthreads()]
+    Threads.@threads for i=1:length(k_grid)
+    # for i=1:length(k_grid)
+        tid = Threads.threadid()
+            #= Hvecs[i] is used as a temporary cache to store H(k) in. Since we
+            don't need H(k) but only Hvecs etc, this is ok.
+            =#
+        Hk!(Hvecs[i], hami, k_grid[i])
+        for (δh, projection, j) in zip(δH[tid], projections, J)
+			# println(size(commutator.((view(Hvecs[i], range(projection), range(projection)),), J)[1]))
+	        δh .+= commutator.((view(Hvecs[i], range(projection), range(projection)),), j)
+        end
+        Hvals[i], Hvecs[i] = LAPACK.syevr!('V', 'A', 'U', Hvecs[i], 0.0, 0.0, 0, 0, -1.0)
+    end
+    # return Hvecs, Hvals, sum(δH)
+    return Hvecs, Hvals, sum(δH)./length(k_grid)
+end
+
+function setup_anisotropic_exchanges(atoms::Vector{<:AbstractAtom{T}}) where T <: AbstractFloat
+    exchanges = AnisotropicExchange{T}[]
+    for (i, at1) in enumerate(atoms), at2 in atoms[i+1:end]
+        for proj1 in projections(at1), proj2 in projections(at2)
+            push!(exchanges, AnisotropicExchange{T}([zeros(T, orbsize(proj1), orbsize(proj1)) for i=1:3,j=1:3], at1, at2, proj1, proj2))
+        end
+    end
+    return exchanges
+end
+
+function calc_anisotropic_exchanges(hami,  atoms, fermi::T;
+                             nk::NTuple{3, Int} = (10, 10, 10),
+                             R                  = Vec3(0, 0, 0),
+                             ωh::T              = T(-30.), #starting energy
+                             ωv::T              = T(0.1), #height of vertical contour
+                             n_ωh::Int          = 3000,
+                             n_ωv::Int          = 500,
+                             temp::T            = T(0.01)) where T <: AbstractFloat
+    nth      = Threads.nthreads()
+    μ        = fermi
+    k_grid   = [Vec3(kx, ky, kz) for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
+
+	projs = Projection[]
+	append!.((projs,), projections.(atoms))
+	Js    = [atoms[1].wandata.operator_blocks[1].J, atoms[2].wandata.operator_blocks[1].J]
+    Hvecs, Hvals, D = DHvecvals(hami, k_grid, projs, Js)
+    n_orb = size(Hvecs[1])[1]
+
+    ω_grid    = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
+    exchanges = setup_anisotropic_exchanges(atoms)
+
+    t_js                      = [[[zeros(T, size(e.J[i, j])) for i=1:3, j=1:3]  for n=1:nth] for e in exchanges]
+    caches1, caches2, caches3 = [[zeros(Complex{T}, n_orb, n_orb) for t=1:nth] for i=1:3]
+    # totocc_t                  = [zero(Complex{T}) for t=1:nth]
+    gs                        = [zeros(Complex{T}, n_orb, n_orb) for t  =1:nth]
+    for j=1:length(ω_grid[1:end-1])
+    # for j=1:length(ω_grid[1:end-1])
+        tid = Threads.threadid()
+        ω   = ω_grid[j]
+        dω  = ω_grid[j + 1] - ω
+        g   = gs[tid]
+        G!(g, caches1[tid], caches2[tid], caches3[tid], ω, μ, Hvecs, Hvals, R, k_grid)
+        for (eid, exch) in enumerate(exchanges)
+            rm = range(exch.proj1)
+            rn = range(exch.proj2)
+            drm = 1:orbsize(exch.proj1)
+            drn = 1:orbsize(exch.proj2)
+			for i =1:3, j=1:3
+	            t_js[eid][tid][i, j] .+=  imag(view(D[eid][i], drm, drm) * view(g, rm, rn) * view(D[eid][j], drn, drn) * view(g, rn, rm) * dω)
+            end
+
+        end
+    end
+    for (eid, exch) in enumerate(exchanges)
+        exch.J = 1e3 / (2π * length(k_grid)^2) * sum(t_js[eid])
+    end
+    return exchanges
+    # structure.data[:totocc] = real(totocc(Hvals, fermi, temp))
+    # structure.data[:exchanges] = exchanges
 end
 
 function totocc(Hvals, fermi::T, temp::T) where T

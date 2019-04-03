@@ -57,10 +57,10 @@ function hami_dip_from_k(tbhami, tbdip, k::Vec3{T}) where T
     outham = zeros(Complex{T}, matdim)
     outdip = zeros(Point3{Complex{T}}, matdim)
     for i = 1:length(tbhami)
-        Rtpiba = tbhami[i].Rtpiba
+        R_cryst = tbhami[i].R_cryst
         hb = tbhami[i].block
         db = tbdip[i].block
-        factor =  ℯ^(-2im*pi*(Rtpiba ⋅ k))
+        factor =  ℯ^(-2im*pi*(R_cryst ⋅ k))
         outham .+= factor .* hb
         outdip .+= factor .* db
     end

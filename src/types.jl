@@ -37,18 +37,37 @@ end
 
 LinearAlgebra.normalize(wfc::WannierFunction) = WannierFunction(wfc.points, wfc.values ./= sqrt(norm(wfc)))
 
-mutable struct WanAtData{N, T <: AbstractFloat}
-    lsoc      ::T
-    wfcs      ::Vector{WannierFunction{N, T}}
-    magmoment ::Vec3{T}
-    angmom    ::AbstractMatrix{Vec3{Complex{T}}}
+# Base.@kwdef struct OperatorBlock{T <: AbstractFloat}
+# 	projection ::Projection
+# 	L::Vector{Matrix{Complex{T}}} =
+# 		[zeros(Complex{T}, orbsize(projection), orbsize(projection))
+# 		      for i = 1:3]
+# 	S::Vector{Matrix{Complex{T}}} =
+# 		[zeros(Complex{T}, orbsize(projection), orbsize(projection))
+# 		      for i = 1:3]
+#     J::Vector{Matrix{Complex{T}}} = L .+ S
+# end
+
+struct OperatorBlock{T <: AbstractFloat}
+	projection ::Projection
+	L::Vector{Matrix{Complex{T}}}
+	S::Vector{Matrix{Complex{T}}}
+    J::Vector{Matrix{Complex{T}}}
 end
 
-# WanAtData(wfcs::Vector{WannierFunction{N, T}}) where T = WanAtData(zero(T), wfcs, zero(Vec3{T}), zeros(Vec3{Complex{T}}, 1, 1))
+mutable struct WanAtData{N, T <: AbstractFloat}
+    wfcs            ::Vector{WannierFunction{N, T}}
+    operator_blocks ::Vector{OperatorBlock{T}}
+    lsoc            ::T
+    magmoment       ::Vec3{T}
+end
 
-struct WanAtom{T<:AbstractFloat} <: AbstractAtom{T}
+WanAtData(atom::Atom, wfcs::Vector{WannierFunction}) =
+	WanAtData(wfcs=wfc, operator_blocks=OperatorBlock.(projections(atom)))
+
+struct WanAtom{N, T <: AbstractFloat} <: AbstractAtom{T}
     atom    ::Atom{T}
-    wandata ::WanAtData{T}
+    wandata ::WanAtData{N, T}
 end
 
 # WanAtom(atom::Atom{T}, lsoc::T, wfcs::Vector{Array{WfcPoint3{T}, 3}}, magmoment::Vec3{T}) where T<:AbstractFloat =
@@ -61,7 +80,7 @@ end
 #     WanAtom(atom(atom_), args...)
 
 # #implementation of the AbstractAtom interface
-# atom(at::WanAtom) = at.atom
+atom(at::WanAtom) = at.atom
 
 # lsoc(atom::WanAtom)                     = atom.wandata.lsoc
 # wfcs(atom::WanAtom)                     = atom.wandata.wfcs
@@ -74,17 +93,25 @@ end
 # clearangmom!(atom::WanAtom)             = setangmom!(atom, zero(angmom(atom)))
 
 import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, read_wannier_output
-struct TbBlock{T<:AbstractFloat}
-    Rcart::Vec3{T}
-    Rtpiba::Vec3{Int}
-    block::Matrix{Complex{T}}
+struct TbBlock{T <: AbstractFloat}
+    R_cart  ::Vec3{T}
+    R_cryst ::Vec3{Int}
+    block   ::Matrix{Complex{T}}
 end
-const TbHami{T} = Vector{TbBlock{T}}
+Base.getindex(h::TbBlock, i)    = getindex(h.block, i)
+Base.getindex(h::TbBlock, i, j) = getindex(h.block, i, j)
+LinearAlgebra.eigen(h::TbBlock) = eigen(h.block)
+Base.size(h::TbBlock)           = size(h.block)
+
+const TbHami{T}                  = Vector{TbBlock{T}}
+Base.eltype(::TbHami{T}) where T = T
+
+get_block(h::TbHami, R::Vec3{Int}) = getfirst(x->x.R_cryst == R, h)
 
 struct RmnBlock{T<:AbstractFloat}
-    Rcart::Vec3{T}
-    Rtpiba::Vec3{Int}
-    block::Matrix{Point3{T}}
+    R_cart  ::Vec3{T}
+    R_cryst ::Vec3{Int}
+    block   ::Matrix{Point3{T}}
 end
 const TbRmn{T} = Vector{RmnBlock{T}}
 

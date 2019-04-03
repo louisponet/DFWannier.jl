@@ -126,9 +126,9 @@ function readhami(filename::String, structure::AbstractStructure{T}) where  T
             l = split(readline(f))
             linenr += 1
             rpt = div(linenr - 1, nwanfun^2) + 1
-            Rtpiba = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
+            R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
             if length(out) < rpt
-                block = TbBlock{T}(cell(structure)' * Rtpiba, Rtpiba, Matrix{Complex{T}}(I, nwanfun, nwanfun))
+                block = TbBlock{T}(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
                 push!(out, block)
             else
                 block = out[rpt]
@@ -157,11 +157,11 @@ function read_rmn_file(filename::String, structure::AbstractStructure{T}) where 
         readline(f)
         while !eof(f)
             l= split(readline(f))
-            Rtpiba = Vec3(parse.(Int, l[1:3]))
-            block = getfirst(x -> x.Rtpiba == Rtpiba, out)
+            R_cryst = Vec3(parse.(Int, l[1:3]))
+            block = getfirst(x -> x.R_cryst == R_cryst, out)
 
             if block == nothing
-                block = RmnBlock{T}(cell(structure)' * Rtpiba, Rtpiba, Matrix{Point3{T}}(I, n_wanfun, n_wanfun))
+                block = RmnBlock{T}(cell(structure)' * R_cryst, R_cryst, Matrix{Point3{T}}(I, n_wanfun, n_wanfun))
                 push!(out, block)
             end
             dipole = Point3{T}(parse.(T, l[6:2:10]))
