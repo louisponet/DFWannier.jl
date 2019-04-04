@@ -160,6 +160,8 @@ function setup_anisotropic_exchanges(atoms::Vector{<:AbstractAtom{T}}) where T <
     return exchanges
 end
 
+uniform_shifted_kgrid(nkx, nky, nkz) = [Vec3(kx, ky, kz) for kx = 0.5/nkx:1/nkx:1, ky = 0.5/nky:1/nky:1, kz = 0.5/nkz:1/nkz:1]
+
 function calc_anisotropic_exchanges(hami,  atoms, fermi::T;
                              nk::NTuple{3, Int} = (10, 10, 10),
                              R                  = Vec3(0, 0, 0),
@@ -169,36 +171,39 @@ function calc_anisotropic_exchanges(hami,  atoms, fermi::T;
                              n_ωv::Int          = 500,
                              temp::T            = T(0.01)) where T <: AbstractFloat
     nth      = Threads.nthreads()
-    μ        = fermi
-    k_grid   = [Vec3(kx, ky, kz) for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
+    k_grid   = uniform_shifted_kgrid(nk...)
 
+    μ        = fermi
 	projs = Projection[]
 	append!.((projs,), projections.(atoms))
+
 	Js    = [atoms[1].wandata.operator_blocks[1].J, atoms[2].wandata.operator_blocks[1].J]
     Hvecs, Hvals, D = DHvecvals(hami, k_grid, projs, Js)
-    n_orb = size(Hvecs[1])[1]
-
     ω_grid    = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
     exchanges = setup_anisotropic_exchanges(atoms)
 
+    n_orb = size(Hvecs[1])[1]
     t_js                      = [[[zeros(T, size(e.J[i, j])) for i=1:3, j=1:3]  for n=1:nth] for e in exchanges]
     caches1, caches2, caches3 = [[zeros(Complex{T}, n_orb, n_orb) for t=1:nth] for i=1:3]
     # totocc_t                  = [zero(Complex{T}) for t=1:nth]
-    gs                        = [zeros(Complex{T}, n_orb, n_orb) for t  =1:nth]
+    gs                        = [[zeros(Complex{T}, n_orb, n_orb) for i=1:2] for t=1:nth] # i is like back and forth G 
     for j=1:length(ω_grid[1:end-1])
     # for j=1:length(ω_grid[1:end-1])
         tid = Threads.threadid()
         ω   = ω_grid[j]
         dω  = ω_grid[j + 1] - ω
-        g   = gs[tid]
-        G!(g, caches1[tid], caches2[tid], caches3[tid], ω, μ, Hvecs, Hvals, R, k_grid)
+        for i = 1:2
+	        g   = gs[tid][i]
+	        R_  = i == 1 ? R : -R
+	        G!(g, caches1[tid], caches2[tid], caches3[tid], ω, μ, Hvecs, Hvals, R_, k_grid)
+        end
         for (eid, exch) in enumerate(exchanges)
             rm = range(exch.proj1)
             rn = range(exch.proj2)
             drm = 1:orbsize(exch.proj1)
             drn = 1:orbsize(exch.proj2)
 			for i =1:3, j=1:3
-	            t_js[eid][tid][i, j] .+=  imag(view(D[eid][i], drm, drm) * view(g, rm, rn) * view(D[eid][j], drn, drn) * view(g, rn, rm) * dω)
+	            t_js[eid][tid][i, j] .+=  imag(view(D[eid][i], drm, drm) * view(gs[tid][1], rm, rn) * view(D[eid][j], drn, drn) * view(gs[tid][2], rn, rm) * dω)
             end
 
         end

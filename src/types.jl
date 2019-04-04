@@ -188,7 +188,7 @@ end
 # function setsoc!(structure::AbstractStructure{T}, socs...) where T
 #     for (at, soc) in socs
 #         for str_at in atoms(structure)
-#             if id(str_at) == at
+#             if name(str_at) == at
 #                 setlsoc!(str_at, T(soc))
 #             end
 #         end
