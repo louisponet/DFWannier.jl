@@ -46,30 +46,20 @@ LinearAlgebra.normalize(wfc::WannierFunction) = WannierFunction(wfc.points, wfc.
 # 		[zeros(Complex{T}, orbsize(projection), orbsize(projection))
 # 		      for i = 1:3]
 #     J::Vector{Matrix{Complex{T}}} = L .+ S
-# end
+
 
 struct OperatorBlock{T <: AbstractFloat}
-	projection ::Projection
 	L::Vector{Matrix{Complex{T}}}
 	S::Vector{Matrix{Complex{T}}}
     J::Vector{Matrix{Complex{T}}}
 end
 
-mutable struct WanAtData{N, T <: AbstractFloat}
-    wfcs            ::Vector{WannierFunction{N, T}}
-    operator_blocks ::Vector{OperatorBlock{T}}
-    lsoc            ::T
-    magmoment       ::Vec3{T}
-end
-
-WanAtData(atom::Atom, wfcs::Vector{WannierFunction}) =
-	WanAtData(wfcs=wfc, operator_blocks=OperatorBlock.(projections(atom)))
-
-struct WanAtom{N, T <: AbstractFloat} <: AbstractAtom{T}
+struct WanAtom{T <: AbstractFloat} <: AbstractAtom{T}
     atom    ::Atom{T}
-    wandata ::WanAtData{N, T}
+    wandata ::Dict{Symbol, <:Any}
 end
 
+Base.getindex(at::WanAtom, s::Symbol) = getindex(at.wandata, s::Symbol)
 # WanAtom(atom::Atom{T}, lsoc::T, wfcs::Vector{Array{WfcPoint3{T}, 3}}, magmoment::Vec3{T}) where T<:AbstractFloat =
 #     WanAtom(atom, WanAtData(lsoc, wfcs, magmoment, zeros(Vec3{Complex{T}}, 1, 1)))
 # WanAtom(atom::Atom{T}, magmoment::Vec3{T}) where T<:AbstractFloat =
@@ -107,6 +97,8 @@ const TbHami{T}                  = Vector{TbBlock{T}}
 Base.eltype(::TbHami{T}) where T = T
 
 get_block(h::TbHami, R::Vec3{Int}) = getfirst(x->x.R_cryst == R, h)
+blockdim(h::TbHami) = size(h[1].block)
+empty_block(h::TbHami{T}) where T = Matrix{Complex{T}}(undef, blockdim(h))
 
 struct RmnBlock{T<:AbstractFloat}
     R_cart  ::Vec3{T}
@@ -264,3 +256,36 @@ function wannierbands(tbhamis, kpoints::Vector{<:Vec3})
     return outbands
 end
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands[1].k_points_cryst)
+
+import Base: +, -, *, /
+struct ThreadCache{T}
+	orig::T
+	caches::Vector{T}
+end
+
+ThreadCache(orig) = ThreadCache(orig, [deepcopy(orig) for i = 1:nthreads()])
+
+Base.getindex(t::ThreadCache{<:AbstractArray}, i...) = t.caches[threadid()][i...]
+Base.setindex!(t::ThreadCache{<:AbstractArray{T}}, v::T, i...) where T = t.caches[threadid()][i...] = v
+
++(t::ThreadCache{T}, v::T) where T = t.caches[threadid()] + v 
+-(t::ThreadCache{T}, v::T) where T = t.caches[threadid()] - v 
+*(t::ThreadCache{T}, v::T) where T = t.caches[threadid()] * v 
+/(t::ThreadCache{T}, v::T) where T = t.caches[threadid()] / v 
++(v::T, t::ThreadCache{T}) where T = v - t.caches[threadid()]  
+-(v::T, t::ThreadCache{T}) where T = v * t.caches[threadid()]  
+*(v::T, t::ThreadCache{T}) where T = v / t.caches[threadid()]  
+/(v::T, t::ThreadCache{T}) where T = v + t.caches[threadid()]
+
+Base.size(t::ThreadCache) = size(t.orig)
+Base.length(t::ThreadCache) = length(t.orig)
+Base.iterate(t::ThreadCache) = iterate(t.caches[threadid()])
+Base.iterate(t::ThreadCache, p) = iterate(t.caches[threadid()], p)
+Base.sum(t::ThreadCache) = sum(t.caches)
+Base.view(t::ThreadCache, v...) = view(t.caches[threadid()], v...)
+Base.fill!(t::ThreadCache{<:AbstractArray{T}}, v::T) where T = fill!(t.caches[threadid()], v)
+LinearAlgebra.mul!(t1::ThreadCache{T}, v::T, t2::ThreadCache{T}) where T = mul!(t1.caches[threadid()], v, t2.caches[threadid()]) 
+LinearAlgebra.mul!(t1::T, v::T, t2::ThreadCache{T}) where T = mul!(t1, v, t2.caches[threadid()]) 
+LinearAlgebra.adjoint!(t1::ThreadCache{T}, v::T) where T = adjoint!(t1.caches[threadid()], v)
+
+Base.broadcast(f, As::ThreadCache...) = broadcast(f, getindex.(getfield.(As, :caches), threadid())) 
