@@ -7,7 +7,6 @@ module DFWannier
 	using LaTeXStrings
 	using InplaceOps
 	using LinearAlgebra
-	using AxisArrays
 	using Base.Threads
 	include("types.jl")
 	include("wan_calcs.jl")
