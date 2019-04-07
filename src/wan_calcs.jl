@@ -15,7 +15,6 @@ function calc_angmom(wfc1::WannierFunction{2, T}, wfc2::WannierFunction{2, T}, c
   	  	  	  		              wfc2.values[i, i1, i2] - wfc2.values[i, i1, i2-1])
 
                 r = points[i, i1, i2] - center
-
                 dw_cart = V * dw_cryst
                 L  += (wfc1.values[i, i1, i2]',) .* cross(r, dw_cart)
 	        end

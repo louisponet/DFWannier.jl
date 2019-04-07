@@ -1,5 +1,5 @@
 using DFControl: searchdir, Band, DFBand, Point3, Vec3, Point, Mat3
-import DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, id, pseudo, projections, setpseudo!, atom
+import DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, pseudo, projections, setpseudo!, atom
 import Base: getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 

@@ -1,4 +1,4 @@
-import DFControl: searchdir, id
+import DFControl: searchdir
 #does this really need the checking for corruption stuff?
 function read_xsf_header(::Type{T}, filename::String) where T
     open(filename) do f
