@@ -128,7 +128,7 @@ function readhami(filename::String, structure::AbstractStructure{T}) where  T
             rpt = div(linenr - 1, nwanfun^2) + 1
             R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
             if length(out) < rpt
-                block = TbBlock{T}(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
+                block = TbBlock(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
                 push!(out, block)
             else
                 block = out[rpt]
@@ -139,6 +139,54 @@ function readhami(filename::String, structure::AbstractStructure{T}) where  T
         return out
     end
 end
+
+#super not optimized
+# """
+# read_colin_hami(upfile::String, downfile::String, structure::AbstractStructure{T})
+
+# Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
+# """
+# function read_colin_hami(upfile::String, downfile::String, structure::AbstractStructure{T}) where  T
+# 	uphami   = readhami(upfile, structure)
+# 	downhami = readhami(downfile, structure)
+
+# 	outhami  = TbBlock[]
+# 	for (u, d) in zip(uphami, downhami)
+# 		tmat = BandedMatrix(undef, 2 .* size(u), size(u))
+# 		tmat[band(1)]
+# 		push!(outhami, )
+
+# 	fs   = open.((upfile, downfile)   "r")
+#     out = TbBlock{T}[]
+#     degen = Int64[]
+#     linenr = 0
+#     readline.(fs)
+#     nwanfuns   = parse.(Int64, readline.(fs))
+#     ndegens    = parse.(Int64, readline.(fs))
+
+#     while length(degen) < ndegen
+#         push!(degen, parse.(Int, split(readline(f)))...)
+#     end
+# 	close.(fs)
+#     open(filename) do f
+#         while !eof(f)
+#             l = split(readline(f))
+#             linenr += 1
+#             rpt = div(linenr - 1, nwanfun^2) + 1
+#             R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
+#             if length(out) < rpt
+#                 block = TbBlock(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
+#                 push!(out, block)
+#             else
+#                 block = out[rpt]
+#             end
+#             complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) / degen[rpt]
+#             block.block[parse(Int, l[4]), parse(Int, l[5])] = complex
+#         end
+#         return out
+#     end
+# end
+
 """
     readhamis(job::DFJob)
 """

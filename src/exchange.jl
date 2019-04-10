@@ -117,7 +117,7 @@ function calc_anisotropic_exchanges(hami,  atoms, fermi::T;
     k_grid          = uniform_shifted_kgrid(nk...)
     ω_grid          = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
 
-    @timeit "D calc" Hvecs, Hvals, D = DHvecvals(hami, k_grid, atoms)
+    Hvecs, Hvals, D = DHvecvals(hami, k_grid, atoms)
     exchanges       = setup_anisotropic_exchanges(atoms)
 
     calc_anisotropic_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
@@ -129,6 +129,29 @@ uniform_shifted_kgrid(nkx, nky, nkz) = [Vec3(kx, ky, kz) for kx = 0.5/nkx:1/nkx:
 setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.00) = vcat(range(ωh,              ωh + ωv*1im,     length=n_ωv)[1:end-1],
 											         range(ωh + ωv*1im,     offset + ωv*1im, length=n_ωh)[1:end-1],
 											         range(offset + ωv*1im, offset,          length=n_ωv))
+
+function DHvecvals(hami::Tuple{TbHami{T}, TbHami{T}}, k_grid, atoms) where T <: AbstractFloat
+	# Get all the projections that we care about, basically the indices of the hami blocks.
+	all_projections = Projection[]
+	append!.((all_projections,), projections.(atoms))
+
+	nk        = length(k_grid)
+    Hvecs     = [empty_block(hami) for i=1:nk]
+    Hvals     = [Vector{T}(undef, blockdim(hami)[1]) for i=1:nk]
+    δH_onsite = ThreadCache([[zeros(Complex{T}, orbsize(projection), orbsize(projection)) for i=1:3] for projection in all_projections])
+    @threads for i=1:nk
+        # Hvecs[i] is used as a temporary cache to store H(k) in. Since we
+        # don't need H(k) but only Hvecs etc, this is ok.
+        Hk!(Hvecs[i], hami, k_grid[i])
+
+        # For each of the dh block, proj block and J combo we have to add it to the variation of onsite hami
+        for (δh, projection, j) in zip(δH_onsite, all_projections, all_Js) 
+	        δh .+= commutator.((view(Hvecs[i], range(projection), range(projection)),), j)
+        end
+        Hvals[i], Hvecs[i] = LAPACK.syevr!('V', 'A', 'U', Hvecs[i], 0.0, 0.0, 0, 0, -1.0)
+    end
+    return Hvecs, Hvals, sum(δH_onsite.caches)./nk
+end
 
 function DHvecvals(hami::TbHami{T}, k_grid, atoms) where T <: AbstractFloat
 	# Get all the projections that we care about, basically the indices of the hami blocks.
@@ -200,7 +223,6 @@ function calc_anisotropic_exchanges!(exchanges ::Vector{AnisotropicExchange{T}},
 						    k_grid,
 						    g_caches)
 
-    # @timeit "ω integration" for j=1:length(ω_grid[1:end-1])
     @threads for j=1:length(ω_grid[1:end-1])
         ω   = ω_grid[j]
         dω  = ω_grid[j + 1] - ω

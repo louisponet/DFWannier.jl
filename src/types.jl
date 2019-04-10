@@ -83,10 +83,10 @@ atom(at::WanAtom) = at.atom
 # clearangmom!(atom::WanAtom)             = setangmom!(atom, zero(angmom(atom)))
 
 import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, read_wannier_output
-struct TbBlock{T <: AbstractFloat}
+struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}}
     R_cart  ::Vec3{T}
     R_cryst ::Vec3{Int}
-    block   ::Matrix{Complex{T}}
+    block   ::M
 end
 Base.getindex(h::TbBlock, i)    = getindex(h.block, i)
 Base.getindex(h::TbBlock, i, j) = getindex(h.block, i, j)

@@ -8,6 +8,7 @@ module DFWannier
 	using InplaceOps
 	using LinearAlgebra
 	using Base.Threads
+	# using BandedMatrices
 	include("types.jl")
 	include("wan_calcs.jl")
 	include("hami_calcs.jl")
