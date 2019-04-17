@@ -176,7 +176,7 @@ function DHvecvals(hami::TbHami{T}, k_grid, atoms) where T <: AbstractFloat
         Hk!(Hvecs[i], hami, k_grid[i])
 
         # For each of the dh block, proj block and J combo we have to add it to the variation of onsite hami
-        for (δh, projection, j) in zip(δH_onsite, all_projections, all_Js) 
+        for (δh, projection, j) in zip(δH_onsite, all_projections, all_Js)
 	        δh .+= commutator.((view(Hvecs[i], range(projection), range(projection)),), j)
         end
         Hvals[i], Hvecs[i] = LAPACK.syevr!('V', 'A', 'U', Hvecs[i], 0.0, 0.0, 0, 0, -1.0)
@@ -213,20 +213,15 @@ function calc_anisotropic_exchanges!(exchanges ::Vector{AnisotropicExchange{T}},
     g_caches = [ThreadCache(zeros(Complex{T}, dim)) for i=1:3]
     G_forward, G_backward = [ThreadCache(zeros(Complex{T}, dim)) for i=1:2]
 
-    iGk!(ω) = integrate_Gk!(G_forward,
-						    G_backward,
-						    ω,
-						    μ,
-						    Hvecs,
-						    Hvals,
-						    R,
-						    k_grid,
-						    g_caches)
+    function iGk!(ω)
+	    fill!(G_forward, zero(Complex{T}))
+	    fill!(G_backward, zero(Complex{T}))
+        integrate_Gk!(G_forward, G_backward, ω, μ, Hvecs, Hvals, R, k_grid, g_caches)
+    end
 
     @threads for j=1:length(ω_grid[1:end-1])
         ω   = ω_grid[j]
         dω  = ω_grid[j + 1] - ω
-
         iGk!(ω)
 		# The two kind of ranges are needed because we calculate D only for the projections we care about
 		# whereas G is calculated from the full Hamiltonian, the is needed.
@@ -249,34 +244,30 @@ function calc_anisotropic_exchanges!(exchanges ::Vector{AnisotropicExchange{T}},
     end
 end
 
-function integrate_Gk!(G_forward, G_backward, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where T
+function integrate_Gk!(G_forward, G_backward, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
     dim = size(G_forward)[1]
 	cache1, cache2, cache3 = caches
-    fill!(G_forward,  zero(T))
-    fill!(G_backward, zero(T))
 
-    for ik=1:length(kgrid)
+    @threads for ik=1:length(kgrid)
 	    # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(T))
         for x=1:dim
             cache1[x, x] = 1.0 /(μ + ω - Hvals[ik][x])
         end
      	# Basically Hvecs[ik]' * eigvals[ik] * Hvecs[ik]
-        @! cache2 = Hvecs[ik] * cache1
+        mul!(cache2, Hvecs[ik], cache1)
         adjoint!(cache3, Hvecs[ik])
-        @! cache1 = cache2 * cache3
+        mul!(cache1, cache2, cache3)
 
-        G_forward.caches[threadid()]  .+= cache1 .* exp(2im * π * dot(R, kgrid[ik]))
-        G_backward.caches[threadid()] .+= cache1 .* exp(2im * π * dot(-R, kgrid[ik]))
+        G_forward  .+= cache1 .* exp(2im * π * dot(R, kgrid[ik]))
+        G_backward .+= cache1 .* exp(2im * π * dot(-R, kgrid[ik]))
     end
 end
 
-# function totocc(Hvals, fermi::T, temp::T) where T
-#     totocc = zero(Complex{T})
-#     for s=1:2
-#         for i = 1:length(Hvals[s])
-#             totocc += sum( 1 ./ (exp.((Hvals[s][i] .- fermi)./temp) .+ 1))
-#         end
-#     end
-#     return totocc/length(Hvals[1])
-# end
+function totocc(Hvals, fermi::T, temp::T) where T
+    totocc = zero(Complex{T})
+    for i = 1:length(Hvals)
+        totocc += sum( 1 ./ (exp.((Hvals[i] .- fermi)./temp) .+ 1))
+    end
+    return totocc/length(Hvals[1])
+end

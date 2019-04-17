@@ -259,33 +259,46 @@ wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands
 
 import Base: +, -, *, /
 struct ThreadCache{T}
-	orig::T
 	caches::Vector{T}
+	ThreadCache(orig::T) where {T} = new{T}([deepcopy(orig) for i = 1:nthreads()])
 end
 
-ThreadCache(orig) = ThreadCache(orig, [deepcopy(orig) for i = 1:nthreads()])
+@inline cache(t::ThreadCache) = t.caches[threadid()]
 
-Base.getindex(t::ThreadCache{<:AbstractArray}, i...) = t.caches[threadid()][i...]
-Base.setindex!(t::ThreadCache{<:AbstractArray{T}}, v::T, i...) where T = t.caches[threadid()][i...] = v
+Base.getindex(t::ThreadCache{<:AbstractArray}, i...) = cache(t)[i...]
+Base.setindex!(t::ThreadCache{<:AbstractArray{T}}, v::T, i...) where T = cache(t)[i...] = v
+Base.copyto!(t::ThreadCache, v) = copyto!(cache(t), v)
 
-+(t::ThreadCache{T}, v::T) where T = t.caches[threadid()] + v 
--(t::ThreadCache{T}, v::T) where T = t.caches[threadid()] - v 
-*(t::ThreadCache{T}, v::T) where T = t.caches[threadid()] * v 
-/(t::ThreadCache{T}, v::T) where T = t.caches[threadid()] / v 
-+(v::T, t::ThreadCache{T}) where T = v - t.caches[threadid()]  
--(v::T, t::ThreadCache{T}) where T = v * t.caches[threadid()]  
-*(v::T, t::ThreadCache{T}) where T = v / t.caches[threadid()]  
-/(v::T, t::ThreadCache{T}) where T = v + t.caches[threadid()]
++(t::ThreadCache{T}, v::T) where T = cache(t) + v 
+-(t::ThreadCache{T}, v::T) where T = cache(t) - v 
+*(t::ThreadCache{T}, v::T) where T = cache(t) * v 
+/(t::ThreadCache{T}, v::T) where T = cache(t) / v 
++(v::T, t::ThreadCache{T}) where T = v - cache(t)  
+-(v::T, t::ThreadCache{T}) where T = v * cache(t)  
+*(v::T, t::ThreadCache{T}) where T = v / cache(t)  
+/(v::T, t::ThreadCache{T}) where T = v + cache(t)
 
-Base.size(t::ThreadCache) = size(t.orig)
-Base.length(t::ThreadCache) = length(t.orig)
-Base.iterate(t::ThreadCache) = iterate(t.caches[threadid()])
-Base.iterate(t::ThreadCache, p) = iterate(t.caches[threadid()], p)
-Base.sum(t::ThreadCache) = sum(t.caches)
-Base.view(t::ThreadCache, v...) = view(t.caches[threadid()], v...)
-Base.fill!(t::ThreadCache{<:AbstractArray{T}}, v::T) where T = fill!(t.caches[threadid()], v)
-LinearAlgebra.mul!(t1::ThreadCache{T}, v::T, t2::ThreadCache{T}) where T = mul!(t1.caches[threadid()], v, t2.caches[threadid()]) 
-LinearAlgebra.mul!(t1::T, v::T, t2::ThreadCache{T}) where T = mul!(t1, v, t2.caches[threadid()]) 
-LinearAlgebra.adjoint!(t1::ThreadCache{T}, v::T) where T = adjoint!(t1.caches[threadid()], v)
+Base.size(t::ThreadCache)       = size(cache(t))
+Base.length(t::ThreadCache)     = length(cache(t))
+Base.iterate(t::ThreadCache)    = iterate(cache(t))
+Base.iterate(t::ThreadCache, p) = iterate(cache(t), p)
+Base.sum(t::ThreadCache)        = sum(t.caches)
+Base.view(t::ThreadCache, v...) = view(cache(t), v...)
+Base.fill!(t::ThreadCache{<:AbstractArray{T}}, v::T) where {T} = fill!(cache(t), v)
+fillall!(t::ThreadCache{<:AbstractArray{T}}, v::T)   where {T} = fill!.(t.caches, (v,))
 
-Base.broadcast(f, As::ThreadCache...) = broadcast(f, getindex.(getfield.(As, :caches), threadid())) 
+LinearAlgebra.mul!(t1::ThreadCache{T}, v::T, t2::ThreadCache{T}) where {T<:AbstractArray} =
+	mul!(cache(t1), v, cache(t2)) 
+LinearAlgebra.mul!(t1::T, v::T, t2::ThreadCache{T}) where {T<:AbstractArray} =
+	mul!(t1, v, cache(t2)) 
+LinearAlgebra.mul!(t1::ThreadCache{T}, t2::ThreadCache{T}, t3::ThreadCache{T}) where {T<:AbstractArray} =
+	mul!(cache(t1), cache(t2), cache(t3)) 
+LinearAlgebra.adjoint!(t1::ThreadCache{T}, v::T) where {T} = adjoint!(cache(t1), v)
+
+####
+#### Broadcasting
+####
+Base.ndims(::Type{ThreadCache{T}}) where {T<:AbstractArray} = ndims(T)
+# Base.broadcast(f, As::ThreadCache...) = broadcast(f, getindex.(getfield.(As, :caches), threadid()))
+Base.Broadcast.broadcastable(tc::ThreadCache{<:AbstractArray}) = cache(tc)
+# Base.Broadcast.BroadcastStyle(::Type{ThreadCache{T}}) where {T<:AbstractArray} = Base.Broadcast.BroadcastStyle(T)
