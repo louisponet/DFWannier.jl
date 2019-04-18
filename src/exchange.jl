@@ -126,7 +126,7 @@ end
 
 uniform_shifted_kgrid(nkx, nky, nkz) = [Vec3(kx, ky, kz) for kx = 0.5/nkx:1/nkx:1, ky = 0.5/nky:1/nky:1, kz = 0.5/nkz:1/nkz:1]
 
-setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.00) = vcat(range(ωh,              ωh + ωv*1im,     length=n_ωv)[1:end-1],
+setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.001) = vcat(range(ωh,              ωh + ωv*1im,     length=n_ωv)[1:end-1],
 											         range(ωh + ωv*1im,     offset + ωv*1im, length=n_ωh)[1:end-1],
 											         range(offset + ωv*1im, offset,          length=n_ωv))
 
@@ -240,11 +240,11 @@ function calc_anisotropic_exchanges!(exchanges ::Vector{AnisotropicExchange{T}},
     end
 
     for (eid, exch) in enumerate(exchanges)
-        exch.J = 1e3 / (2π * length(k_grid)^2) * sum(J_caches[eid])
+        exch.J = 1e3 / 2π * sum(J_caches[eid])
     end
 end
 
-function integrate_Gk!(G_forward, G_backward, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
+function integrate_Gk!(G_forward::ThreadCache, G_backward::ThreadCache, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
     dim = size(G_forward)[1]
 	cache1, cache2, cache3 = caches
 
@@ -254,14 +254,16 @@ function integrate_Gk!(G_forward, G_backward, ω::T, μ, Hvecs, Hvals, R, kgrid,
         for x=1:dim
             cache1[x, x] = 1.0 /(μ + ω - Hvals[ik][x])
         end
-     	# Basically Hvecs[ik]' * eigvals[ik] * Hvecs[ik]
+     	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
         mul!(cache2, Hvecs[ik], cache1)
         adjoint!(cache3, Hvecs[ik])
         mul!(cache1, cache2, cache3)
-
-        G_forward  .+= cache1 .* exp(2im * π * dot(R, kgrid[ik]))
-        G_backward .+= cache1 .* exp(2im * π * dot(-R, kgrid[ik]))
+		t = exp(2im * π * dot(R, kgrid[ik]))
+        G_forward  .+= cache1 .* t
+        G_backward .+= cache1 .* t'
     end
+    G_forward.caches  ./= length(kgrid)
+    G_backward.caches ./= length(kgrid)
 end
 
 function totocc(Hvals, fermi::T, temp::T) where T
@@ -269,5 +271,5 @@ function totocc(Hvals, fermi::T, temp::T) where T
     for i = 1:length(Hvals)
         totocc += sum( 1 ./ (exp.((Hvals[i] .- fermi)./temp) .+ 1))
     end
-    return totocc/length(Hvals[1])
+    return totocc/length(Hvals)
 end

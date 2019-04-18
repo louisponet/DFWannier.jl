@@ -258,6 +258,7 @@ end
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands[1].k_points_cryst)
 
 import Base: +, -, *, /
+
 struct ThreadCache{T}
 	caches::Vector{T}
 	ThreadCache(orig::T) where {T} = new{T}([deepcopy(orig) for i = 1:nthreads()])
