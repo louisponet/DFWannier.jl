@@ -3,3 +3,5 @@
 *.jl.mem
 
 test/test_linux\.jl
+
+Manifest\.toml

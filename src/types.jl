@@ -88,16 +88,26 @@ struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}}
     R_cryst ::Vec3{Int}
     block   ::M
 end
-Base.getindex(h::TbBlock, i)    = getindex(h.block, i)
-Base.getindex(h::TbBlock, i, j) = getindex(h.block, i, j)
-LinearAlgebra.eigen(h::TbBlock) = eigen(h.block)
-Base.size(h::TbBlock)           = size(h.block)
 
-const TbHami{T}                  = Vector{TbBlock{T}}
-Base.eltype(::TbHami{T}) where T = T
+block(x::TbBlock) = x.block
+
+Base.getindex(h::TbBlock, i)    = getindex(block(h), i)
+Base.getindex(h::TbBlock, i, j) = getindex(block(h), i, j)
+
+Base.size(h::TbBlock)           = size(block(h))
+
+Base.similar(h::TbBlock) = similar(block(h))
+
+LinearAlgebra.eigen(h::TbBlock) = eigen(block(h))
+
+
+
+const TbHami{T, M}  = Vector{TbBlock{T, M}}
 
 get_block(h::TbHami, R::Vec3{Int}) = getfirst(x->x.R_cryst == R, h)
-blockdim(h::TbHami) = size(h[1].block)
+
+blockdim(h::TbHami) = size(block(h[1]))
+
 empty_block(h::TbHami{T}) where T = Matrix{Complex{T}}(undef, blockdim(h))
 
 struct RmnBlock{T<:AbstractFloat}
@@ -239,8 +249,8 @@ end
 
 wannierbands(n::Int, kpoints::Vector{<:Vec3}) = [WannierBand(kpoints) for i=1:n]
 
-function wannierbands(tbhamis, kpoints::Vector{<:Vec3})
-    matdim = size(tbhamis[1].block)[1]
+function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
+    matdim = blockdim(tbhamis)
     outbands = wannierbands(matdim, kpoints)
 
     for (i, k) in enumerate(kpoints)

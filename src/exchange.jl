@@ -14,7 +14,13 @@ using DFControl: Projection, Orbital, Structure, orbital, size, orbsize
 #     proj2   ::Projection
 # end
 
-# function DHvecvals(hamis, k_grid)
+# @doc raw"""
+# 	DHvecvals(hami::TbHami{T, BandedBlockBandedMatrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
+
+# Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
+# `hami` should be a BandedBlockBandedMatrix with $H_{up}, H_{down}$ blocks on the diagonal.
+# """
+# function DHvecvals(hami::TbHami{T, Matrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
 #     Hvecs = [[similar(hami[1].block) for i=1:length(k_grid)] for hami in hamis]
 #     Hvals = [[similar(hami[1].block[:,1]) for i=1:length(k_grid)] for hami in hamis]
 #     D    = [zeros(eltype(hamis[1][1].block), size(hamis[1][1].block)) for i=1:Threads.nthreads()]
@@ -153,7 +159,14 @@ function DHvecvals(hami::Tuple{TbHami{T}, TbHami{T}}, k_grid, atoms) where T <: 
     return Hvecs, Hvals, sum(δH_onsite.caches)./nk
 end
 
-function DHvecvals(hami::TbHami{T}, k_grid, atoms) where T <: AbstractFloat
+@doc raw"""
+	DHvecvals(hami::TbHami{T, Matrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
+
+
+Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
+`hami` should be the full Hamiltonian containing both spin-diagonal and off-diagonal blocks.
+"""
+function DHvecvals(hami::TbHami{T, Matrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
 	# Get all the projections that we care about, basically the indices of the hami blocks.
 	all_projections = Projection[]
 	append!.((all_projections,), projections.(atoms))

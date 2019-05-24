@@ -106,14 +106,14 @@ function write_xsf_file(filename::String, wfc)
     end
 end
 
-"""
-readhami(filename::String,structure::AbstractStructure{T})
+@doc raw"""
+	readhami(filename::String,structure::AbstractStructure{T})
 
-Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
+Returns a vector of TbBlocks with the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
 function readhami(filename::String, structure::AbstractStructure{T}) where  T
     open(filename) do f
-        out = TbBlock{T}[]
+        out = TbBlock{T, Matrix{Complex{T}}}[]
         degen = Int64[]
         linenr = 0
         readline(f)
@@ -141,50 +141,58 @@ function readhami(filename::String, structure::AbstractStructure{T}) where  T
 end
 
 #super not optimized
-# """
-# read_colin_hami(upfile::String, downfile::String, structure::AbstractStructure{T})
+@doc raw"""
+	read_colin_hamis(upfile::String, downfile::String, structure::AbstractStructure{T})
 
-# Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
-# """
-# function read_colin_hami(upfile::String, downfile::String, structure::AbstractStructure{T}) where  T
-# 	uphami   = readhami(upfile, structure)
-# 	downhami = readhami(downfile, structure)
+Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
+"""
+function read_colin_hamis(upfile::String, downfile::String, structure::AbstractStructure{T}) where  T
+	uphami   = readhami(upfile, structure)
+	downhami = readhami(downfile, structure)
+	dim = blockdim(uphami)
+	@assert dim == blockdim(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
 
-# 	outhami  = TbBlock[]
-# 	for (u, d) in zip(uphami, downhami)
-# 		tmat = BandedMatrix(undef, 2 .* size(u), size(u))
-# 		tmat[band(1)]
-# 		push!(outhami, )
+	u1 = uphami[1]
+	d1 = downhami[1]
+	first = TbBlock(u1.R_cart, u1.R_cryst, BlockBandedMatrix([block(u1) similar(u1); similar(d1) block(d1)],
+                              ([dim...], [dim...]), (0, 0)))
+	outhami  = [first]
+	for (u, d) in zip(uphami[2:end], downhami[2:end])
+		tmat = BlockBandedMatrix([block(u) similar(u); similar(d) block(d)], ([dim...], [dim...]), (0, 0))
+		push!(outhami, TbBlock(u.R_cart, u.R_cryst, tmat))
+	end
+	return outhami
+end
 
-# 	fs   = open.((upfile, downfile)   "r")
-#     out = TbBlock{T}[]
-#     degen = Int64[]
-#     linenr = 0
-#     readline.(fs)
-#     nwanfuns   = parse.(Int64, readline.(fs))
-#     ndegens    = parse.(Int64, readline.(fs))
+	# fs   = open.((upfile, downfile)   "r")
+ #    out = TbBlock{T}[]
+ #    degen = Int64[]
+ #    linenr = 0
+ #    readline.(fs)
+ #    nwanfuns   = parse.(Int64, readline.(fs))
+ #    ndegens    = parse.(Int64, readline.(fs))
 
-#     while length(degen) < ndegen
-#         push!(degen, parse.(Int, split(readline(f)))...)
-#     end
-# 	close.(fs)
-#     open(filename) do f
-#         while !eof(f)
-#             l = split(readline(f))
-#             linenr += 1
-#             rpt = div(linenr - 1, nwanfun^2) + 1
-#             R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
-#             if length(out) < rpt
-#                 block = TbBlock(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
-#                 push!(out, block)
-#             else
-#                 block = out[rpt]
-#             end
-#             complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) / degen[rpt]
-#             block.block[parse(Int, l[4]), parse(Int, l[5])] = complex
-#         end
-#         return out
-#     end
+ #    while length(degen) < ndegen
+ #        push!(degen, parse.(Int, split(readline(f)))...)
+ #    end
+	# close.(fs)
+ #    open(filename) do f
+ #        while !eof(f)
+ #            l = split(readline(f))
+ #            linenr += 1
+ #            rpt = div(linenr - 1, nwanfun^2) + 1
+ #            R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
+ #            if length(out) < rpt
+ #                block = TbBlock(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
+ #                push!(out, block)
+ #            else
+ #                block = out[rpt]
+ #            end
+ #            complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) / degen[rpt]
+ #            block.block[parse(Int, l[4]), parse(Int, l[5])] = complex
+ #        end
+ #        return out
+ #    end
 # end
 
 """

@@ -1,6 +1,7 @@
 #Cleanup don't export everything that doesn't have to be exported
 module DFWannier
 	using Reexport
+
 	@reexport using DFControl
 	using StaticArrays 
 	using RecipesBase
@@ -8,7 +9,10 @@ module DFWannier
 	using InplaceOps
 	using LinearAlgebra
 	using Base.Threads
-	# using BandedMatrices
+	using Documenter
+
+	using BlockBandedMatrices
+
 	include("types.jl")
 	include("wan_calcs.jl")
 	include("hami_calcs.jl")
