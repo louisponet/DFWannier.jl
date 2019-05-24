@@ -108,7 +108,14 @@ get_block(h::TbHami, R::Vec3{Int}) = getfirst(x->x.R_cryst == R, h)
 
 blockdim(h::TbHami) = size(block(h[1]))
 
-empty_block(h::TbHami{T}) where T = Matrix{Complex{T}}(undef, blockdim(h))
+#some small type piracy?
+Base.zeros(m::AbstractArray{T}) where {T} = fill!(similar(m), zero(T))
+
+zeros_block(h::TbHami{T, <:Matrix}) where T = zeros(Complex{T}, blockdim(h))
+zeros_block(h::TbHami{T, <:BlockBandedMatrix}) where T = fill!(similar(block(h[1])), zero(Complex{T}))
+
+similar_block(h::TbHami{T, <:Matrix}) where T = similar(block(h[1]))
+similar_block(h::TbHami{T, <:BlockBandedMatrix}) where T = similar(block(h[1]))
 
 struct RmnBlock{T<:AbstractFloat}
     R_cart  ::Vec3{T}
@@ -251,7 +258,7 @@ wannierbands(n::Int, kpoints::Vector{<:Vec3}) = [WannierBand(kpoints) for i=1:n]
 
 function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
     matdim = blockdim(tbhamis)
-    outbands = wannierbands(matdim, kpoints)
+    outbands = wannierbands(matdim[1], kpoints)
 
     for (i, k) in enumerate(kpoints)
         hami = Hk(tbhamis, k)
@@ -276,8 +283,8 @@ end
 
 @inline cache(t::ThreadCache) = t.caches[threadid()]
 
-Base.getindex(t::ThreadCache{<:AbstractArray}, i...) = cache(t)[i...]
-Base.setindex!(t::ThreadCache{<:AbstractArray{T}}, v::T, i...) where T = cache(t)[i...] = v
+Base.getindex(t::ThreadCache{<:AbstractArray}, i...) = getindex(cache(t), i...)
+Base.setindex!(t::ThreadCache{<:AbstractArray{T}}, v::T, i...) where T = setindex!(cache(t), v, i...)
 Base.copyto!(t::ThreadCache, v) = copyto!(cache(t), v)
 
 +(t::ThreadCache{T}, v::T) where T = cache(t) + v 
@@ -313,3 +320,30 @@ Base.ndims(::Type{ThreadCache{T}}) where {T<:AbstractArray} = ndims(T)
 # Base.broadcast(f, As::ThreadCache...) = broadcast(f, getindex.(getfield.(As, :caches), threadid()))
 Base.Broadcast.broadcastable(tc::ThreadCache{<:AbstractArray}) = cache(tc)
 # Base.Broadcast.BroadcastStyle(::Type{ThreadCache{T}}) where {T<:AbstractArray} = Base.Broadcast.BroadcastStyle(T)
+import LinearAlgebra.LAPACK: syev!, @blasfunc, BlasInt, chkstride1, checksquare, chklapackerror, liblapack
+
+for (syev, elty, relty) in ((:zheev_, :ComplexF64, :Float64), (:cheev_, :ComplexF32, :Float32))
+	@eval function syev!(jobz::AbstractChar, uplo::AbstractChar, A::AbstractMatrix{$elty}, W::AbstractVector{$relty})
+            chkstride1(A)
+            n = checksquare(A)
+            work  = Vector{$elty}(undef, 1)
+            lwork = BlasInt(-1)
+            rwork = Vector{$relty}(undef, max(1, 3n-2))
+            info  = Ref{BlasInt}()
+            for i = 1:2  # first call returns lwork as work[1]
+                ccall((@blasfunc($syev), liblapack), Cvoid,
+                      (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
+                      Ptr{$relty}, Ptr{$elty}, Ref{BlasInt}, Ptr{$relty}, Ptr{BlasInt}),
+                      jobz, uplo, n, A, stride(A,2), W, work, lwork, rwork, info)
+                chklapackerror(info[])
+                if i == 1
+                    lwork = BlasInt(real(work[1]))
+                    resize!(work, lwork)
+                end
+            end
+            jobz == 'V' ? (W, A) : W
+		end
+end
+
+
+
