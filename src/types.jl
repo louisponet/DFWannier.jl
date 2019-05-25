@@ -3,39 +3,84 @@ import DFControl: AbstractAtom, Atom, Element, Projection, element, position, el
 import Base: getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 
-struct WannierFunction{N, T<:AbstractFloat}
+struct WannierFunction{N, T<:AbstractFloat} <: AbstractArray{SVector{N, Complex{T}}, 3}
 	points::Array{Point{3, T}, 3}
 	values::Array{SVector{N, Complex{T}}, 3}
 end
-Base.size(w::WannierFunction) = size(w.points)
 
 function WannierFunction(filename_re::String, filename_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
-	values = [SVector(Complex(a, b)) for (a, b) in zip(read_values_from_xsf(T, filename_re), read_values_from_xsf(T, filename_im))]
+	re, im = read_values_from_xsf.(T, (filename_re, filename_im))
+	values = [SVector(Complex(a, b)) for (a, b) in zip(re, im)]
 	return normalize(WannierFunction(points, values))
 end
 
 function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
-	values = [SVector(Complex(a, b), Complex(c, d)) for (a, b, c, d) in zip(read_values_from_xsf(T, filename_up_re),
-																	              read_values_from_xsf(T, filename_up_im),
-																	              read_values_from_xsf(T, filename_down_re),
-																	              read_values_from_xsf(T, filename_down_im))]
+
+	up_re, up_im, down_re, down_im =
+		read_values_from_xsf.(T, (filename_up_re, filename_up_im, filename_down_re, filename_down_im))
+
+	values = [SVector(Complex(a, b), Complex(c, d)) for (a, b, c, d) in zip(up_re, up_im, down_re, down_im)]
 	return normalize(WannierFunction(points, values))
 end
 
-+(w1::W, w2::W) where {W <: WannierFunction} = W(w1.points, w1.values + w2.values)
--(w1::W, w2::W) where {W <: WannierFunction} = W(w1.points, w1.values - w2.values)
-*(w1::W, f::Number) where {W <: WannierFunction} = W(w1.points, f * w1.values)
-*(f::Number, w1::W) where {W <: WannierFunction}= W(w1.points, f * w1.values)
 
-function LinearAlgebra.norm(wfc::WannierFunction{T}) where T
+values(w::WannierFunction) = w.values
+
+Base.size(x::WannierFunction) = size(values(x))
+
+
+#### AbstractArray Interface
+Base.axes(x::WannierFunction) = Base.axes(values(x))
+
+Base.IndexStyle(x::WannierFunction) = IndexStyle(values(x))
+
+@inline @Base.propagate_inbounds Base.getindex(x::WannierFunction, i...) =
+	getindex(values(x), i...)
+
+@inline @Base.propagate_inbounds Base.setindex!(x::WannierFunction, v, i...) =
+	setindex!(values(x), v, i...)
+
+function Base.similar(x::WannierFunction,::Type{S}) where S
+  WannierFunction(x.points, similar(values(x), S))
+end
+
+Base.strides(x::WannierFunction) = strides(values(x))
+
+Base.unsafe_convert(T::Type{<:Ptr}, x::WannierFunction) = unsafe_convert(T, values(x))
+
+Base.stride(x::WannierFunction, i::Int) = stride(values(x), i)
+
+Base.ndims(::Type{WannierFunction}) = 3
+
+Base.Broadcast.broadcastable(w::WannierFunction) = values(w)
+
+#### LinearAlgebra overloads
+function LinearAlgebra.adjoint(w::WannierFunction)
+	out = WannierFunction(w.points, similar(values(w)))
+	adjoint!(out, w)
+end
+
+LinearAlgebra.adjoint!(w1::WannierFunction, w2::WannierFunction) = w1 .= adjoint.(w2)
+
+function LinearAlgebra.dot(w1::WannierFunction{T}, w2::WannierFunction{T}) where {T}
     s = zero(T)
-    for v in wfc.values
-        s += v' * v
+    for (v1, v2) in zip(values(w1), values(w2))
+        s += v1' * v2
     end
     return real(s)
 end
 
-LinearAlgebra.normalize(wfc::WannierFunction) = WannierFunction(wfc.points, wfc.values ./= sqrt(norm(wfc)))
+LinearAlgebra.norm(wfc::WannierFunction) = dot(wfc, wfc)
+LinearAlgebra.normalize(wfc::WannierFunction) = wfc ./= sqrt(norm(wfc))
+
+####
+
+same_grid(w1::WannierFunction, w2::WannierFunction) = w1.points === w2.points 
+
+function wan_op(op::Function, w1::W, w2::W) where {W <: WannierFunction}
+	@assert same_grid(w1, w2) "Wannier functions are not defined on the same grid"
+	op(w1, w2)
+end
 
 struct OperatorBlock{T <: AbstractFloat}
 	L::Vector{Matrix{Complex{T}}}
