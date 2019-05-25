@@ -23,7 +23,7 @@ function sorted_eig!(out_vals::Vector{T}, out_vecs::BlockBandedMatrix{Complex{T}
 	b_ranges = [1:div(dim, 2), div(dim, 2)+1:dim]
 	for j=1:2
 		b = Block(j,j)
-	    @time out_vals[b_ranges[j]], out_vecs[b] = LAPACK.syevr!('V', 'A', 'U', m[b], 0.0, 0.0, 0, 0, -1.0)
+	    out_vals[b_ranges[j]], out_vecs[b] = syev!('V','U', m[b])
     end
     return out_vals, out_vecs
 end

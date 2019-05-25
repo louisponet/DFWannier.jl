@@ -320,30 +320,7 @@ Base.ndims(::Type{ThreadCache{T}}) where {T<:AbstractArray} = ndims(T)
 # Base.broadcast(f, As::ThreadCache...) = broadcast(f, getindex.(getfield.(As, :caches), threadid()))
 Base.Broadcast.broadcastable(tc::ThreadCache{<:AbstractArray}) = cache(tc)
 # Base.Broadcast.BroadcastStyle(::Type{ThreadCache{T}}) where {T<:AbstractArray} = Base.Broadcast.BroadcastStyle(T)
-import LinearAlgebra.LAPACK: syev!, @blasfunc, BlasInt, chkstride1, checksquare, chklapackerror, liblapack
 
-for (syev, elty, relty) in ((:zheev_, :ComplexF64, :Float64), (:cheev_, :ComplexF32, :Float32))
-	@eval function syev!(jobz::AbstractChar, uplo::AbstractChar, A::AbstractMatrix{$elty}, W::AbstractVector{$relty})
-            chkstride1(A)
-            n = checksquare(A)
-            work  = Vector{$elty}(undef, 1)
-            lwork = BlasInt(-1)
-            rwork = Vector{$relty}(undef, max(1, 3n-2))
-            info  = Ref{BlasInt}()
-            for i = 1:2  # first call returns lwork as work[1]
-                ccall((@blasfunc($syev), liblapack), Cvoid,
-                      (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
-                      Ptr{$relty}, Ptr{$elty}, Ref{BlasInt}, Ptr{$relty}, Ptr{BlasInt}),
-                      jobz, uplo, n, A, stride(A,2), W, work, lwork, rwork, info)
-                chklapackerror(info[])
-                if i == 1
-                    lwork = BlasInt(real(work[1]))
-                    resize!(work, lwork)
-                end
-            end
-            jobz == 'V' ? (W, A) : W
-		end
-end
 
 
 

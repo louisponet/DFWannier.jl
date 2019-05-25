@@ -71,7 +71,10 @@ function DHvecvals(hami::TbHami{T, BlockBandedMatrix{Complex{T}}}, k_grid::Abstr
     Hvecs = [zeros_block(hami) for i=1:nk]
     Hvals = [Vector{T}(undef, dim[1]) for i=1:nk]
     D     = ThreadCache(zeros_block(hami))
-	calc_caches = [zeros(T, d2) for i=1:nthreads()]
+	work_caches  = [zeros(T, d2) for i=1:nthreads()]
+    rwork_caches = [zeros(T, 3d2-2) for i=1:nthreads()]
+
+    lwork = 
     # @threads for i=1:length(k_grid)
     for i=1:length(k_grid)
 	    tid = threadid()
@@ -81,10 +84,12 @@ function DHvecvals(hami::TbHami{T, BlockBandedMatrix{Complex{T}}}, k_grid::Abstr
         hvk = Hvecs[i]
         Hk!(hvk, hami, k_grid[i])
         D.caches[tid].data .+= hvk.data
-        for j = 1:2
+        @time for j = 1:2
 	        b = Block(j, j)
+	        hb = view(hvk, b)
 	        # syev!('V', 'U', hvk[b_ranges[1],b_ranges[1]], calc_caches[1])
-	        # Hvals[i][b_ranges[j]], hvk[b] = syev!('V', 'U', view(hvk,b), calc_caches[1])
+
+	        Hvals[i][b_ranges[j]], hvk[b] = syev!('V', 'U', hb, work_caches[tid], rwork_caches[tid])
         end
     end
 	Ds = sum(D)
@@ -137,7 +142,7 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
 end
 
 function integrate_Gk!(G::ThreadCache{<:BlockBandedMatrix}, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
-    dim = size(G)[1]
+    dim = size(G, 1)
    	dim_2 = div(dim, 2) 
 	cache1, cache2, cache3 = caches
 
@@ -179,7 +184,7 @@ end
 #     k_grid   = [Vec3(kx, ky, kz) for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
 
 #     Hvecs, Hvals, D = DHvecvals(hamis, k_grid)
-#     n_orb = size(D)[1]
+#     n_orb = size(D, 1)
 
 #     ω_grid    = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
 #     exchanges = setup_exchanges(atoms, orbitals)
@@ -276,9 +281,12 @@ function DHvecvals(hami::TbHami{T, Matrix{Complex{T}}}, k_grid::AbstractArray{Ve
 	nk        = length(k_grid)
     Hvecs     = [zeros_block(hami) for i=1:nk]
     Hvals     = [Vector{T}(undef, blockdim(hami)[1]) for i=1:nk]
+    # Hvals     = [Vector{Complex{T}}(undef, blockdim(hami)[1]) for i=1:nk]
     δH_onsite = ThreadCache([[zeros(Complex{T}, orbsize(projection), orbsize(projection)) for i=1:3] for projection in all_projections])
-	calc_caches = [zeros(T, blockdim(hami)[1]) for i=1:nthreads()]
+	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
     @threads for i=1:nk
+    # for i=1:nk
+	    tid = threadid()
         # Hvecs[i] is used as a temporary cache to store H(k) in. Since we
         # don't need H(k) but only Hvecs etc, this is ok.
         Hk!(Hvecs[i], hami, k_grid[i])
@@ -287,7 +295,8 @@ function DHvecvals(hami::TbHami{T, Matrix{Complex{T}}}, k_grid::AbstractArray{Ve
         for (δh, projection, j) in zip(δH_onsite, all_projections, all_Js)
 	        δh .+= commutator.((view(Hvecs[i], range(projection), range(projection)),), j)
         end
-        Hvals[i], Hvecs[i] = syev!('V', 'U', Hvecs[i])
+        # Hvals[i], Hvecs[i] = eigen(Hvecs[i])
+        eigen!(Hvals[i], Hvecs[i], calc_caches[tid])
     end
     return Hvecs, Hvals, sum(δH_onsite.caches)./nk
 end
@@ -295,7 +304,7 @@ end
 commutator(A1, A2) where T = A1*A2 - A2*A1
  
 function integrate_Gk!(G_forward::ThreadCache, G_backward::ThreadCache, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
-    dim = size(G_forward)[1]
+    dim = size(G_forward, 1)
 	cache1, cache2, cache3 = caches
 
     @threads for ik=1:length(kgrid)

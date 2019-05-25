@@ -12,7 +12,7 @@ module DFWannier
 	using Documenter
 
 	using BlockBandedMatrices
-
+	include("linalg.jl")
 	include("types.jl")
 	include("wan_calcs.jl")
 	include("hami_calcs.jl")
