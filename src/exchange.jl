@@ -71,12 +71,9 @@ function DHvecvals(hami::TbHami{T, BlockBandedMatrix{Complex{T}}}, k_grid::Abstr
     Hvecs = [zeros_block(hami) for i=1:nk]
     Hvals = [Vector{T}(undef, dim[1]) for i=1:nk]
     D     = ThreadCache(zeros_block(hami))
-	work_caches  = [zeros(T, d2) for i=1:nthreads()]
-    rwork_caches = [zeros(T, 3d2-2) for i=1:nthreads()]
-
-    lwork = 
-    # @threads for i=1:length(k_grid)
-    for i=1:length(k_grid)
+	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
+    @threads for i=1:length(k_grid)
+    # for i=1:length(k_grid)
 	    tid = threadid()
         #= Hvecs[j][i] is used as a temporary cache to store H(k) in. Since we
         don't need H(k) but only Hvecs etc, this is ok.
@@ -84,13 +81,7 @@ function DHvecvals(hami::TbHami{T, BlockBandedMatrix{Complex{T}}}, k_grid::Abstr
         hvk = Hvecs[i]
         Hk!(hvk, hami, k_grid[i])
         D.caches[tid].data .+= hvk.data
-        @time for j = 1:2
-	        b = Block(j, j)
-	        hb = view(hvk, b)
-	        # syev!('V', 'U', hvk[b_ranges[1],b_ranges[1]], calc_caches[1])
-
-	        Hvals[i][b_ranges[j]], hvk[b] = syev!('V', 'U', hb, work_caches[tid], rwork_caches[tid])
-        end
+        eigen!(Hvals[i], Hvecs[i], calc_caches[tid])
     end
 	Ds = sum(D)
 

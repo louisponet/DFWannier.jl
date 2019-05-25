@@ -1,37 +1,5 @@
 div1(x, y) = div(x - 1, y) + 1
 
-function sorted_eigt(hami::Matrix)
-    eigs, eigvec = (eigen(hami)...,)
-    out_eig      = similar(eigs)
-    out_vec      = similar(eigvec)
-    perm         = sortperm(real(eigs))
-    for (i, p) in enumerate(perm)
-	    out_vec[:, i] = eigvec[:,p]
-	    out_eig[i]   = eigs[p]
-    end
-    return out_eig, out_vec
-end
-
-function sorted_eig(m::AbstractMatrix{Complex{T}}) where {T}
-	out_vecs = zeros(m)
-	out_vals = zeros(T, size(m)[1])
-    return sorted_eig!(out_vals, out_vecs, m)
-end
-
-function sorted_eig!(out_vals::Vector{T}, out_vecs::BlockBandedMatrix{Complex{T}}, m::BlockBandedMatrix{Complex{T}}) where {T}
-	dim = size(m)[1]
-	b_ranges = [1:div(dim, 2), div(dim, 2)+1:dim]
-	for j=1:2
-		b = Block(j,j)
-	    out_vals[b_ranges[j]], out_vecs[b] = syev!('V','U', m[b])
-    end
-    return out_vals, out_vecs
-end
-
-sorted_eig!(out_vals::Vector{T}, out_vecs::Matrix{Complex{T}}, m::Matrix{Complex{T}}) where {T} =
-	out_vals, out_vecs = LAPACK.syevr!('V', 'A', 'U', m, 0.0, 0.0, 0, 0, -1.0)
-
-
 w_eachindex(m::Matrix) = eachindex(m)
 w_eachindex(m::BlockBandedMatrix) = eachindex()
 
@@ -46,7 +14,7 @@ function Hk!(out::M, tbhami::TbHami{T, M}, kpoint::Vec3{T}) where {T, M <: Abstr
 	    fac = ℯ^(-2im*pi*(b.R_cryst ⋅ kpoint))
         Hk_sum!(out, block(b), fac)
     end
-    for i=1:size(out)[1]
+    for i=1:size(out, 1)
         out[i,i] = real(out[i,i]) + 0.0im
     end
 end

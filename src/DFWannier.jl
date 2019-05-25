@@ -10,6 +10,7 @@ module DFWannier
 	using LinearAlgebra
 	using Base.Threads
 	using Documenter
+	using Parameters
 
 	using BlockBandedMatrices
 	include("linalg.jl")

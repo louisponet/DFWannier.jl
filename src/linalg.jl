@@ -1,9 +1,9 @@
 import LinearAlgebra.LAPACK: syev!, @blasfunc, BlasInt, chkstride1, checksquare, chklapackerror, liblapack
-
+import LinearAlgebra: eigen, eigen!
 
 # We use Upper Triangular blas for everything! And Eigvals are always all calculated
 function blas_eig_ccall(A     ::AbstractMatrix{ComplexF32},
-	                    W     ::Vector{Float32},
+	                    W     ::AbstractVector{Float32},
                         work  ::Vector{ComplexF32},
                         lwork ::BlasInt,
                         rwork ::Vector{Float32},
@@ -17,7 +17,7 @@ function blas_eig_ccall(A     ::AbstractMatrix{ComplexF32},
 	chklapackerror(info[])
 end
 function blas_eig_ccall(A     ::AbstractMatrix{ComplexF64},
-	                    W     ::Vector{Float64},
+	                    W     ::AbstractVector{Float64},
                         work  ::Vector{ComplexF64},
                         lwork ::BlasInt,
                         rwork ::Vector{Float64},
@@ -31,7 +31,8 @@ function blas_eig_ccall(A     ::AbstractMatrix{ComplexF64},
 	chklapackerror(info[])
 end
 
-
+# We are going to use the same cache for both blocks of our BlockBandMatrices.
+# Then we diagonalize first the first block then the second.
 struct EigCache{T <: AbstractFloat}
 	work   ::Vector{Complex{T}}
 	lwork  ::BlasInt
@@ -54,15 +55,24 @@ struct EigCache{T <: AbstractFloat}
 	    return new{relty}(work, lwork, rwork, n, info)
     end
 end
+EigCache(A::BlockBandedMatrix) = EigCache(A[Block(1,1)])
 
-function LinearAlgebra.eigen!(vals::Vector{T}, vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
+function eigen!(vals::AbstractVector{T}, vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
 	blas_eig_ccall(vecs, vals, c.work, c.lwork, c.rwork, c.n, c.info)
 	return Eigen(vals, vecs)
 end
 
-function LinearAlgebra.eigen(vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
-	out = copy(vecs)
-	vals = similar(out, T, size(out, 1))
-	blas_eig_ccall(out, vals, c.work, c.lwork, c.rwork, c.n, c.info)
-	return Eigen(vals, out)
+function eigen!(vals::AbstractVector{T}, vecs::BlockBandedMatrix{Complex{T}}, c::EigCache{T}) where {T}
+    for j = 1:2
+        eigen!(view(vals, (j - 1) * c.n + 1 : j * c.n), view(vecs, Block(j, j)), c)
+    end
+	return Eigen(vals, vecs)
 end
+
+function eigen(vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
+	out  = copy(vecs)
+	vals = similar(out, T, size(out, 1))
+	return eigen!(vals, out, c)
+end
+
+

@@ -37,17 +37,6 @@ end
 
 LinearAlgebra.normalize(wfc::WannierFunction) = WannierFunction(wfc.points, wfc.values ./= sqrt(norm(wfc)))
 
-# Base.@kwdef struct OperatorBlock{T <: AbstractFloat}
-# 	projection ::Projection
-# 	L::Vector{Matrix{Complex{T}}} =
-# 		[zeros(Complex{T}, orbsize(projection), orbsize(projection))
-# 		      for i = 1:3]
-# 	S::Vector{Matrix{Complex{T}}} =
-# 		[zeros(Complex{T}, orbsize(projection), orbsize(projection))
-# 		      for i = 1:3]
-#     J::Vector{Matrix{Complex{T}}} = L .+ S
-
-
 struct OperatorBlock{T <: AbstractFloat}
 	L::Vector{Matrix{Complex{T}}}
 	S::Vector{Matrix{Complex{T}}}
@@ -60,27 +49,9 @@ struct WanAtom{T <: AbstractFloat} <: AbstractAtom{T}
 end
 
 Base.getindex(at::WanAtom, s::Symbol) = getindex(at.wandata, s::Symbol)
-# WanAtom(atom::Atom{T}, lsoc::T, wfcs::Vector{Array{WfcPoint3{T}, 3}}, magmoment::Vec3{T}) where T<:AbstractFloat =
-#     WanAtom(atom, WanAtData(lsoc, wfcs, magmoment, zeros(Vec3{Complex{T}}, 1, 1)))
-# WanAtom(atom::Atom{T}, magmoment::Vec3{T}) where T<:AbstractFloat =
-#     WanAtom(atom, WanAtData(zero(T), Array{WfcPoint3{T}, 3}[], magmoment, zeros(Vec3{Complex{T}}, 1, 1)))
-# WanAtom(atom::Atom{T}) where T<:AbstractFloat =
-#     WanAtom(atom, WanAtData(zero(T), Array{WfcPoint3{T}, 3}[], zero(Vec3{T}), zeros(Vec3{Complex{T}}, 1, 1)))
-# WanAtom(atom_::WanAtom, args...) =
-#     WanAtom(atom(atom_), args...)
 
 # #implementation of the AbstractAtom interface
 atom(at::WanAtom) = at.atom
-
-# lsoc(atom::WanAtom)                     = atom.wandata.lsoc
-# wfcs(atom::WanAtom)                     = atom.wandata.wfcs
-# magmoment(atom::WanAtom)                = atom.wandata.magmoment
-# angmom(atom::WanAtom)                   = atom.wandata.angmom
-# setlsoc!(atom::WanAtom, lsoc)           = (atom.wandata.lsoc      = lsoc)
-# setwfcs!(atom::WanAtom, wfcs)           = (atom.wandata.wfcs      = wfcs)
-# setmagmoment!(atom::WanAtom, magmoment) = (atom.wandata.magmoment = magmoment)
-# setangmom!(atom::WanAtom, angmom)       = (atom.wandata.angmom    = angmom)
-# clearangmom!(atom::WanAtom)             = setangmom!(atom, zero(angmom(atom)))
 
 import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, read_wannier_output
 struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}}
@@ -101,12 +72,11 @@ Base.similar(h::TbBlock) = similar(block(h))
 LinearAlgebra.eigen(h::TbBlock) = eigen(block(h))
 
 
-
 const TbHami{T, M}  = Vector{TbBlock{T, M}}
 
 get_block(h::TbHami, R::Vec3{Int}) = getfirst(x->x.R_cryst == R, h)
 
-blockdim(h::TbHami) = size(block(h[1]))
+blockdim(h::TbHami, args...) = size(block(h[1]), args...)
 
 #some small type piracy?
 Base.zeros(m::AbstractArray{T}) where {T} = fill!(similar(m), zero(T))
@@ -240,34 +210,37 @@ end
 # end
 
 "Holds all the calculated values from a wannier model."
-mutable struct WannierBand{T<:AbstractFloat} <: Band
-    eigvals  ::Vector{T}
-    eigvec   ::Vector{Vector{Complex{T}}}
-    cms      ::Vector{Point3{T}}
-    angmoms  ::Vector{Vector{Point3{T}}}
-    spins    ::Vector{Vector{Point3{T}}}
-    k_points ::Vector{Vec3{T}}
+@with_kw mutable struct WannierBand{T<:AbstractFloat} <: Band
+    k_points_cryst ::Vector{Vec3{T}}
+    eigvals        ::Vector{T}
+    eigvec         ::Vector{Vector{Complex{T}}}
+    cms      ::Vector{Point3{T}} = Point3{T}[]
+    angmoms  ::Vector{Vector{Point3{T}}} = Vector{Point3{T}}[]
+    spins    ::Vector{Vector{Point3{T}}} = Vector{Point3{T}}[]
 end
 
-function WannierBand(kpoints::Vector{Vec3{T}}) where T
+function WannierBand(kpoints::Vector{Vec3{T}}, dim::Int) where T
     klen = length(kpoints)
-    WannierBand{T}(zeros(T, klen), fill([zero(Complex{T})], klen), zeros(Point3{T}, klen), fill([zero(Point3{T})], klen), fill([zero(Point3{T})], klen), kpoints)
+    WannierBand{T}(k_points_cryst=kpoints, eigvals=zeros(T, klen), eigvec=[zeros(Complex{T}, dim) for k=1:klen])
 end
 
-wannierbands(n::Int, kpoints::Vector{<:Vec3}) = [WannierBand(kpoints) for i=1:n]
+wannierbands(kpoints::Vector{<:Vec3}, dim::Int) = [WannierBand(kpoints, dim) for i=1:dim]
 
 function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
-    matdim = blockdim(tbhamis)
-    outbands = wannierbands(matdim[1], kpoints)
+    matdim = blockdim(tbhamis, 1)
+    outbands = wannierbands(kpoints, matdim)
+	calc_caches = [EigCache(block(tbhamis[1])) for i = 1:nthreads()]
 
-    for (i, k) in enumerate(kpoints)
+    @threads for i = 1:length(kpoints)
+	    tid  = threadid()
+	    k    = kpoints[i]
+	    c    = calc_caches[tid]
         hami = Hk(tbhamis, k)
-        eigvals, eigvecs = sorted_eig(hami)
-        eigvals_k = real(eigvals)
-        for e=1:length(eigvals_k)
-            outbands[e].eigvals[i] = eigvals_k[e]
+        eigvals, eigvecs = eigen(hami, c)
+        for e=1:length(eigvals)
+            outbands[e].eigvals[i] = eigvals[e]
             outbands[e].eigvec[i] = eigvecs[:,e]
-            outbands[e].k_points[i] = k
+            outbands[e].k_points_cryst[i] = k
         end
     end
     return outbands
