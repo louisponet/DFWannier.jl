@@ -150,15 +150,15 @@ function read_colin_hamis(upfile::String, downfile::String, structure::AbstractS
 	uphami   = readhami(upfile, structure)
 	downhami = readhami(downfile, structure)
 	dim = blockdim(uphami)
+	CT = Complex{T}
 	@assert dim == blockdim(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
 
 	u1 = uphami[1]
 	d1 = downhami[1]
-	first = TbBlock(u1.R_cart, u1.R_cryst, BlockBandedMatrix([block(u1) similar(u1); similar(d1) block(d1)],
-                              ([dim...], [dim...]), (0, 0)))
+	first = TbBlock(u1.R_cart, u1.R_cryst, [block(u1) zeros(CT, size(u1)); zeros(CT, size(d1)) block(d1)])
 	outhami  = [first]
 	for (u, d) in zip(uphami[2:end], downhami[2:end])
-		tmat = BlockBandedMatrix([block(u) similar(u); similar(d) block(d)], ([dim...], [dim...]), (0, 0))
+		tmat = [block(u) zeros(CT, size(u)); zeros(CT, size(d)) block(d)]
 		push!(outhami, TbBlock(u.R_cart, u.R_cryst, tmat))
 	end
 	return outhami

@@ -314,7 +314,8 @@ Base.copyto!(t::ThreadCache, v) = copyto!(cache(t), v)
 *(v::T, t::ThreadCache{T}) where T = v / cache(t)  
 /(v::T, t::ThreadCache{T}) where T = v + cache(t)
 
-Base.size(t::ThreadCache)       = size(cache(t))
+Base.size(t::ThreadCache, i...)       = size(cache(t), i...)
+
 Base.length(t::ThreadCache)     = length(cache(t))
 Base.iterate(t::ThreadCache)    = iterate(cache(t))
 Base.iterate(t::ThreadCache, p) = iterate(cache(t), p)

@@ -28,7 +28,7 @@ function calc_exchanges(hami,  atoms, fermi::T;
                         nk::NTuple{3, Int} = (10, 10, 10),
                         R                  = Vec3(0, 0, 0),
                         ωh::T              = T(-30.), #starting energy
-                        ωv::T              = T(0.1), #height of vertical contour
+                        ωv::T              = T(0.001), #height of vertical contour
                         n_ωh::Int          = 3000,
                         n_ωv::Int          = 500,
                         temp::T            = T(0.01)) where T <: AbstractFloat
@@ -36,9 +36,11 @@ function calc_exchanges(hami,  atoms, fermi::T;
     μ               = fermi
     k_grid          = uniform_shifted_kgrid(nk...)
     ω_grid          = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
+    
     exchanges       = setup_exchanges(atoms)
 
     Hvecs, Hvals, D = DHvecvals(hami, k_grid)
+
 
     calc_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
     return exchanges
@@ -81,7 +83,7 @@ function DHvecvals(hami::TbHami{T, BlockBandedMatrix{Complex{T}}}, k_grid::Abstr
         hvk = Hvecs[i]
         Hk!(hvk, hami, k_grid[i])
         D.caches[tid].data .+= hvk.data
-        eigen!(Hvals[i], Hvecs[i], calc_caches[tid])
+        eigen!(Hvals[i], hvk, calc_caches[tid])
     end
 	Ds = sum(D)
 
@@ -132,13 +134,13 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
     end
 end
 
-function integrate_Gk!(G::ThreadCache{<:BlockBandedMatrix}, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
+function integrate_Gk!(G::ThreadCache{<:Matrix}, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
     dim = size(G, 1)
    	dim_2 = div(dim, 2) 
 	cache1, cache2, cache3 = caches
 
-    @threads for ik=1:length(kgrid)
-    # for ik=1:length(kgrid)
+    # @threads for ik=1:length(kgrid)
+    for ik=1:length(kgrid)
 	    tid = threadid()
 	    # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(T))
@@ -151,61 +153,12 @@ function integrate_Gk!(G::ThreadCache{<:BlockBandedMatrix}, ω::T, μ, Hvecs, Hv
         mul!(cache1, cache2, cache3)
 		t = exp(2im * π * dot(R, kgrid[ik]))
 		tp = t'
-		for j = 1:dim_2, k = 1:dim_2
-	        G[j, k] += cache1[j, k] * t
-	        G[dim_2+j, dim_2+k] += cache1[dim_2+j, dim_2+k] * tp
-        end
+		cache(G).data .+= cache(cache1).data
+		cache(G)[Block(1,1)] *= t
+		cache(G)[Block(2,2)] *= tp
     end
     G.caches  ./= length(kgrid)
 end
-# function calcexchanges(hamis,  structure::Structure, fermi::T;
-#                              nk::NTuple{3, Int} = (10, 10, 10),
-#                              R                  = Vec3(0, 0, 0),
-#                              ωh::T              = T(-30.), #starting energy
-#                              ωv::T              = T(0.1), #height of vertical contour
-#                              n_ωh::Int          = 300,
-#                              n_ωv::Int          = 50,
-#                              temp::T            = T(0.01),
-#                              orbitals::Array{Symbol, 1} = [:d, :f]) where T <: AbstractFloat
-#     orbitals = orbital.(orbitals)
-#     @assert !all(isempty.(projections.(DFControl.atoms(structure)))) "Please read a valid wannier file for structure with projections."
-#     nth      = Threads.nthreads()
-#     μ        = fermi
-#     atoms    = structure.atoms
-#     k_grid   = [Vec3(kx, ky, kz) for kx = 0.5/nk[1]:1/nk[1]:1, ky = 0.5/nk[2]:1/nk[2]:1, kz = 0.5/nk[3]:1/nk[3]:1]
-
-#     Hvecs, Hvals, D = DHvecvals(hamis, k_grid)
-#     n_orb = size(D, 1)
-
-#     ω_grid    = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
-#     exchanges = setup_exchanges(atoms, orbitals)
-
-#     t_js                      = [[zeros(T, size(e.J)) for t=1:nth] for e in exchanges]
-#     caches1, caches2, caches3 = [[zeros(Complex{T}, n_orb, n_orb) for t=1:nth] for i=1:3]
-#     totocc_t                  = [zero(Complex{T}) for t=1:nth]
-#     gs                        = [[zeros(Complex{T}, n_orb, n_orb) for n=1:2] for t  =1:nth]
-#     # Threads.@threads for j=1:length(ω_grid[1:end-1])
-#     Threads.@threads for j=1:length(ω_grid[1:end-1])
-#         tid = Threads.threadid()
-#         ω   = ω_grid[j]
-#         dω  = ω_grid[j + 1] - ω
-#         g   = gs[tid]
-#         for s = 1:2
-#             R_ = (-1)^(s-1) * R #R for spin up (-1)^(0) == 1, -R for spin down
-#             G!(g[s], caches1[tid], caches2[tid], caches3[tid], ω, μ, Hvecs[s], Hvals[s], R_, k_grid)
-#         end
-#         for (eid, exch) in enumerate(exchanges)
-#             rm = range(exch.proj1)
-#             rn = range(exch.proj2)
-#             t_js[eid][tid] .+= sign(real(tr(view(D, rm, rm)))) .* sign(real(tr(view(D,rn, rn)))) .* imag(view(D,rm, rm) * view(g[1],rm, rn) * view(D,rn, rn) * view(g[2],rn, rm) * dω)
-#         end
-#     end
-#     for (eid, exch) in enumerate(exchanges)
-#         exch.J = 1e3 / (2π * length(k_grid)^2) * sum(t_js[eid])
-#     end
-#     structure.data[:totocc] = real(totocc(Hvals, fermi, temp))
-#     structure.data[:exchanges] = exchanges
-# end
 
 mutable struct AnisotropicExchange{T <: AbstractFloat}
     J       ::Matrix{Matrix{T}}
