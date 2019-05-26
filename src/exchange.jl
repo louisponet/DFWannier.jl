@@ -39,7 +39,7 @@ function calc_exchanges(hami,  atoms, fermi::T;
     
     exchanges       = setup_exchanges(atoms)
 
-    Hvecs, Hvals, D = DHvecvals(hami, k_grid)
+    @time Hvecs, Hvals, D = DHvecvals(hami, k_grid)
 
 
     calc_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
@@ -58,12 +58,12 @@ end
 
 
 @doc raw"""
-	DHvecvals(hami::TbHami{T, BandedBlockBandedMatrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
+	DHvecvals(hami::TbHami{T, Matrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
 
 Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
 `hami` should be a BandedBlockBandedMatrix with $H_{up}, H_{down}$ blocks on the diagonal.
 """
-function DHvecvals(hami::TbHami{T, BlockBandedMatrix{Complex{T}}}, k_grid::AbstractArray{Vec3{T}}) where T <: AbstractFloat
+function DHvecvals(hami::TbHami{T, Matrix{Complex{T}}}, k_grid::AbstractArray{Vec3{T}}) where T <: AbstractFloat
 	dim   = blockdim(hami)[1]
 	d2    = div(dim, 2)
 
@@ -74,20 +74,20 @@ function DHvecvals(hami::TbHami{T, BlockBandedMatrix{Complex{T}}}, k_grid::Abstr
     Hvals = [Vector{T}(undef, dim[1]) for i=1:nk]
     D     = ThreadCache(zeros_block(hami))
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
-    @threads for i=1:length(k_grid)
-    # for i=1:length(k_grid)
+    # @threads for i=1:length(k_grid)
+    for i=1:length(k_grid)
 	    tid = threadid()
         #= Hvecs[j][i] is used as a temporary cache to store H(k) in. Since we
         don't need H(k) but only Hvecs etc, this is ok.
         =#
         hvk = Hvecs[i]
         Hk!(hvk, hami, k_grid[i])
-        D.caches[tid].data .+= hvk.data
+        D.+= hvk
         eigen!(Hvals[i], hvk, calc_caches[tid])
     end
 	Ds = sum(D)
 
-    return Hvecs, Hvals, (Ds[Block(1,1)] - Ds[Block(2,2)])/length(k_grid)
+    return Hvecs, Hvals, (Ds[b_ranges[1], b_ranges[1]] - Ds[b_ranges[2], b_ranges[2]])/length(k_grid)
 end
 
 function calc_exchanges!(exchanges::Vector{Exchange{T}},
@@ -95,20 +95,20 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
 	                                 R         ::Vec3,
 	                                 k_grid    ::AbstractArray{Vec3{T}},
 	                                 ω_grid    ::AbstractArray{Complex{T}},
-	                                 Hvecs     ::Vector{BlockBandedMatrix{Complex{T}}},
+	                                 Hvecs     ::Vector{Matrix{Complex{T}}},
 	                                 Hvals     ::Vector{Vector{T}},
 	                                 D         ::Matrix{Complex{T}}) where T <: AbstractFloat
     dim      = size(Hvecs[1])
+    d2      = div(dim[1], 2)
     J_caches = [ThreadCache(zeros(T, size(e.J))) for e in exchanges]
     g_caches = [ThreadCache(fill!(similar(Hvecs[1]), zero(Complex{T}))) for i=1:3]
     G = ThreadCache(fill!(similar(Hvecs[1]), zero(Complex{T})))
     function iGk!(ω)
 	    fill!(G, zero(Complex{T}))
-        integrate_Gk!(G, ω, μ, Hvecs, Hvals, R, k_grid, g_caches)
+        integrate_Gk!(cache(G), ω, μ, Hvecs, Hvals, R, k_grid, cache.(g_caches))
     end
-
-    # @threads for j=1:length(ω_grid[1:end-1])
-    for j=1:length(ω_grid[1:end-1])
+	
+    @threads for j=1:length(ω_grid[1:end-1])
         ω   = ω_grid[j]
         dω  = ω_grid[j + 1] - ω
         iGk!(ω)
@@ -122,9 +122,9 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
             J_caches[eid] .+= sign(real(tr(D_rm))) .*
                               sign(real(tr(D_rn))) .*
                               imag.(D_rm *
-                                    view(G[Block(1, 1)], rm, rn) *
+                                    view(cache(G), rm, rn) *
                                     D_rn *
-                                    view(G[Block(2,2)], rn, rm) *
+                                    view(cache(G), rn.+d2, rm.+d2) *
                                     dω)
         end
     end
@@ -134,14 +134,13 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
     end
 end
 
-function integrate_Gk!(G::ThreadCache{<:Matrix}, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
+function integrate_Gk!(G::Matrix, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
     dim = size(G, 1)
    	dim_2 = div(dim, 2) 
 	cache1, cache2, cache3 = caches
 
-    # @threads for ik=1:length(kgrid)
+	b_ranges = [1:dim_2, dim_2+1:dim]
     for ik=1:length(kgrid)
-	    tid = threadid()
 	    # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(T))
         for x=1:dim
@@ -153,11 +152,14 @@ function integrate_Gk!(G::ThreadCache{<:Matrix}, ω::T, μ, Hvecs, Hvals, R, kgr
         mul!(cache1, cache2, cache3)
 		t = exp(2im * π * dot(R, kgrid[ik]))
 		tp = t'
-		cache(G).data .+= cache(cache1).data
-		cache(G)[Block(1,1)] *= t
-		cache(G)[Block(2,2)] *= tp
+		for i in b_ranges[1], j in b_ranges[1]
+			G[j, i] += cache1[j, i] * t
+		end
+		for i in b_ranges[2], j in b_ranges[2]
+			G[j, i] += cache1[j, i] * tp
+		end
     end
-    G.caches  ./= length(kgrid)
+    G  ./= length(kgrid)
 end
 
 mutable struct AnisotropicExchange{T <: AbstractFloat}
