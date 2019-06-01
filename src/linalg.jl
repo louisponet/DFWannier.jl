@@ -86,7 +86,7 @@ end
 end
 
 # We use Upper Triangular blas for everything! And Eigvals are always all calculated
-function blas_eig_ccall(A     ::AbstractMatrix{ComplexF32},
+@inline function blas_eig_ccall(A     ::AbstractMatrix{ComplexF32},
 	                    W     ::AbstractVector{Float32},
                         work  ::Vector{ComplexF32},
                         lwork ::BlasInt,
@@ -100,7 +100,7 @@ function blas_eig_ccall(A     ::AbstractMatrix{ComplexF32},
 	          'V', 'U', n, A, n, W, work, lwork, rwork, info)
 	chklapackerror(info[])
 end
-function blas_eig_ccall(A     ::AbstractMatrix{ComplexF64},
+@inline function blas_eig_ccall(A     ::AbstractMatrix{ComplexF64},
 	                    W     ::AbstractVector{Float64},
                         work  ::Vector{ComplexF64},
                         lwork ::BlasInt,
@@ -139,19 +139,19 @@ struct EigCache{T <: AbstractFloat}
 end
 EigCache(A::ColinMatrix) = EigCache(up(A))
 
-function eigen!(vals::AbstractVector{T}, vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
+@inline function eigen!(vals::AbstractVector{T}, vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
 	blas_eig_ccall(vecs, vals, c.work, c.lwork, c.rwork, c.n, c.info)
 	return Eigen(vals, vecs)
 end
 
-function eigen!(vals::AbstractVector{T}, vecs::ColinMatrix{Complex{T}}, c::EigCache{T}) where {T}
+@inline function eigen!(vals::AbstractVector{T}, vecs::ColinMatrix{Complex{T}}, c::EigCache{T}) where {T}
     eigen!(view(vals, 1:c.n), up(vecs), c)
     eigen!(view(vals, c.n+1:2*c.n), down(vecs), c)
 	return Eigen(vals, vecs)
 end
 
 
-function eigen(vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
+@inline function eigen(vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
 	out  = copy(vecs)
 	vals = similar(out, T, size(out, 2))
 	return eigen!(vals, out, c)
