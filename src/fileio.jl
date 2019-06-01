@@ -149,16 +149,16 @@ Returns an array of tuples that define the hopping parameters of the Wannier Tig
 function read_colin_hamis(upfile::String, downfile::String, structure::AbstractStructure{T}) where  T
 	uphami   = readhami(upfile, structure)
 	downhami = readhami(downfile, structure)
-	dim = blockdim(uphami)
+	dim = blocksize(uphami)
 	CT = Complex{T}
-	@assert dim == blockdim(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
+	@assert dim == blocksize(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
 
 	u1 = uphami[1]
 	d1 = downhami[1]
-	first = TbBlock(u1.R_cart, u1.R_cryst, [block(u1) zeros(CT, size(u1)); zeros(CT, size(d1)) block(d1)])
+	first = TbBlock(u1.R_cart, u1.R_cryst, ColinMatrix(block(u1), block(d1)))
 	outhami  = [first]
 	for (u, d) in zip(uphami[2:end], downhami[2:end])
-		tmat = [block(u) zeros(CT, size(u)); zeros(CT, size(d)) block(d)]
+		tmat = ColinMatrix(block(u), block(d))
 		push!(outhami, TbBlock(u.R_cart, u.R_cryst, tmat))
 	end
 	return outhami

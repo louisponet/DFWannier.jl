@@ -110,7 +110,7 @@ block(x::TbBlock) = x.block
 Base.getindex(h::TbBlock, i)    = getindex(block(h), i)
 Base.getindex(h::TbBlock, i, j) = getindex(block(h), i, j)
 
-Base.size(h::TbBlock)           = size(block(h))
+Base.size(h::TbBlock, args...)           = size(block(h), args...)
 
 Base.similar(h::TbBlock) = similar(block(h))
 
@@ -121,16 +121,13 @@ const TbHami{T, M}  = Vector{TbBlock{T, M}}
 
 get_block(h::TbHami, R::Vec3{Int}) = getfirst(x->x.R_cryst == R, h)
 
-blockdim(h::TbHami, args...) = size(block(h[1]), args...)
 
 #some small type piracy?
 Base.zeros(m::AbstractArray{T}) where {T} = fill!(similar(m), zero(T))
-
-zeros_block(h::TbHami{T, <:Matrix}) where T = zeros(Complex{T}, blockdim(h))
-zeros_block(h::TbHami{T, <:BlockBandedMatrix}) where T = fill!(similar(block(h[1])), zero(Complex{T}))
-
-similar_block(h::TbHami{T, <:Matrix}) where T = similar(block(h[1]))
-similar_block(h::TbHami{T, <:BlockBandedMatrix}) where T = similar(block(h[1]))
+zeros_block(h::TbHami)  = zeros(block(h[1])) 
+similar_block(h::TbHami) = similar(block(h[1]))
+blocksize(h::TbHami, args...) = size(block(h[1]), args...)
+# similar_block(h::TbHami{T, <:BlockBandedMatrix}) where T = similar(block(h[1]))
 
 struct RmnBlock{T<:AbstractFloat}
     R_cart  ::Vec3{T}

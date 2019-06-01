@@ -3,7 +3,7 @@ div1(x, y) = div(x - 1, y) + 1
 w_eachindex(m::Matrix) = eachindex(m)
 w_eachindex(m::BlockBandedMatrix) = eachindex()
 
-Hk_sum!(out::M, m::M, fac::T) where {T, M <: Matrix{T}} =
+Hk_sum!(out::M, m::M, fac::T) where {T, M <: AbstractMatrix{T}} =
 	out .+= fac .* m
 Hk_sum!(out::M, m::M, fac::T) where {T, M <: BlockBandedMatrix{T}} =
     out.data .+= fac .* m.data

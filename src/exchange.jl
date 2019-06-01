@@ -58,20 +58,20 @@ end
 
 
 @doc raw"""
-	DHvecvals(hami::TbHami{T, Matrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
+	DHvecvals(hami::TbHami{T, AbstractMatrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
 
 Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
 `hami` should be a BandedBlockBandedMatrix with $H_{up}, H_{down}$ blocks on the diagonal.
 """
-function DHvecvals(hami::TbHami{T, Matrix{Complex{T}}}, k_grid::AbstractArray{Vec3{T}}) where T <: AbstractFloat
-	dim   = blockdim(hami)[1]
+function DHvecvals(hami::TbHami{T, <:AbstractMatrix{Complex{T}}}, k_grid::AbstractArray{Vec3{T}}) where T <: AbstractFloat
+	dim   = blocksize(hami, 1)
 	d2    = div(dim, 2)
 
-	b_ranges = [1:d2, d2+1:dim]
+	b_ranges = [1:dim, dim+1:2dim]
 
 	nk    = length(k_grid)
     Hvecs = [zeros_block(hami) for i=1:nk]
-    Hvals = [Vector{T}(undef, dim[1]) for i=1:nk]
+    Hvals = [Vector{T}(undef, 2dim) for i=1:nk]
     D     = ThreadCache(zeros_block(hami))
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
     # @threads for i=1:length(k_grid)
@@ -87,7 +87,7 @@ function DHvecvals(hami::TbHami{T, Matrix{Complex{T}}}, k_grid::AbstractArray{Ve
     end
 	Ds = sum(D)
 
-    return Hvecs, Hvals, (Ds[b_ranges[1], b_ranges[1]] - Ds[b_ranges[2], b_ranges[2]])/length(k_grid)
+    return Hvecs, Hvals, (Ds[b_ranges[1], b_ranges[1]] - Ds[b_ranges[1], b_ranges[2]])/length(k_grid)
 end
 
 function calc_exchanges!(exchanges::Vector{Exchange{T}},
@@ -95,7 +95,7 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
 	                                 R         ::Vec3,
 	                                 k_grid    ::AbstractArray{Vec3{T}},
 	                                 ω_grid    ::AbstractArray{Complex{T}},
-	                                 Hvecs     ::Vector{Matrix{Complex{T}}},
+	                                 Hvecs     ::Vector{<:ColinMatrix{Complex{T}}},
 	                                 Hvals     ::Vector{Vector{T}},
 	                                 D         ::Matrix{Complex{T}}) where T <: AbstractFloat
     dim      = size(Hvecs[1])
@@ -107,7 +107,7 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
 	    fill!(G, zero(Complex{T}))
         integrate_Gk!(cache(G), ω, μ, Hvecs, Hvals, R, k_grid, cache.(g_caches))
     end
-	
+
     @threads for j=1:length(ω_grid[1:end-1])
         ω   = ω_grid[j]
         dω  = ω_grid[j + 1] - ω
@@ -124,8 +124,9 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
                               imag.(D_rm *
                                     view(cache(G), rm, rn) *
                                     D_rn *
-                                    view(cache(G), rn.+d2, rm.+d2) *
+                                    view(cache(G), rn, rm.+dim[1]) *
                                     dω)
+
         end
     end
 
@@ -134,17 +135,17 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
     end
 end
 
-function integrate_Gk!(G::Matrix, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
+function integrate_Gk!(G::AbstractMatrix, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
     dim = size(G, 1)
-   	dim_2 = div(dim, 2) 
 	cache1, cache2, cache3 = caches
 
-	b_ranges = [1:dim_2, dim_2+1:dim]
+	b_ranges = [1:dim, dim+1:2dim]
     for ik=1:length(kgrid)
 	    # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(T))
         for x=1:dim
             cache1[x, x] = 1.0 /(μ + ω - Hvals[ik][x])
+            cache1[x, x+dim] = 1.0 /(μ + ω - Hvals[ik][x+dim])
         end
      	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
         mul!(cache2, Hvecs[ik], cache1)
@@ -155,7 +156,7 @@ function integrate_Gk!(G::Matrix, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) whe
 		for i in b_ranges[1], j in b_ranges[1]
 			G[j, i] += cache1[j, i] * t
 		end
-		for i in b_ranges[2], j in b_ranges[2]
+		for i in b_ranges[2], j in b_ranges[1]
 			G[j, i] += cache1[j, i] * tp
 		end
     end
@@ -211,7 +212,7 @@ end
 Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
 `hami` should be the full Hamiltonian containing both spin-diagonal and off-diagonal blocks.
 """
-function DHvecvals(hami::TbHami{T, Matrix{Complex{T}}}, k_grid::AbstractArray{Vec3{T}}, atoms::Vector{WanAtom{T}}) where T <: AbstractFloat
+function DHvecvals(hami::TbHami{T, AbstractMatrix{Complex{T}}}, k_grid::AbstractArray{Vec3{T}}, atoms::Vector{WanAtom{T}}) where T <: AbstractFloat
 	# Get all the projections that we care about, basically the indices of the hami blocks.
 	all_projections = Projection[]
 	append!.((all_projections,), projections.(atoms))
