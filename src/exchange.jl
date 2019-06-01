@@ -39,7 +39,7 @@ function calc_exchanges(hami,  atoms, fermi::T;
     
     exchanges       = setup_exchanges(atoms)
 
-    @time Hvecs, Hvals, D = DHvecvals(hami, k_grid)
+    Hvecs, Hvals, D = DHvecvals(hami, k_grid)
 
 
     calc_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
