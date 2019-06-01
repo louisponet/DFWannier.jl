@@ -1,4 +1,4 @@
-import DFControl: searchdir, id
+import DFControl: searchdir
 #does this really need the checking for corruption stuff?
 function read_xsf_header(::Type{T}, filename::String) where T
     open(filename) do f
@@ -23,27 +23,64 @@ function read_xsf_header(::Type{T}, filename::String) where T
     end
 end
 
-"""
-read_xsf_file([::Type{T}], filename::String)
+function read_points_from_xsf(::Type{T}, filename::String) where {T <: AbstractFloat}
+    open(filename) do f
+        while !eof(f)
+            line = readline(f)
+            if line == " DATAGRID_3D_DENSITY" ||
+               occursin("DATAGRID_3D_UNKNOWN", line)
 
-Returns a Wfc3D{T} upon reading a Wannier wavefunction file. The atom specified is used in calculations such as angular momentum calculations.
-"""
-function read_xsf_file(::Type{T}, filename::String) where T
-    # vals = reshape(readdlm(filename, T, skipstart=27, dims=(div(nx*ny*nz, 6), 6)), nx, ny, nz)
-    nx, ny, nz, origin, supercell, skiplines = read_xsf_header(T, filename)
-    out  = Wfc3D{T}(undef, nx, ny, nz)
-    fsz  = Int(filesize(filename)) - 38
-    a = open(filename, "r") do f
-        Mmap.mmap(f, Vector{UInt8}, (fsz,))
+                nx, ny, nz = parse.(Int, split(readline(f)))
+                origin     = Point3{T}(parse.(T, split(readline(f))))
+                a_vec      = Vec3{T}(parse.(T, split(readline(f))))
+                b_vec      = Vec3{T}(parse.(T, split(readline(f))))
+                c_vec      = Vec3{T}(parse.(T, split(readline(f))))
+                return [origin +
+                        ia * a_vec +
+                        ib * b_vec +
+                        ic * c_vec for ia in range(0, 1, length=nx),
+                                       ib in range(0, 1, length=ny),
+                                       ic in range(0, 1, length=nz)]
+            end
+        end
     end
-    vals=reshape(readdlm(a, T, skipstart=skiplines), nx, ny, nz)::Array{T, 3}
-    t = zero(Point3{T})
-    for (iz, rz) in zip(1:nz, range(0, 1, length=nz)), (iy, ry) in zip(1:ny, range(0, 1, length=ny)), (ix, rx) in zip(1:nx, range(0, 1, length=nx))
-        out[ix, iy, iz] = WfcPoint3{T}(Complex{T}(vals[ix, iy, iz]), origin + supercell' * Point3(rx, ry, rz))
-    end
-    return out
 end
-read_xsf_file(filename::String) = read_xsf_file(Float64, filename)
+read_points_from_xsf(filename::String) = read_points_from_xsf(Float64, filename)
+
+"""
+read_values_from_xsf(filename::String, atom::Atom, T=Float64)
+
+Returns an Array from reading a Wannier wavefunction file.
+"""
+function read_values_from_xsf(::Type{T}, filename::String) where {T <: AbstractFloat}
+    open(filename) do f
+        while !eof(f)
+            line = readline(f)
+            if line == "PRIMVEC"
+                cell  = [Point3{T}.(parse.(T, split(readline(f)))) for i=1:3]
+            end
+
+            if line == " DATAGRID_3D_DENSITY" || occursin("DATAGRID_3D_UNKNOWN", line)
+                nx, ny, nz = parse.(Int, split(readline(f)))
+	            for i = 1:4
+		            readline(f)
+	            end
+                out     = Array{T}(undef, nx, ny, nz)
+                line    = readline(f)
+				counter = 1
+                while line != "END_DATAGRID_3D"
+                    for t in parse.(T, split(line))
+	                    out[counter] = t
+	                    counter += 1
+                    end
+                    line = readline(f)
+                end
+                return out
+            end
+        end
+    end
+end
+read_values_from_xsf(filename::String) = read_values_from_xsf(Float64, filename)
 
 """
 write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
@@ -69,14 +106,14 @@ function write_xsf_file(filename::String, wfc)
     end
 end
 
-"""
-readhami(filename::String,structure::AbstractStructure{T})
+@doc raw"""
+	readhami(filename::String,structure::AbstractStructure{T})
 
-Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
+Returns a vector of TbBlocks with the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
 function readhami(filename::String, structure::AbstractStructure{T}) where  T
     open(filename) do f
-        out = TbBlock{T}[]
+        out = TbBlock{T, Matrix{Complex{T}}}[]
         degen = Int64[]
         linenr = 0
         readline(f)
@@ -89,9 +126,9 @@ function readhami(filename::String, structure::AbstractStructure{T}) where  T
             l = split(readline(f))
             linenr += 1
             rpt = div(linenr - 1, nwanfun^2) + 1
-            Rtpiba = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
+            R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
             if length(out) < rpt
-                block = TbBlock{T}(cell(structure)' * Rtpiba, Rtpiba, Matrix{Complex{T}}(I, nwanfun, nwanfun))
+                block = TbBlock(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
                 push!(out, block)
             else
                 block = out[rpt]
@@ -102,6 +139,62 @@ function readhami(filename::String, structure::AbstractStructure{T}) where  T
         return out
     end
 end
+
+#super not optimized
+@doc raw"""
+	read_colin_hamis(upfile::String, downfile::String, structure::AbstractStructure{T})
+
+Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
+"""
+function read_colin_hamis(upfile::String, downfile::String, structure::AbstractStructure{T}) where  T
+	uphami   = readhami(upfile, structure)
+	downhami = readhami(downfile, structure)
+	dim = blockdim(uphami)
+	CT = Complex{T}
+	@assert dim == blockdim(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
+
+	u1 = uphami[1]
+	d1 = downhami[1]
+	first = TbBlock(u1.R_cart, u1.R_cryst, [block(u1) zeros(CT, size(u1)); zeros(CT, size(d1)) block(d1)])
+	outhami  = [first]
+	for (u, d) in zip(uphami[2:end], downhami[2:end])
+		tmat = [block(u) zeros(CT, size(u)); zeros(CT, size(d)) block(d)]
+		push!(outhami, TbBlock(u.R_cart, u.R_cryst, tmat))
+	end
+	return outhami
+end
+
+	# fs   = open.((upfile, downfile)   "r")
+ #    out = TbBlock{T}[]
+ #    degen = Int64[]
+ #    linenr = 0
+ #    readline.(fs)
+ #    nwanfuns   = parse.(Int64, readline.(fs))
+ #    ndegens    = parse.(Int64, readline.(fs))
+
+ #    while length(degen) < ndegen
+ #        push!(degen, parse.(Int, split(readline(f)))...)
+ #    end
+	# close.(fs)
+ #    open(filename) do f
+ #        while !eof(f)
+ #            l = split(readline(f))
+ #            linenr += 1
+ #            rpt = div(linenr - 1, nwanfun^2) + 1
+ #            R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
+ #            if length(out) < rpt
+ #                block = TbBlock(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
+ #                push!(out, block)
+ #            else
+ #                block = out[rpt]
+ #            end
+ #            complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) / degen[rpt]
+ #            block.block[parse(Int, l[4]), parse(Int, l[5])] = complex
+ #        end
+ #        return out
+ #    end
+# end
+
 """
     readhamis(job::DFJob)
 """
@@ -120,11 +213,11 @@ function read_rmn_file(filename::String, structure::AbstractStructure{T}) where 
         readline(f)
         while !eof(f)
             l= split(readline(f))
-            Rtpiba = Vec3(parse.(Int, l[1:3]))
-            block = getfirst(x -> x.Rtpiba == Rtpiba, out)
+            R_cryst = Vec3(parse.(Int, l[1:3]))
+            block = getfirst(x -> x.R_cryst == R_cryst, out)
 
             if block == nothing
-                block = RmnBlock{T}(cell(structure)' * Rtpiba, Rtpiba, Matrix{Point3{T}}(I, n_wanfun, n_wanfun))
+                block = RmnBlock{T}(cell(structure)' * R_cryst, R_cryst, Matrix{Point3{T}}(I, n_wanfun, n_wanfun))
                 push!(out, block)
             end
             dipole = Point3{T}(parse.(T, l[6:2:10]))
@@ -300,13 +393,13 @@ function read_xsf_file_GPU(filename::String, T=Float64)
     end
 end
 
-function write_dipole_mesh(filename,mesh::Array{Tuple{Point3{T},Point3{T}},3},direction) where T
-    tmp_points = similar(mesh,WfPoint3{T})
-    for (ip,p) in enumerate(mesh)
-        tmp_points[ip] = WfcPoint3{T}(getfield(p[2],direction),p[1])
-    end
-    write_xsf_file(filename,Wfc3D(tmp_points,Point3{T}[],Atom()))
-end
+# function write_dipole_mesh(filename,mesh::Array{Tuple{Point3{T},Point3{T}},3},direction) where T
+#     tmp_points = similar(mesh,WfPoint3{T})
+#     for (ip,p) in enumerate(mesh)
+#         tmp_points[ip] = WfcPoint3{T}(getfield(p[2],direction),p[1])
+#     end
+#     write_xsf_file(filename,Wfc3D(tmp_points,Point3{T}[],Atom()))
+# end
 
 function write_exchanges(filename::String, structure::Structure)
     open(filename, "w") do f
@@ -315,7 +408,7 @@ function write_exchanges(filename::String, structure::Structure)
             for (i2, atom2) in enumerate(atoms(structure)[i + 1:end])
                 J = exchange_between(atom1, atom2, exchanges)
                 if J != 0
-                    write(f, "$i:$(id(atom1)) -> $(i2+i):$(id(atom2)) $J\n")
+                    write(f, "$i:$(name(atom1)) -> $(i2+i):$(name(atom2)) $J\n")
                 end
             end
         end

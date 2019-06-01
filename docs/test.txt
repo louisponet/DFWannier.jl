@@ -1,0 +1,11 @@
+ERROR: LoadError: ArgumentError: Package DFWannier not found in current path:
+- Run `import Pkg; Pkg.add("DFWannier")` to install the DFWannier package.
+
+Stacktrace:
+ [1] require(::Module, ::Symbol) at ./loading.jl:823
+ [2] include at ./boot.jl:326 [inlined]
+ [3] include_relative(::Module, ::String) at ./loading.jl:1038
+ [4] include(::Module, ::String) at ./sysimg.jl:29
+ [5] exec_options(::Base.JLOptions) at ./client.jl:267
+ [6] _start() at ./client.jl:436
+in expression starting at /home/ponet/.julia/dev/DFWannier/docs/make.jl:1

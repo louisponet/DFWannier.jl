@@ -1,75 +1,24 @@
 #Cleanup don't export everything that doesn't have to be exported
 module DFWannier
-  # if (Pkg.installed.(["CUDAdrv","CuArrays","CUDAnative"]) .!= [nothing for _=1:3])==[true for __=1:3]
-  #   gpu_enabled = false
-  # else
-  #   gpu_enabled = false
-  # end
-  using Reexport
-  @reexport using DFControl
-  using StaticArrays 
-  using RecipesBase
-  using DelimitedFiles
-  using LaTeXStrings
-  # using Optim
-  using InplaceOps
-  using LinearAlgebra
-  using Mmap
-  # if gpu_enabled
-  #   using CuArrays
-  #   using CUDAdrv:CuDevice,CuContext,attribute,MAX_THREADS_PER_BLOCK,destroy!
-  #   using CUDAnative
-  #
-  #   dev = CuDevice(0)
-  #   ctx = CuContext(dev)
-  #   end
-  include("typedefs.jl")
-  include("types.jl")
-  export wannierbands
-  export density
-  include("bonds.jl")
-  include("typedefs.jl")
-  #---#
-  export WfcPoint3
-  export Wfc3D
-  # if gpu_enabled
-  #   export Wfc3D_gpu
-  # end
-  export WannierBand
-  include("atom_ext.jl")
-  export WanAtom
-  include("structure_ext.jl")
-  export WanStructure
-  export add_wan_data
-  export set_soc!
+	using Reexport
 
-  include("utils.jl")
-  export eigenwfc
-  include("wan_calcs.jl")
-  # if gpu_enabled
-  #   include("wan_calcs_gpu.jl")
-  # end
-  export construct_bloch_sum
-  export calc_angmom
-  export calc_angmoms
-  export calc_angmoms!
-  export calc_spins
-  export calc_dip
-  export calc_dips
-  include("hami_calcs.jl")
-  include("structure_calcs.jl")
-  export calc_observables
-  include("plotting.jl")
-  include("exchange.jl")
-  export AtomOrbInfo
-  export exchange_between
-  export calcexchanges
-  include("fileio.jl")
-  export read_xsf_file
-  export write_xsf_file
-  export read_exchanges
-  export write_exchanges
-  export readhami, readhamis
-  # include("spinsims.jl")
-  # export calcspinspols
+	@reexport using DFControl
+	using StaticArrays 
+	using RecipesBase
+	using LaTeXStrings
+	using InplaceOps
+	using LinearAlgebra
+	using Base.Threads
+	using Documenter
+	using Parameters
+
+	using BlockBandedMatrices
+	include("linalg.jl")
+	include("types.jl")
+	include("wan_calcs.jl")
+	include("hami_calcs.jl")
+	include("structure_calcs.jl")
+	include("plotting.jl")
+	include("exchange.jl")
+	include("fileio.jl")
 end

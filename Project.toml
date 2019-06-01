@@ -1,15 +1,20 @@
-authors = ["Louis Ponet <louisponet@gmail.com>"]
 name = "DFWannier"
 uuid = "5e267647-ebb4-5b7d-bc28-1d3eda37ab19"
+authors = ["Louis Ponet <louisponet@gmail.com>"]
 repo = "https://github.com/louisponet/DFWannier.jl.git"
 version = "0.0.0"
 
 [deps]
+AxisArrays = "39de3d68-74b9-583c-8d2d-e117c070f3a9"
+BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
+BlockBandedMatrices = "ffab5731-97b5-5995-9138-79e8c1846df0"
 DFControl = "1e31e15d-4957-550d-a244-318eced754ae"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 InplaceOps = "505f98c9-085e-5b2c-8e89-488be7bf1f34"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
-
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

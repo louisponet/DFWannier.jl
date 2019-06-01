@@ -1,97 +1,345 @@
-using DFControl: searchdir, Band, DFBand
+using DFControl: searchdir, Band, DFBand, Point3, Vec3, Point, Mat3
+import DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, pseudo, projections, setpseudo!, atom
 import Base: getindex, zero, show, -, +, ==, !=, *, /
 # Cleanup Do we really need <:abstractfloat, check this!
 
-"Point of a wavefunction in 3D, holds the complex value of the wavefunction and the cartesian coordinate."
-struct WfcPoint3{T<:AbstractFloat}
-    w::Complex{T}
-    p::Point3{T}
+struct WannierFunction{N, T<:AbstractFloat} <: AbstractArray{SVector{N, Complex{T}}, 3}
+	points::Array{Point{3, T}, 3}
+	values::Array{SVector{N, Complex{T}}, 3}
 end
-+(a::WfcPoint3,b::Point3) = WfcPoint3(a.w,a.p+b)
-+(a::WfcPoint3,b::WfcPoint3) = a.p == b.p ? WfcPoint3(a.w+b.w,a.p) : error("Can only sum two wavepoints at the same point in space!")
--(a::WfcPoint3,b::Point3) = WfcPoint3(a.w,a.p-b)
--(a::WfcPoint3,b::WfcPoint3) = a.p == b.p ? WfcPoint3(a.w-b.w,a.p) : error("Can only minus two wavepoints at the same point in space!")
-+(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w+b,a.p)
-*(a::WfcPoint3,b::AbstractFloat) = WfcPoint3(a.w*b,a.p)
-*(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w*b,a.p)
-*(a::WfcPoint3{T},b::WfcPoint3{T}) where T = a.p == b.p ? WfcPoint3(a.w*b.w,a.p) : error("Can only times two wavepoints at the same point in space!")
-*(b::AbstractFloat,a::WfcPoint3) = WfcPoint3(a.w*b,a.p)
-*(b::Complex{T},a::WfcPoint3{T}) where T = WfcPoint3(a.w*b, a.p)
-/(a::WfcPoint3{T},b::Complex{T}) where T = WfcPoint3(a.w/b, a.p)
-/(a::WfcPoint3{T},b::T) where T = WfcPoint3(a.w/b, a.p)
-show(io::IO,x::WfcPoint3)=print(io,"w = $(x.w), x = $(x.p[1]), y = $(x.p[2]), z = $(x.p[3])")
-zero(::Type{WfcPoint3{T}}) where T<:AbstractFloat = WfcPoint3(zero(Complex{T}),Point3(zero(T)))
-zero(x::WfcPoint3{T}) where T<:AbstractFloat = WfcPoint3(zero(Complex{T}), x.p)
 
-const AbstractWfc3D{T} = AbstractArray{WfcPoint3{T}, 3}
-const Wfc3D{T} = Array{WfcPoint3{T}, 3}
-
-Base.zeros(x::AbstractWfc3D) = zero.(x)
-
-function Base.sum(points::AbstractWfc3D{T}) where T
-    s = zero(Complex{T})
-    for w in points
-        s += w.w
-    end
-    return s
+function WannierFunction(filename_re::String, filename_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
+	re, im = read_values_from_xsf.(T, (filename_re, filename_im))
+	values = [SVector(Complex(a, b)) for (a, b) in zip(re, im)]
+	return normalize(WannierFunction(points, values))
 end
-function LinearAlgebra.norm(points::AbstractWfc3D{T}) where T
+
+function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
+
+	up_re, up_im, down_re, down_im =
+		read_values_from_xsf.(T, (filename_up_re, filename_up_im, filename_down_re, filename_down_im))
+
+	values = [SVector(Complex(a, b), Complex(c, d)) for (a, b, c, d) in zip(up_re, up_im, down_re, down_im)]
+	return normalize(WannierFunction(points, values))
+end
+
+
+values(w::WannierFunction) = w.values
+
+Base.size(x::WannierFunction) = size(values(x))
+
+
+#### AbstractArray Interface
+Base.axes(x::WannierFunction) = Base.axes(values(x))
+
+Base.IndexStyle(x::WannierFunction) = IndexStyle(values(x))
+
+@inline @Base.propagate_inbounds Base.getindex(x::WannierFunction, i...) =
+	getindex(values(x), i...)
+
+@inline @Base.propagate_inbounds Base.setindex!(x::WannierFunction, v, i...) =
+	setindex!(values(x), v, i...)
+
+function Base.similar(x::WannierFunction,::Type{S}) where S
+  WannierFunction(x.points, similar(values(x), S))
+end
+
+Base.strides(x::WannierFunction) = strides(values(x))
+
+Base.unsafe_convert(T::Type{<:Ptr}, x::WannierFunction) = unsafe_convert(T, values(x))
+
+Base.stride(x::WannierFunction, i::Int) = stride(values(x), i)
+
+Base.ndims(::Type{WannierFunction}) = 3
+
+Base.Broadcast.broadcastable(w::WannierFunction) = values(w)
+
+#### LinearAlgebra overloads
+function LinearAlgebra.adjoint(w::WannierFunction)
+	out = WannierFunction(w.points, similar(values(w)))
+	adjoint!(out, w)
+end
+
+LinearAlgebra.adjoint!(w1::WannierFunction, w2::WannierFunction) = w1 .= adjoint.(w2)
+
+function LinearAlgebra.dot(w1::WannierFunction{T}, w2::WannierFunction{T}) where {T}
     s = zero(T)
-    for w in points
-        s += abs2(w.w)
+    for (v1, v2) in zip(values(w1), values(w2))
+        s += v1' * v2
     end
-    return s
+    return real(s)
 end
 
-LinearAlgebra.normalize(points::AbstractWfc3D) = points ./= sqrt(norm(points))
-density(wfc::AbstractWfc3D) = wfc .* wfc
+LinearAlgebra.norm(wfc::WannierFunction) = dot(wfc, wfc)
+LinearAlgebra.normalize(wfc::WannierFunction) = wfc ./= sqrt(norm(wfc))
+
+####
+
+same_grid(w1::WannierFunction, w2::WannierFunction) = w1.points === w2.points 
+
+function wan_op(op::Function, w1::W, w2::W) where {W <: WannierFunction}
+	@assert same_grid(w1, w2) "Wannier functions are not defined on the same grid"
+	op(w1, w2)
+end
+
+struct OperatorBlock{T <: AbstractFloat}
+	L::Vector{Matrix{Complex{T}}}
+	S::Vector{Matrix{Complex{T}}}
+    J::Vector{Matrix{Complex{T}}}
+end
+
+struct WanAtom{T <: AbstractFloat} <: AbstractAtom{T}
+    atom    ::Atom{T}
+    wandata ::Dict{Symbol, <:Any}
+end
+
+Base.getindex(at::WanAtom, s::Symbol) = getindex(at.wandata, s::Symbol)
+
+# #implementation of the AbstractAtom interface
+atom(at::WanAtom) = at.atom
+
+import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, read_wannier_output
+struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}}
+    R_cart  ::Vec3{T}
+    R_cryst ::Vec3{Int}
+    block   ::M
+end
+
+block(x::TbBlock) = x.block
+
+Base.getindex(h::TbBlock, i)    = getindex(block(h), i)
+Base.getindex(h::TbBlock, i, j) = getindex(block(h), i, j)
+
+Base.size(h::TbBlock)           = size(block(h))
+
+Base.similar(h::TbBlock) = similar(block(h))
+
+LinearAlgebra.eigen(h::TbBlock) = eigen(block(h))
 
 
+const TbHami{T, M}  = Vector{TbBlock{T, M}}
+
+get_block(h::TbHami, R::Vec3{Int}) = getfirst(x->x.R_cryst == R, h)
+
+blockdim(h::TbHami, args...) = size(block(h[1]), args...)
+
+#some small type piracy?
+Base.zeros(m::AbstractArray{T}) where {T} = fill!(similar(m), zero(T))
+
+zeros_block(h::TbHami{T, <:Matrix}) where T = zeros(Complex{T}, blockdim(h))
+zeros_block(h::TbHami{T, <:BlockBandedMatrix}) where T = fill!(similar(block(h[1])), zero(Complex{T}))
+
+similar_block(h::TbHami{T, <:Matrix}) where T = similar(block(h[1]))
+similar_block(h::TbHami{T, <:BlockBandedMatrix}) where T = similar(block(h[1]))
+
+struct RmnBlock{T<:AbstractFloat}
+    R_cart  ::Vec3{T}
+    R_cryst ::Vec3{Int}
+    block   ::Matrix{Point3{T}}
+end
+const TbRmn{T} = Vector{RmnBlock{T}}
+
+mutable struct WanStructure{T<:AbstractFloat} <: AbstractStructure{T}
+    structure ::Structure{T}
+    tbhamis   ::Vector{TbHami{T}}
+    tbRmns    ::Vector{TbRmn{T}}
+end
+
+# WanStructure(structure::Structure, wan_atoms::Vector{<:WanAtom}, tbhamis, tbrmns) =
+#     WanStructure(Structure(structure, wan_atoms), tbhamis, tbrmns)
+
+# WanStructure(structure::Structure{T}, tbhamis) where T =
+#     WanStructure(structure, tbhamis, TbRmn{T}[])
+# WanStructure(structure_::WanStructure, args...) =
+#     WanStructure(structure(structure_), args...)
+
+# structure(str::WanStructure) = str.structure
+# #TODO does not handle the SOC case. Or the case where there is up and down
+# #TODO handle so that the previous job doesn't get destroyed I mean it's not necessary
+# #     it also doesn't agree with the paradigm of julia
+# function add_wan_data(structure::AbstractStructure{T}, job_dir::String, threaded=true) where T
+#     searchdir(str) = job_dir .* DFControl.searchdir(job_dir, str)
+#     xsf_files   = searchdir(".xsf")
+#     hami_files  = reverse(searchdir("_hr.dat")) #such that dn is last
+#     r_files     = reverse(searchdir("_r.dat")) #such that dn is last
+#     centers     = [c[:center] for c in read_wannier_output(searchdir(".wout")[1])[:final_state]]
+#     new_atoms = WanAtom{T}[]
+#     for at in atoms(structure)
+#         push!(new_atoms, WanAtom(at, WanAtData(Wfc3D{T}[])))
+#     end
+#     t_wfcs = Vector{Array{WfcPoint3{T},3}}(undef, length(xsf_files))
+#     if threaded
+#         Threads.@threads for i=1:length(xsf_files)
+#             t_wfcs[i] = read_xsf_file(T, xsf_files[i])
+#         end
+#     else
+#         for i=1:length(xsf_files)
+#             t_wfcs[i] = read_xsf_file(T, xsf_files[i])
+#         end
+#     end
+
+#     for (i, (wfc, c)) in enumerate(zip(t_wfcs, centers))
+#         t_at = new_atoms[1]
+#         for at in new_atoms[2:end]
+#             if norm(position(at) - c) < norm(position(t_at) - c)
+#                 t_at = at
+#             end
+#         end
+#         push!(wfcs(t_at), wfc)
+#     end
+#     tbhamis = Vector{TbHami{T}}(undef, length(hami_files))
+#     tbrmns  = Vector{TbRmn{T}}(undef, length(r_files))
+#     Threads.@threads for i=1:length(hami_files)
+#         tbhamis[i] = readhami(hami_files[i], structure)
+#     end
+#     Threads.@threads for i=1:length(r_files)
+#         tbrmns[i] = read_rmn_file(r_files[i], structure)
+#     end
+#     return WanStructure(structure, new_atoms, tbhamis, tbrmns)
+# end
+
+# function add_wan_data(job::DFJob)
+#     job.structure = add_wan_data(job.structure, job.local_dir)
+#     return job
+# end
+
+# """
+#     setsoc!(structure::Structure, socs...)
+
+# Accepts a varargs list of atom symbols => soc,
+# which will set the soc of the atoms in the structure to the specified values.
+# """
+# function setsoc!(structure::AbstractStructure{T}, socs...) where T
+#     for (at, soc) in socs
+#         for str_at in atoms(structure)
+#             if name(str_at) == at
+#                 setlsoc!(str_at, T(soc))
+#             end
+#         end
+#     end
+#     return structure
+# end
+
+# """
+#     setsoc!(job::DFJob, socs...)
+
+# Accepts a varargs list of atom symbols => soc,
+# which will set the soc of the atoms in the job structure to the specified values.
+# """
+# function setsoc!(job::DFJob, socs...)
+#     setsoc!(job.structure, socs...)
+#     return job
+# end
+
+# """
+#     wfcs(structure::WanStructure)
+
+# Returns the wavefunctions that are linked to the atoms inside the structure.
+# """
+# function wfcs(structure::WanStructure{T}) where T
+#     out = Array{WfcPoint3{T}, 3}[]
+#     for at in atoms(structure)
+#         for wfc in wfcs(at)
+#             push!(out, wfc)
+#         end
+#     end
+#     return out
+# end
+
+# function getwandim(structure::WanStructure{T}) where T
+#     dim = 0
+#     for at in atoms(structure)
+#         dim += length(wfcs(at))
+#     end
+#     return dim
+# end
 
 "Holds all the calculated values from a wannier model."
-mutable struct WannierBand{T<:AbstractFloat} <: Band
-    eigvals  ::Vector{T}
-    eigvec   ::Vector{Vector{Complex{T}}}
-    cms      ::Vector{Point3{T}}
-    angmoms  ::Vector{Vector{Point3{T}}}
-    spins    ::Vector{Vector{Point3{T}}}
-    k_points ::Vector{Vec3{T}}
+@with_kw mutable struct WannierBand{T<:AbstractFloat} <: Band
+    k_points_cryst ::Vector{Vec3{T}}
+    eigvals        ::Vector{T}
+    eigvec         ::Vector{Vector{Complex{T}}}
+    cms      ::Vector{Point3{T}} = Point3{T}[]
+    angmoms  ::Vector{Vector{Point3{T}}} = Vector{Point3{T}}[]
+    spins    ::Vector{Vector{Point3{T}}} = Vector{Point3{T}}[]
 end
 
-function WannierBand(kpoints::Vector{Vec3{T}}) where T
+function WannierBand(kpoints::Vector{Vec3{T}}, dim::Int) where T
     klen = length(kpoints)
-    WannierBand{T}(zeros(T, klen), fill([zero(Complex{T})], klen), zeros(Point3{T}, klen), fill([zero(Point3{T})], klen), fill([zero(Point3{T})], klen), kpoints)
+    WannierBand{T}(k_points_cryst=kpoints, eigvals=zeros(T, klen), eigvec=[zeros(Complex{T}, dim) for k=1:klen])
 end
 
-wannierbands(n::Int, kpoints::Vector{<:Vec3}) = [WannierBand(kpoints) for i=1:n]
+wannierbands(kpoints::Vector{<:Vec3}, dim::Int) = [WannierBand(kpoints, dim) for i=1:dim]
 
-function wannierbands(tbhamis, kpoints::Vector{<:Vec3})
-    matdim = size(tbhamis[1].block)[1]
-    outbands = wannierbands(matdim, kpoints)
+function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
+    matdim = blockdim(tbhamis, 1)
+    outbands = wannierbands(kpoints, matdim)
+	calc_caches = [EigCache(block(tbhamis[1])) for i = 1:nthreads()]
 
-    for (i, k) in enumerate(kpoints)
+    @threads for i = 1:length(kpoints)
+	    tid  = threadid()
+	    k    = kpoints[i]
+	    c    = calc_caches[tid]
         hami = Hk(tbhamis, k)
-        eigvals, eigvecs = sorted_eig(hami)
-        eigvals_k = real(eigvals)
-        for e=1:length(eigvals_k)
-            outbands[e].eigvals[i] = eigvals_k[e]
+        eigvals, eigvecs = eigen(hami, c)
+        for e=1:length(eigvals)
+            outbands[e].eigvals[i] = eigvals[e]
             outbands[e].eigvec[i] = eigvecs[:,e]
-            outbands[e].k_points[i] = k
+            outbands[e].k_points_cryst[i] = k
         end
     end
     return outbands
 end
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands[1].k_points_cryst)
 
+import Base: +, -, *, /
+
+struct ThreadCache{T}
+	caches::Vector{T}
+	ThreadCache(orig::T) where {T} = new{T}([deepcopy(orig) for i = 1:nthreads()])
+end
+
+@inline cache(t::ThreadCache) = t.caches[threadid()]
+
+Base.getindex(t::ThreadCache{<:AbstractArray}, i...) = getindex(cache(t), i...)
+Base.setindex!(t::ThreadCache{<:AbstractArray{T}}, v::T, i...) where T = setindex!(cache(t), v, i...)
+Base.copyto!(t::ThreadCache, v) = copyto!(cache(t), v)
+
++(t::ThreadCache{T}, v::T) where T = cache(t) + v 
+-(t::ThreadCache{T}, v::T) where T = cache(t) - v 
+*(t::ThreadCache{T}, v::T) where T = cache(t) * v 
+/(t::ThreadCache{T}, v::T) where T = cache(t) / v 
++(v::T, t::ThreadCache{T}) where T = v - cache(t)  
+-(v::T, t::ThreadCache{T}) where T = v * cache(t)  
+*(v::T, t::ThreadCache{T}) where T = v / cache(t)  
+/(v::T, t::ThreadCache{T}) where T = v + cache(t)
+
+Base.size(t::ThreadCache, i...)       = size(cache(t), i...)
+
+Base.length(t::ThreadCache)     = length(cache(t))
+Base.iterate(t::ThreadCache)    = iterate(cache(t))
+Base.iterate(t::ThreadCache, p) = iterate(cache(t), p)
+Base.sum(t::ThreadCache)        = sum(t.caches)
+Base.view(t::ThreadCache, v...) = view(cache(t), v...)
+Base.fill!(t::ThreadCache{<:AbstractArray{T}}, v::T) where {T} = fill!(cache(t), v)
+fillall!(t::ThreadCache{<:AbstractArray{T}}, v::T)   where {T} = fill!.(t.caches, (v,))
+
+LinearAlgebra.mul!(t1::ThreadCache{T}, v::T, t2::ThreadCache{T}) where {T<:AbstractArray} =
+	mul!(cache(t1), v, cache(t2)) 
+LinearAlgebra.mul!(t1::T, v::T, t2::ThreadCache{T}) where {T<:AbstractArray} =
+	mul!(t1, v, cache(t2)) 
+LinearAlgebra.mul!(t1::ThreadCache{T}, t2::ThreadCache{T}, t3::ThreadCache{T}) where {T<:AbstractArray} =
+	mul!(cache(t1), cache(t2), cache(t3)) 
+LinearAlgebra.adjoint!(t1::ThreadCache{T}, v::T) where {T} = adjoint!(cache(t1), v)
+
+####
+#### Broadcasting
+####
+Base.ndims(::Type{ThreadCache{T}}) where {T<:AbstractArray} = ndims(T)
+# Base.broadcast(f, As::ThreadCache...) = broadcast(f, getindex.(getfield.(As, :caches), threadid()))
+Base.Broadcast.broadcastable(tc::ThreadCache{<:AbstractArray}) = cache(tc)
+# Base.Broadcast.BroadcastStyle(::Type{ThreadCache{T}}) where {T<:AbstractArray} = Base.Broadcast.BroadcastStyle(T)
 
 
-#
-# if gpu_enabled
-#     mutable struct Wfc3D_gpu{T} <: Wfc{T}
-#         grid::CuArray{Tuple{T,T,T},3}
-#         values::CuArray{Complex{T},3}
-#         # cell::CuArray{Tuple{T,T,T},1}
-#         cell::Array{Point3{T},1}
-#         atom::Atom{T}
-#     end
-# end
+
+

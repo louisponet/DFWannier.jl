@@ -1,13 +1,24 @@
+div1(x, y) = div(x - 1, y) + 1
 
-function Hk!(out::AbstractMatrix{T}, tbhami, kpoint) where T
-    fill!(out, zero(T))
-    for block in tbhami
-        out .+= ℯ^(-2im*pi*(block.Rtpiba ⋅ kpoint)) .* block.block
+w_eachindex(m::Matrix) = eachindex(m)
+w_eachindex(m::BlockBandedMatrix) = eachindex()
+
+Hk_sum!(out::M, m::M, fac::T) where {T, M <: Matrix{T}} =
+	out .+= fac .* m
+Hk_sum!(out::M, m::M, fac::T) where {T, M <: BlockBandedMatrix{T}} =
+    out.data .+= fac .* m.data
+
+function Hk!(out::M, tbhami::TbHami{T, M}, kpoint::Vec3{T}) where {T, M <: AbstractMatrix{Complex{T}}}
+    fill!(out, zero(Complex{T}))
+    for b in tbhami
+	    fac = ℯ^(-2im*pi*(b.R_cryst ⋅ kpoint))
+        Hk_sum!(out, block(b), fac)
     end
-    for i=1:size(out)[1]
+    for i=1:size(out, 1)
         out[i,i] = real(out[i,i]) + 0.0im
     end
 end
+
 function Hk(tbhami, kpoint)
     out = similar(tbhami[1].block)
     Hk!(out, tbhami, kpoint)
@@ -74,8 +85,8 @@ end
 
 function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T}}}, structure::AbstractStructure{T}) where  T
     forwardmap = AFMmap(structure, Vec3(1,0,0))
-    Hup = getfirst(x -> x.Rtpiba == Vec3(0,0,0), tb_hamis[1]).block
-    Hdn = getfirst(x -> x.Rtpiba == Vec3(0,0,0), tb_hamis[2]).block
+    Hup = getfirst(x -> x.R_cryst == Vec3(0,0,0), tb_hamis[1]).block
+    Hdn = getfirst(x -> x.R_cryst == Vec3(0,0,0), tb_hamis[2]).block
 
     for (at1, at2) in forwardmap, (at3, at4) in forwardmap
         for (r1, r2) in zip(range.(projections(at1)), range.(projections(at2))), (r3, r4) in zip(range.(projections(at3)), range.(projections(at4)))
@@ -83,8 +94,8 @@ function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T}}}, structure::Abstrac
             Hdn[r2, r4] .= Hup[r1, r3]
 
             for R=-1:2:1
-                Hu = getfirst(x -> x.Rtpiba == Vec3(R,0,0), tb_hamis[1]).block
-                Hd = getfirst(x -> x.Rtpiba == Vec3(R,0,0), tb_hamis[2]).block
+                Hu = getfirst(x -> x.R_cryst == Vec3(R,0,0), tb_hamis[1]).block
+                Hd = getfirst(x -> x.R_cryst == Vec3(R,0,0), tb_hamis[2]).block
                 r1_, r2_, r3_, r4_ = rs(R, r1, r2, r3, r4)
                 Hu[r2_, r3_] .= (Hu[r2_, r3_] .+ Hdn[r1_, r4_]) ./ 2
                 Hdn[r1_, r4_] .= Hu[r2_, r3_]
