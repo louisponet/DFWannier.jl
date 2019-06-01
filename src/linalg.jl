@@ -1,4 +1,5 @@
 import LinearAlgebra.LAPACK: syev!, @blasfunc, BlasInt, chkstride1, checksquare, chklapackerror, liblapack
+import LinearAlgebra.BLAS: libblas
 import LinearAlgebra: eigen, eigen!
 
 struct ColinMatrix{T, M <: AbstractArray{T, 2}} <: AbstractMatrix{T}
@@ -21,18 +22,67 @@ Base.size(c::ColinMatrix, args...)      = size(c.data, args...)
 Base.getindex(c::ColinMatrix, args...)  = getindex(c.data, args...)
 Base.setindex!(c::ColinMatrix, args...) = setindex!(c.data, args...)
 Base.broadcastable(c::ColinMatrix)      = c.data
-Base.similar(c::ColinMatrix) = ColinMatrix(similar(c.data)) 
+Base.similar(c::ColinMatrix) = ColinMatrix(similar(c.data))
+Base.unsafe_convert(::Type{Ptr{T}}, c::ColinMatrix{T}) where {T} = Base.unsafe_convert(Ptr{T}, c.data)
+Base.elsize(c::ColinMatrix{T}) where {T} = Base.elsize(c.data)
 
-function LinearAlgebra.mul!(out::ColinMatrix, in1::ColinMatrix, in2::ColinMatrix)
-	dim = blockdim(out)
-	mul!(view(out, 1:dim, 1:dim), view(in1, 1:dim, 1:dim), view(in2, 1:dim, 1:dim))
-	mul!(view(out, 1:dim, 1+dim:2dim), view(in1, 1:dim, dim+1:2dim), view(in2, 1:dim, dim+1:2dim))
+@inline function LinearAlgebra.mul!(C::ColinMatrix{ComplexF32}, A::ColinMatrix{ComplexF32}, B::ColinMatrix{ComplexF32})
+	dim = blockdim(C)
+	dim2 = dim*dim
+	ccall((@blasfunc(cgemm_), libblas), Cvoid,
+	                (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
+	                 Ref{BlasInt}, Ref{ComplexF32}, Ptr{ComplexF32}, Ref{BlasInt},
+	                 Ptr{ComplexF32}, Ref{BlasInt}, Ref{ComplexF32}, Ptr{ComplexF32},
+	                 Ref{BlasInt}),
+	                 'N', 'N', dim, dim,
+	                 dim, one(ComplexF32), A, dim,
+	                 B, dim, zero(ComplexF32), C, dim)
+	ccall((@blasfunc(cgemm_), libblas), Cvoid,
+	                (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
+	                 Ref{BlasInt}, Ref{ComplexF32}, Ptr{ComplexF32}, Ref{BlasInt},
+	                 Ptr{ComplexF32}, Ref{BlasInt}, Ref{ComplexF32}, Ptr{ComplexF32},
+	                 Ref{BlasInt}),
+	                 'N', 'N', dim, dim,
+	                 dim, one(ComplexF32), pointer(A, dim2+1), dim,
+	                 pointer(B, dim2+1), dim, zero(ComplexF32), pointer(C,dim2+1), dim)
+
+    C
 end
 
-function LinearAlgebra.adjoint!(out::ColinMatrix, in1::ColinMatrix)
+@inline function LinearAlgebra.mul!(C::ColinMatrix{ComplexF64}, A::ColinMatrix{ComplexF64}, B::ColinMatrix{ComplexF64})
+	dim = blockdim(C)
+	dim2 = dim*dim
+
+	ccall((@blasfunc(zgemm_), libblas), Cvoid,
+	                (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
+	                 Ref{BlasInt}, Ref{ComplexF64}, Ptr{ComplexF64}, Ref{BlasInt},
+	                 Ptr{ComplexF64}, Ref{BlasInt}, Ref{ComplexF64}, Ptr{ComplexF64},
+	                 Ref{BlasInt}),
+	                 'N', 'N', dim, dim,
+	                 dim, one(ComplexF64), A, dim,
+	                 B, dim, zero(ComplexF64), C, dim)
+
+	ccall((@blasfunc(zgemm_), libblas), Cvoid,
+	                (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
+	                 Ref{BlasInt}, Ref{ComplexF64}, Ptr{ComplexF64}, Ref{BlasInt},
+	                 Ptr{ComplexF64}, Ref{BlasInt}, Ref{ComplexF64}, Ptr{ComplexF64},
+	                 Ref{BlasInt}),
+	                 'N', 'N', dim, dim,
+	                 dim, one(ComplexF64), pointer(A, dim2+1), dim,
+	                 pointer(B, dim2+1), dim, zero(ComplexF64), pointer(C,dim2+1), dim)
+
+    C
+end
+
+@inline function LinearAlgebra.adjoint!(out::ColinMatrix, in1::ColinMatrix)
 	dim = blockdim(out)
-	adjoint!(view(out, 1:dim, 1:dim), view(in1, 1:dim, 1:dim))
-	adjoint!(view(out, 1:dim, 1+dim:2dim), view(in1, 1:dim, dim+1:2dim))
+	@inbounds begin
+		for i = 1:dim, j = 1:dim
+			out[j, i] = in1[i, j]'
+			out[j, i+dim] = in1[i, j+dim]'
+		end
+	end
+	out
 end
 
 # We use Upper Triangular blas for everything! And Eigvals are always all calculated
@@ -65,8 +115,6 @@ function blas_eig_ccall(A     ::AbstractMatrix{ComplexF64},
 	chklapackerror(info[])
 end
 
-# We are going to use the same cache for both blocks of our BlockBandMatrices.
-# Then we diagonalize first the first block then the second.
 struct EigCache{T <: AbstractFloat}
 	work   ::Vector{Complex{T}}
 	lwork  ::BlasInt
@@ -89,7 +137,6 @@ struct EigCache{T <: AbstractFloat}
 	    return new{relty}(work, lwork, rwork, n, info)
     end
 end
-EigCache(A::BlockBandedMatrix) = EigCache(A[Block(1,1)])
 EigCache(A::ColinMatrix) = EigCache(up(A))
 
 function eigen!(vals::AbstractVector{T}, vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
@@ -103,12 +150,6 @@ function eigen!(vals::AbstractVector{T}, vecs::ColinMatrix{Complex{T}}, c::EigCa
 	return Eigen(vals, vecs)
 end
 
-function eigen!(vals::AbstractVector{T}, vecs::BlockBandedMatrix{Complex{T}}, c::EigCache{T}) where {T}
-    for j = 1:2
-        eigen!(view(vals, (j - 1) * c.n + 1 : j * c.n), view(vecs, Block(j, j)), c)
-    end
-	return Eigen(vals, vecs)
-end
 
 function eigen(vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
 	out  = copy(vecs)

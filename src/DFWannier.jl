@@ -12,7 +12,6 @@ module DFWannier
 	using Documenter
 	using Parameters
 
-	using BlockBandedMatrices
 	include("linalg.jl")
 	include("types.jl")
 	include("wan_calcs.jl")

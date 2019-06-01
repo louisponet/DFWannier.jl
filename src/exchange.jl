@@ -61,7 +61,6 @@ end
 	DHvecvals(hami::TbHami{T, AbstractMatrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
 
 Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
-`hami` should be a BandedBlockBandedMatrix with $H_{up}, H_{down}$ blocks on the diagonal.
 """
 function DHvecvals(hami::TbHami{T, <:AbstractMatrix{Complex{T}}}, k_grid::AbstractArray{Vec3{T}}) where T <: AbstractFloat
 	dim   = blocksize(hami, 1)
@@ -74,8 +73,7 @@ function DHvecvals(hami::TbHami{T, <:AbstractMatrix{Complex{T}}}, k_grid::Abstra
     Hvals = [Vector{T}(undef, 2dim) for i=1:nk]
     D     = ThreadCache(zeros_block(hami))
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
-    # @threads for i=1:length(k_grid)
-    for i=1:length(k_grid)
+    @threads for i=1:length(k_grid)
 	    tid = threadid()
         #= Hvecs[j][i] is used as a temporary cache to store H(k) in. Since we
         don't need H(k) but only Hvecs etc, this is ok.
@@ -153,12 +151,10 @@ function integrate_Gk!(G::AbstractMatrix, ω::T, μ, Hvecs, Hvals, R, kgrid, cac
         mul!(cache1, cache2, cache3)
 		t = exp(2im * π * dot(R, kgrid[ik]))
 		tp = t'
-		for i in b_ranges[1], j in b_ranges[1]
-			G[j, i] += cache1[j, i] * t
-		end
-		for i in b_ranges[2], j in b_ranges[1]
-			G[j, i] += cache1[j, i] * tp
-		end
+        for i in b_ranges[1], j in b_ranges[1]
+            G[i, j]     += cache1[i, j] * t
+            G[i, j+dim] += cache1[i, j+dim] * tp
+        end
     end
     G  ./= length(kgrid)
 end
