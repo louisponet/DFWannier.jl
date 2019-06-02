@@ -138,7 +138,7 @@ function integrate_Gk!(G::AbstractMatrix, ω::T, μ, Hvecs, Hvals, R, kgrid, cac
 	cache1, cache2, cache3 = caches
 
 	b_ranges = [1:dim, dim+1:2dim]
-    for ik=1:length(kgrid)
+    @inbounds for ik=1:length(kgrid)
 	    # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(T))
         for x=1:dim
@@ -146,12 +146,13 @@ function integrate_Gk!(G::AbstractMatrix, ω::T, μ, Hvecs, Hvals, R, kgrid, cac
             cache1[x, x+dim] = 1.0 /(μ + ω - Hvals[ik][x+dim])
         end
      	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
+
         mul!(cache2, Hvecs[ik], cache1)
         adjoint!(cache3, Hvecs[ik])
         mul!(cache1, cache2, cache3)
 		t = exp(2im * π * dot(R, kgrid[ik]))
 		tp = t'
-        for i in b_ranges[1], j in b_ranges[1]
+        for i in 1:dim, j in 1:dim
             G[i, j]     += cache1[i, j] * t
             G[i, j+dim] += cache1[i, j+dim] * tp
         end
@@ -185,6 +186,50 @@ function calc_anisotropic_exchanges(hami,  atoms, fermi::T;
 
     calc_anisotropic_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
     return exchanges
+end
+
+function calc_anisotropic_exchanges!(exchanges ::Vector{AnisotropicExchange{T}}, 
+                                   μ         ::T, 
+                                   R         ::Vec3, 
+                                   k_grid    ::AbstractArray{Vec3{T}}, 
+                                   ω_grid    ::AbstractArray{Complex{T}}, 
+                                   Hvecs     ::Vector{Matrix{Complex{T}}}, 
+                                   Hvals     ::Vector{Vector{T}}, 
+                                   D         ::Vector{Vector{Matrix{Complex{T}}}}) where T <: AbstractFloat 
+    dim      = size(Hvecs[1]) 
+    J_caches = [ThreadCache([zeros(T, size(e.J[i, j])) for i=1:3, j=1:3]) for e in exchanges] 
+    g_caches = [ThreadCache(zeros(Complex{T}, dim)) for i=1:3] 
+    G_forward, G_backward = [ThreadCache(zeros(Complex{T}, dim)) for i=1:2] 
+ 
+    function iGk!(ω) 
+      fill!(G_forward, zero(Complex{T})) 
+      fill!(G_backward, zero(Complex{T})) 
+        integrate_Gk!(G_forward, G_backward, ω, μ, Hvecs, Hvals, R, k_grid, g_caches) 
+    end 
+ 
+    @threads for j=1:length(ω_grid[1:end-1]) 
+        ω   = ω_grid[j] 
+        dω  = ω_grid[j + 1] - ω 
+        iGk!(ω) 
+    # The two kind of ranges are needed because we calculate D only for the projections we care about 
+    # whereas G is calculated from the full Hamiltonian, the is needed. 
+        for (eid, exch) in enumerate(exchanges) 
+            rm  = range(exch.proj1) 
+            rn  = range(exch.proj2) 
+            drm = 1:orbsize(exch.proj1) 
+            drn = 1:orbsize(exch.proj2) 
+      for i =1:3, j=1:3 #x,y,z 
+              J_caches[eid][i, j] .+=  imag.((view(D[eid][i], drm, drm) * 
+                                  view(G_forward, rm, rn)    * 
+                                  view(D[eid][j], drn, drn)  * 
+                                  view(G_backward, rn, rm)) .* dω) 
+            end 
+        end 
+    end 
+ 
+    for (eid, exch) in enumerate(exchanges) 
+        exch.J = 1e3 / 2π * sum(J_caches[eid]) 
+    end 
 end
 
 function setup_anisotropic_exchanges(atoms::Vector{<: AbstractAtom{T}}) where T <: AbstractFloat

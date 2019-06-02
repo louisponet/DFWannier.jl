@@ -1,7 +1,7 @@
 import LinearAlgebra.LAPACK: syev!, @blasfunc, BlasInt, chkstride1, checksquare, chklapackerror, liblapack
 import LinearAlgebra.BLAS: libblas
 import LinearAlgebra: eigen, eigen!
-
+import Base: @propagate_inbounds
 struct ColinMatrix{T, M <: AbstractArray{T, 2}} <: AbstractMatrix{T}
 	data::M
 end
@@ -17,14 +17,14 @@ down(c::ColinMatrix) = view(c.data, 1:blockdim(c), blockdim(c)+1:2*blockdim(c))
 # blockdim(c::ColinMatrix) = size(c.data, 2)
 blockdim(c::ColinMatrix) = size(c.data, 1)
 
-Base.length(c::ColinMatrix)             = length(c.data)
-Base.size(c::ColinMatrix, args...)      = size(c.data, args...)
-Base.getindex(c::ColinMatrix, args...)  = getindex(c.data, args...)
-Base.setindex!(c::ColinMatrix, args...) = setindex!(c.data, args...)
-Base.broadcastable(c::ColinMatrix)      = c.data
-Base.similar(c::ColinMatrix) = ColinMatrix(similar(c.data))
-Base.unsafe_convert(::Type{Ptr{T}}, c::ColinMatrix{T}) where {T} = Base.unsafe_convert(Ptr{T}, c.data)
-Base.elsize(c::ColinMatrix{T}) where {T} = Base.elsize(c.data)
+@inline @propagate_inbounds Base.length(c::ColinMatrix)             = length(c.data)
+@inline @propagate_inbounds Base.size(c::ColinMatrix, args...)      = size(c.data, args...)
+@inline @propagate_inbounds Base.getindex(c::ColinMatrix, args...)  = getindex(c.data, args...)
+@inline @propagate_inbounds Base.setindex!(c::ColinMatrix, args...) = setindex!(c.data, args...)
+@inline @propagate_inbounds Base.broadcastable(c::ColinMatrix)      = c.data
+@inline @propagate_inbounds Base.similar(c::ColinMatrix) = ColinMatrix(similar(c.data))
+@inline @propagate_inbounds Base.unsafe_convert(::Type{Ptr{T}}, c::ColinMatrix{T}) where {T} = Base.unsafe_convert(Ptr{T}, c.data)
+@inline @propagate_inbounds Base.elsize(c::ColinMatrix{T}) where {T} = Base.elsize(c.data)
 
 @inline function LinearAlgebra.mul!(C::ColinMatrix{ComplexF32}, A::ColinMatrix{ComplexF32}, B::ColinMatrix{ComplexF32})
 	dim = blockdim(C)
