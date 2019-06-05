@@ -2,6 +2,11 @@ import LinearAlgebra.LAPACK: syev!, @blasfunc, BlasInt, chkstride1, checksquare,
 import LinearAlgebra.BLAS: libblas
 import LinearAlgebra: eigen, eigen!
 import Base: @propagate_inbounds
+
+abstract type Spin end
+struct Up <: Spin end
+struct Down <: Spin end 
+
 struct ColinMatrix{T, M <: AbstractArray{T, 2}} <: AbstractMatrix{T}
 	data::M
 end
@@ -23,21 +28,27 @@ end
 
 @inline @propagate_inbounds Base.getindex(c::ColinMatrix, args::Int...) = getindex(c.data, args...)
 
-for f in (:view, :getindex, :similar)
+for f in (:view, :getindex)
 	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix{T, M} where {T, M<:AbstractMatrix{T}}, args::AbstractUnitRange...) =
-		ColinMatrix(Base.$f(c.data, args...))
+		Base.$f(c.data, args...)
 end
 
-for f in (:view, :getindex)
-	@eval @inline @propagate_inbounds function Base.$f(c::ColinMatrix, a1::DFC.AbstractAtom, a2::DFC.AbstractAtom)
-		d = blockdim(c)
-		projrange1 = DFC.projection_index_ranges(a1)
-		projrange2 = DFC.projection_index_ranges(a2)
+Base.similar(c::ColinMatrix{T, M} where {T, M<:AbstractMatrix{T}}, args::AbstractUnitRange...) =
+	ColinMatrix(similar(c.data), args...)
 
-		b1 = $f(c, projrange1, projrange2)
-		b2 = $f(c, projrange1, projrange2 .+ d)
-		return hcat(b1, b2)
+for f in (:view, :getindex)
+	@eval function Base.$f(c::ColinMatrix, a1::T, a2::T) where {T<:Union{DFC.Projection, DFC.AbstractAtom}}
+		projrange1 = range(a1)
+		projrange2 = range(a2)
+
+		return ColinMatrix($f(c, projrange1, projrange2), $f(c, projrange1, projrange2 .+ blockdim(c)))
 	end
+
+	@eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Up) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+		$f(c, range(a1), range(a2))
+
+	@eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Down) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+		$f(c, range(a1), range(a2) .+ blockdim(c))
 end
 
 @inline @propagate_inbounds Base.broadcastable(c::ColinMatrix)      = c.data

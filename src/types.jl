@@ -96,14 +96,17 @@ getindex(at::WanAtom, s::Symbol) =
 atom(at::WanAtom) =
 	at.atom
 
-getindex(A::AbstractMatrix, a1::AbstractAtom, a2::AbstractAtom) =
-	getindex(A, projection_index_ranges(a1), projection_index_ranges(a2))
+getindex(A::AbstractMatrix, a1::T , a2::T) where {T<:Union{AbstractAtom, Projection}} =
+	getindex(A, range(a1), range(a2))
 
 getindex(A::AbstractMatrix, a::AbstractAtom) =
 	getindex(A, a, a)
 
-view(A::AbstractMatrix, a1::AbstractAtom, a2::AbstractAtom) =
-	view(A, projection_index_ranges(a1), projection_index_ranges(a2))
+view(A::AbstractMatrix, a1::T, a2::T) where {T<:Union{AbstractAtom, Projection}} =
+	view(A, range(a1), range(a2))
+
+view(A::AbstractMatrix, a::Union{AbstractAtom, Projection}) =
+	view(A, range(a), range(a))
 
 import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, read_wannier_output
 

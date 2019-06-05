@@ -112,16 +112,14 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
 		# The two kind of ranges are needed because we calculate D only for the projections we care about
 		# whereas G is calculated from the full Hamiltonian, the is needed.
         for (eid, exch) in enumerate(exchanges)
-            rm  = range(exch.proj1)
-            rn  = range(exch.proj2)
-            D_rm=view(D, rm, rm)
-            D_rn=view(D, rn, rn)
+            D_rm=view(D, exch.proj1)
+            D_rn=view(D, exch.proj2)
             J_caches[eid] .+= sign(real(tr(D_rm))) .*
                               sign(real(tr(D_rn))) .*
                               imag.(D_rm *
-                                    view(cache(G), rm, rn) *
+                                    view(G, exch.proj1, exch.proj2, Up()) *
                                     D_rn *
-                                    view(cache(G), rn, rm.+dim[1]) *
+                                    view(G, exch.proj2, exch.proj1, Down()) *
                                     dω)
 
         end
