@@ -1,6 +1,6 @@
 using DFControl: searchdir, Band, DFBand, Point3, Vec3, Point, Mat3
 import DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, pseudo, projections, setpseudo!, atom
-import Base: getindex, zero, show, -, +, ==, !=, *, /
+import Base: getindex, zero, show, -, +, ==, !=, *, /, view
 # Cleanup Do we really need <:abstractfloat, check this!
 
 struct WannierFunction{N, T<:AbstractFloat} <: AbstractArray{SVector{N, Complex{T}}, 3}
@@ -23,36 +23,27 @@ function WannierFunction(filename_up_re::String, filename_up_im::String, filenam
 	return normalize(WannierFunction(points, values))
 end
 
+values(w::WannierFunction) =
+	w.values
 
-values(w::WannierFunction) = w.values
-
-Base.size(x::WannierFunction) = size(values(x))
-
-
-#### AbstractArray Interface
-Base.axes(x::WannierFunction) = Base.axes(values(x))
-
-Base.IndexStyle(x::WannierFunction) = IndexStyle(values(x))
-
-@inline @Base.propagate_inbounds Base.getindex(x::WannierFunction, i...) =
-	getindex(values(x), i...)
-
-@inline @Base.propagate_inbounds Base.setindex!(x::WannierFunction, v, i...) =
-	setindex!(values(x), v, i...)
-
-function Base.similar(x::WannierFunction,::Type{S}) where S
-  WannierFunction(x.points, similar(values(x), S))
+for f in (:size, :getindex, :setindex!)
+	@eval @inline @propagate_inbounds Base.$f(x::WannierFunction, i...) =
+		Base.$f(values(x), i...)
 end
 
-Base.strides(x::WannierFunction) = strides(values(x))
+for f in (:length, :stride, :ndims, :axes, :strides)
+	@eval @inline Base.$f(w::WannierFunction) = Base.$f(values(w))
+end
 
-Base.unsafe_convert(T::Type{<:Ptr}, x::WannierFunction) = unsafe_convert(T, values(x))
+Base.similar(x::WannierFunction,::Type{S}) where S = 
+  WannierFunction(x.points, similar(values(x), S))
 
-Base.stride(x::WannierFunction, i::Int) = stride(values(x), i)
+Base.unsafe_convert(T::Type{<:Ptr}, x::WannierFunction) =
+	unsafe_convert(T, values(x))
 
-Base.ndims(::Type{WannierFunction}) = 3
 
-Base.Broadcast.broadcastable(w::WannierFunction) = values(w)
+Base.Broadcast.broadcastable(w::WannierFunction) =
+	values(w)
 
 #### LinearAlgebra overloads
 function LinearAlgebra.adjoint(w::WannierFunction)
@@ -60,7 +51,8 @@ function LinearAlgebra.adjoint(w::WannierFunction)
 	adjoint!(out, w)
 end
 
-LinearAlgebra.adjoint!(w1::WannierFunction, w2::WannierFunction) = w1 .= adjoint.(w2)
+LinearAlgebra.adjoint!(w1::WannierFunction, w2::WannierFunction) =
+	w1 .= adjoint.(w2)
 
 function LinearAlgebra.dot(w1::WannierFunction{T}, w2::WannierFunction{T}) where {T}
     s = zero(T)
@@ -70,12 +62,16 @@ function LinearAlgebra.dot(w1::WannierFunction{T}, w2::WannierFunction{T}) where
     return real(s)
 end
 
-LinearAlgebra.norm(wfc::WannierFunction) = dot(wfc, wfc)
-LinearAlgebra.normalize(wfc::WannierFunction) = wfc ./= sqrt(norm(wfc))
+LinearAlgebra.norm(wfc::WannierFunction) =
+	dot(wfc, wfc)
+
+LinearAlgebra.normalize(wfc::WannierFunction) =
+	wfc ./= sqrt(norm(wfc))
 
 ####
 
-same_grid(w1::WannierFunction, w2::WannierFunction) = w1.points === w2.points 
+same_grid(w1::WannierFunction, w2::WannierFunction) =
+	w1.points === w2.points 
 
 function wan_op(op::Function, w1::W, w2::W) where {W <: WannierFunction}
 	@assert same_grid(w1, w2) "Wannier functions are not defined on the same grid"
@@ -93,12 +89,24 @@ struct WanAtom{T <: AbstractFloat} <: AbstractAtom{T}
     wandata ::Dict{Symbol, <:Any}
 end
 
-Base.getindex(at::WanAtom, s::Symbol) = getindex(at.wandata, s::Symbol)
+getindex(at::WanAtom, s::Symbol) =
+	getindex(at.wandata, s::Symbol)
 
 # #implementation of the AbstractAtom interface
-atom(at::WanAtom) = at.atom
+atom(at::WanAtom) =
+	at.atom
+
+getindex(A::AbstractMatrix, a1::AbstractAtom, a2::AbstractAtom) =
+	getindex(A, projection_index_ranges(a1), projection_index_ranges(a2))
+
+getindex(A::AbstractMatrix, a::AbstractAtom) =
+	getindex(A, a, a)
+
+view(A::AbstractMatrix, a1::AbstractAtom, a2::AbstractAtom) =
+	view(A, projection_index_ranges(a1), projection_index_ranges(a2))
 
 import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, read_wannier_output
+
 struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}}
     R_cart  ::Vec3{T}
     R_cryst ::Vec3{Int}
@@ -107,33 +115,37 @@ end
 
 block(x::TbBlock) = x.block
 
-Base.getindex(h::TbBlock, i)    = getindex(block(h), i)
-Base.getindex(h::TbBlock, i, j) = getindex(block(h), i, j)
+for f in (:getindex, :size, :similar)
+	@eval Base.$f(h::TbBlock, args...) = $f(block(h), args...)
+end
 
-Base.size(h::TbBlock, args...)           = size(block(h), args...)
-
-Base.similar(h::TbBlock) = similar(block(h))
-
-LinearAlgebra.eigen(h::TbBlock) = eigen(block(h))
-
+LinearAlgebra.eigen(h::TbBlock) =
+	eigen(block(h))
 
 const TbHami{T, M}  = Vector{TbBlock{T, M}}
 
-get_block(h::TbHami, R::Vec3{Int}) = getfirst(x->x.R_cryst == R, h)
-
+getindex(h::TbHami, R::Vec3{Int}) =
+	getfirst(x -> x.R_cryst == R, h)
 
 #some small type piracy?
-Base.zeros(m::AbstractArray{T}) where {T} = fill!(similar(m), zero(T))
-zeros_block(h::TbHami)  = zeros(block(h[1])) 
-similar_block(h::TbHami) = similar(block(h[1]))
-blocksize(h::TbHami, args...) = size(block(h[1]), args...)
-# similar_block(h::TbHami{T, <:BlockBandedMatrix}) where T = similar(block(h[1]))
+Base.zeros(m::AbstractArray{T}) where {T} =
+	fill!(similar(m), zero(T))
+
+zeros_block(h::TbHami) =
+	zeros(block(h[1]))
+
+similar_block(h::TbHami) =
+	similar(block(h[1]))
+
+blocksize(h::TbHami, args...) =
+	size(block(h[1]), args...)
 
 struct RmnBlock{T<:AbstractFloat}
     R_cart  ::Vec3{T}
     R_cryst ::Vec3{Int}
     block   ::Matrix{Point3{T}}
 end
+
 const TbRmn{T} = Vector{RmnBlock{T}}
 
 mutable struct WanStructure{T<:AbstractFloat} <: AbstractStructure{T}
@@ -150,12 +162,14 @@ end
 # WanStructure(structure_::WanStructure, args...) =
 #     WanStructure(structure(structure_), args...)
 
-# structure(str::WanStructure) = str.structure
+# structure(str::WanStructure) =
+	# str.structure
 # #TODO does not handle the SOC case. Or the case where there is up and down
 # #TODO handle so that the previous job doesn't get destroyed I mean it's not necessary
 # #     it also doesn't agree with the paradigm of julia
 # function add_wan_data(structure::AbstractStructure{T}, job_dir::String, threaded=true) where T
-#     searchdir(str) = job_dir .* DFControl.searchdir(job_dir, str)
+#     searchdir(str) =
+	# job_dir .* DFControl.searchdir(job_dir, str)
 #     xsf_files   = searchdir(".xsf")
 #     hami_files  = reverse(searchdir("_hr.dat")) #such that dn is last
 #     r_files     = reverse(searchdir("_r.dat")) #such that dn is last
@@ -266,7 +280,8 @@ function WannierBand(kpoints::Vector{Vec3{T}}, dim::Int) where T
     WannierBand{T}(k_points_cryst=kpoints, eigvals=zeros(T, klen), eigvec=[zeros(Complex{T}, dim) for k=1:klen])
 end
 
-wannierbands(kpoints::Vector{<:Vec3}, dim::Int) = [WannierBand(kpoints, dim) for i=1:dim]
+wannierbands(kpoints::Vector{<:Vec3}, dim::Int) =
+	[WannierBand(kpoints, dim) for i=1:dim]
 
 function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
     matdim = blockdim(tbhamis, 1)
@@ -287,55 +302,57 @@ function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
     end
     return outbands
 end
-wannierbands(tbhamis, dfbands::Vector{<:DFBand}) = wannierbands(tbhamis, dfbands[1].k_points_cryst)
+wannierbands(tbhamis, dfbands::Vector{<:DFBand}) =
+	wannierbands(tbhamis, dfbands[1].k_points_cryst)
 
 import Base: +, -, *, /
 
 struct ThreadCache{T}
 	caches::Vector{T}
-	ThreadCache(orig::T) where {T} = new{T}([deepcopy(orig) for i = 1:nthreads()])
+	ThreadCache(orig::T) where {T} =
+		new{T}([deepcopy(orig) for i = 1:nthreads()])
 end
 
-@inline cache(t::ThreadCache) = t.caches[threadid()]
+@inline cache(t::ThreadCache) =
+	t.caches[threadid()]
 
-Base.getindex(t::ThreadCache{<:AbstractArray}, i...) = getindex(cache(t), i...)
-Base.setindex!(t::ThreadCache{<:AbstractArray{T}}, v::T, i...) where T = setindex!(cache(t), v, i...)
-Base.copyto!(t::ThreadCache, v) = copyto!(cache(t), v)
+for f in (:getindex, :setindex!, :copyto!, :size, :length, :iterate, :sum, :view, :fill!)
+	@eval Base.$f(t::ThreadCache{<:AbstractArray}, i...) = Base.$f(cache(t), i...)
+end
 
-+(t::ThreadCache{T}, v::T) where T = cache(t) + v 
--(t::ThreadCache{T}, v::T) where T = cache(t) - v 
-*(t::ThreadCache{T}, v::T) where T = cache(t) * v 
-/(t::ThreadCache{T}, v::T) where T = cache(t) / v 
-+(v::T, t::ThreadCache{T}) where T = v - cache(t)  
--(v::T, t::ThreadCache{T}) where T = v * cache(t)  
-*(v::T, t::ThreadCache{T}) where T = v / cache(t)  
-/(v::T, t::ThreadCache{T}) where T = v + cache(t)
+for op in (:+, :-, :*, :/)
+	@eval $op(t::ThreadCache{T}, v::T) where {T} = $op(cache(t), v)
+	@eval $op(v::T, t::ThreadCache{T}) where {T} = $op(v, cache(t))
+end
 
-Base.size(t::ThreadCache, i...)       = size(cache(t), i...)
+fillall!(t::ThreadCache{<:AbstractArray{T}}, v::T)   where {T} =
+	fill!.(t.caches, (v,))
 
-Base.length(t::ThreadCache)     = length(cache(t))
-Base.iterate(t::ThreadCache)    = iterate(cache(t))
-Base.iterate(t::ThreadCache, p) = iterate(cache(t), p)
-Base.sum(t::ThreadCache)        = sum(t.caches)
-Base.view(t::ThreadCache, v...) = view(cache(t), v...)
-Base.fill!(t::ThreadCache{<:AbstractArray{T}}, v::T) where {T} = fill!(cache(t), v)
-fillall!(t::ThreadCache{<:AbstractArray{T}}, v::T)   where {T} = fill!.(t.caches, (v,))
+gather(t::ThreadCache) = sum(t.caches)
 
 LinearAlgebra.mul!(t1::ThreadCache{T}, v::T, t2::ThreadCache{T}) where {T<:AbstractArray} =
-	mul!(cache(t1), v, cache(t2)) 
+	mul!(cache(t1), v, cache(t2))
+
 LinearAlgebra.mul!(t1::T, v::T, t2::ThreadCache{T}) where {T<:AbstractArray} =
-	mul!(t1, v, cache(t2)) 
+	mul!(t1, v, cache(t2))
+
 LinearAlgebra.mul!(t1::ThreadCache{T}, t2::ThreadCache{T}, t3::ThreadCache{T}) where {T<:AbstractArray} =
-	mul!(cache(t1), cache(t2), cache(t3)) 
-LinearAlgebra.adjoint!(t1::ThreadCache{T}, v::T) where {T} = adjoint!(cache(t1), v)
+	mul!(cache(t1), cache(t2), cache(t3))
+
+LinearAlgebra.adjoint!(t1::ThreadCache{T}, v::T) where {T} =
+	adjoint!(cache(t1), v)
 
 ####
 #### Broadcasting
 ####
-Base.ndims(::Type{ThreadCache{T}}) where {T<:AbstractArray} = ndims(T)
-# Base.broadcast(f, As::ThreadCache...) = broadcast(f, getindex.(getfield.(As, :caches), threadid()))
-Base.Broadcast.broadcastable(tc::ThreadCache{<:AbstractArray}) = cache(tc)
-# Base.Broadcast.BroadcastStyle(::Type{ThreadCache{T}}) where {T<:AbstractArray} = Base.Broadcast.BroadcastStyle(T)
+Base.ndims(::Type{ThreadCache{T}}) where {T<:AbstractArray} =
+	ndims(T)
+ # Base.broadcast(f, As::ThreadCache...) =
+	# broadcast(f, getindex.(getfield.(As, :caches), threadid()))
+Base.Broadcast.broadcastable(tc::ThreadCache{<:AbstractArray}) =
+	cache(tc)
+# Base.Broadcast.BroadcastStyle(::Type{ThreadCache{T}}) where {T<:AbstractArray} =
+	# Base.Broadcast.BroadcastStyle(T)
 
 
 

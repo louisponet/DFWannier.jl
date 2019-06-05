@@ -83,8 +83,7 @@ function DHvecvals(hami::TbHami{T, <:AbstractMatrix{Complex{T}}}, k_grid::Abstra
         D.+= hvk
         eigen!(Hvals[i], hvk, calc_caches[tid])
     end
-	Ds = sum(D)
-
+	Ds = gather(D)
     return Hvecs, Hvals, (Ds[b_ranges[1], b_ranges[1]] - Ds[b_ranges[1], b_ranges[2]])/length(k_grid)
 end
 
@@ -129,7 +128,7 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
     end
 
     for (eid, exch) in enumerate(exchanges)
-        exch.J = 1e3 / 2π * sum(J_caches[eid])
+        exch.J = 1e3 / 2π * gather(J_caches[eid])
     end
 end
 
@@ -228,7 +227,7 @@ function calc_anisotropic_exchanges!(exchanges ::Vector{AnisotropicExchange{T}},
     end 
  
     for (eid, exch) in enumerate(exchanges) 
-        exch.J = 1e3 / 2π * sum(J_caches[eid]) 
+        exch.J = 1e3 / 2π * gather(J_caches[eid]) 
     end 
 end
 
@@ -286,7 +285,7 @@ function DHvecvals(hami::TbHami{T, AbstractMatrix{Complex{T}}}, k_grid::Abstract
         # Hvals[i], Hvecs[i] = eigen(Hvecs[i])
         eigen!(Hvals[i], Hvecs[i], calc_caches[tid])
     end
-    return Hvecs, Hvals, sum(δH_onsite.caches)./nk
+    return Hvecs, Hvals, gather(δH_onsite)./nk
 end
 
 commutator(A1, A2) where T = A1*A2 - A2*A1
@@ -316,7 +315,7 @@ end
 function totocc(Hvals, fermi::T, temp::T) where T
     totocc = zero(Complex{T})
     for i = 1:length(Hvals)
-        totocc += sum( 1 ./ (exp.((Hvals[i] .- fermi)./temp) .+ 1))
+        totocc += gather( 1 ./ (exp.((Hvals[i] .- fermi)./temp) .+ 1))
     end
     return totocc/length(Hvals)
 end

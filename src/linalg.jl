@@ -17,14 +17,32 @@ down(c::ColinMatrix) = view(c.data, 1:blockdim(c), blockdim(c)+1:2*blockdim(c))
 # blockdim(c::ColinMatrix) = size(c.data, 2)
 blockdim(c::ColinMatrix) = size(c.data, 1)
 
-@inline @propagate_inbounds Base.length(c::ColinMatrix)             = length(c.data)
-@inline @propagate_inbounds Base.size(c::ColinMatrix, args...)      = size(c.data, args...)
-@inline @propagate_inbounds Base.getindex(c::ColinMatrix, args...)  = getindex(c.data, args...)
-@inline @propagate_inbounds Base.setindex!(c::ColinMatrix, args...) = setindex!(c.data, args...)
+for f in (:length, :size, :setindex!, :elsize)
+	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix, args...) = Base.$f(c.data, args...)
+end
+
+@inline @propagate_inbounds Base.getindex(c::ColinMatrix, args::Int...) = getindex(c.data, args...)
+
+for f in (:view, :getindex, :similar)
+	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix{T, M} where {T, M<:AbstractMatrix{T}}, args::AbstractUnitRange...) =
+		ColinMatrix(Base.$f(c.data, args...))
+end
+
+for f in (:view, :getindex)
+	@eval @inline @propagate_inbounds function Base.$f(c::ColinMatrix, a1::DFC.AbstractAtom, a2::DFC.AbstractAtom)
+		d = blockdim(c)
+		projrange1 = DFC.projection_index_ranges(a1)
+		projrange2 = DFC.projection_index_ranges(a2)
+
+		b1 = $f(c, projrange1, projrange2)
+		b2 = $f(c, projrange1, projrange2 .+ d)
+		return hcat(b1, b2)
+	end
+end
+
 @inline @propagate_inbounds Base.broadcastable(c::ColinMatrix)      = c.data
-@inline @propagate_inbounds Base.similar(c::ColinMatrix) = ColinMatrix(similar(c.data))
+
 @inline @propagate_inbounds Base.unsafe_convert(::Type{Ptr{T}}, c::ColinMatrix{T}) where {T} = Base.unsafe_convert(Ptr{T}, c.data)
-@inline @propagate_inbounds Base.elsize(c::ColinMatrix{T}) where {T} = Base.elsize(c.data)
 
 @inline function LinearAlgebra.mul!(C::ColinMatrix{ComplexF32}, A::ColinMatrix{ComplexF32}, B::ColinMatrix{ComplexF32})
 	dim = blockdim(C)

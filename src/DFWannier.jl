@@ -3,6 +3,8 @@ module DFWannier
 	using Reexport
 
 	@reexport using DFControl
+	const DFC = DFControl
+
 	using StaticArrays 
 	using RecipesBase
 	using LaTeXStrings
