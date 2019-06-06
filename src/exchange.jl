@@ -20,8 +20,6 @@ mutable struct Exchange{T <: AbstractFloat}
     J       ::Matrix{T}
     atom1   ::Atom{T}
     atom2   ::Atom{T}
-    proj1   ::Projection
-    proj2   ::Projection
 end
 
 function calc_exchanges(hami,  atoms, fermi::T;
@@ -31,26 +29,32 @@ function calc_exchanges(hami,  atoms, fermi::T;
                         ωv::T              = T(0.001), #height of vertical contour
                         n_ωh::Int          = 3000,
                         n_ωv::Int          = 500,
-                        temp::T            = T(0.01)) where T <: AbstractFloat
+                        temp::T            = T(0.01),
+                        site_diag          = false) where T <: AbstractFloat
 
     μ               = fermi
     k_grid          = uniform_shifted_kgrid(nk...)
     ω_grid          = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
     
-    exchanges       = setup_exchanges(atoms)
+    exchanges       = setup_exchanges(atoms, site_diag)
 
     Hvecs, Hvals, D = DHvecvals(hami, k_grid)
-
-
-    calc_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
+    if site_diag
+		Ddiag           = site_diagonalize(D, atoms)
+	    calc_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, Ddiag)
+    else
+	    calc_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
+    end
     return exchanges
 end
 
-function setup_exchanges(atoms::Vector{<:AbstractAtom{T}}) where T <: AbstractFloat
+function setup_exchanges(atoms::Vector{<:AbstractAtom{T}}, site_diag=false) where T <: AbstractFloat
     exchanges = Exchange{T}[]
     for (i, at1) in enumerate(atoms), at2 in atoms[i+1:end]
-        for proj1 in projections(at1), proj2 in projections(at2)
-            push!(exchanges, Exchange{T}(zeros(T, orbsize(proj1), orbsize(proj1)), at1, at2, proj1, proj2))
+        if site_diag
+	        push!(exchanges, Exchange{T}(zeros(T, length(range(at1)), length(range(at2))), at1, at2))
+        else
+	        push!(exchanges, Exchange{T}(zeros(T, length(range(at1)), length(range(at1))), at1, at2))
         end
     end
     return exchanges
@@ -87,6 +91,17 @@ function DHvecvals(hami::TbHami{T, <:AbstractMatrix{Complex{T}}}, k_grid::Abstra
     return Hvecs, Hvals, (Ds[b_ranges[1], b_ranges[1]] - Ds[b_ranges[1], b_ranges[2]])/length(k_grid)
 end
 
+function site_diagonalize(D::Matrix{Complex{T}}, ats::Vector{<:DFC.AbstractAtom}) where {T}
+	Ts = zeros(D)
+	Dvals = zeros(T, size(D, 1))
+	for at in ats
+		t_vals, t_vecs = eigen(Hermitian(D[at]))
+		Ts[at] .= t_vecs
+		Dvals[range(at)] .=  real.(t_vals)
+	end
+	return SiteDiagonalD(Dvals, Ts)
+end
+
 function calc_exchanges!(exchanges::Vector{Exchange{T}},
 	                                 μ         ::T,
 	                                 R         ::Vec3,
@@ -94,8 +109,8 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
 	                                 ω_grid    ::AbstractArray{Complex{T}},
 	                                 Hvecs     ::Vector{<:ColinMatrix{Complex{T}}},
 	                                 Hvals     ::Vector{Vector{T}},
-	                                 D         ::Matrix{Complex{T}}) where T <: AbstractFloat
-    dim      = size(Hvecs[1])
+	                                 D         ::Union{Matrix{Complex{T}}, SiteDiagonalD{T}}) where T <: AbstractFloat
+    dim     = size(Hvecs[1])
     d2      = div(dim[1], 2)
     J_caches = [ThreadCache(zeros(T, size(e.J))) for e in exchanges]
     g_caches = [ThreadCache(fill!(similar(Hvecs[1]), zero(Complex{T}))) for i=1:3]
@@ -112,22 +127,36 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
 		# The two kind of ranges are needed because we calculate D only for the projections we care about
 		# whereas G is calculated from the full Hamiltonian, the is needed.
         for (eid, exch) in enumerate(exchanges)
-            D_rm=view(D, exch.proj1)
-            D_rn=view(D, exch.proj2)
-            J_caches[eid] .+= sign(real(tr(D_rm))) .*
-                              sign(real(tr(D_rn))) .*
-                              imag.(D_rm *
-                                    view(G, exch.proj1, exch.proj2, Up()) *
-                                    D_rn *
-                                    view(G, exch.proj2, exch.proj1, Down()) *
-                                    dω)
-
+            J_caches[eid] .+= Jω(exch, D, G, dω)
         end
     end
 
     for (eid, exch) in enumerate(exchanges)
         exch.J = 1e3 / 2π * gather(J_caches[eid])
     end
+end
+
+spin_sign(D) = sign(real(tr(D))) #up = +1, down = -1
+spin_sign(D::Vector) = sign(real(sum(D))) #up = +1, down = -1
+
+@inline function Jω(exch, D, G, dω)
+    D_site1    = view(D, exch.atom1)
+    D_site2    = view(D, exch.atom2)
+    G_forward  = view(G, exch.atom1, exch.atom2, Up())
+    G_backward = view(G, exch.atom2, exch.atom1, Down())
+	return spin_sign(D_site1) .* spin_sign(D_site2) .* imag.(D_site1 * G_forward * D_site2 * G_backward * dω)
+end
+
+@inline function Jω(exch, D::SiteDiagonalD, G, dω)
+	s1 = spin_sign(D.values[exch.atom1])
+	s2 = spin_sign(D.values[exch.atom2])
+	t  = zeros(exch.J)
+	G_forward  = D.T[exch.atom1]' * G[exch.atom1, exch.atom2, Up()] * D.T[exch.atom2]
+	G_backward = D.T[exch.atom2]' * G[exch.atom2, exch.atom1, Down()] *  D.T[exch.atom1]
+	for j=1:size(t, 2), i=1:size(t, 1)
+		t[i, j] = s1 * s2 * imag(D.values[exch.atom1][i] * G_forward[i, j] * D.values[exch.atom2][j] * G_backward[j, i] * dω)
+	end
+	return t  
 end
 
 function integrate_Gk!(G::AbstractMatrix, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}

@@ -26,5 +26,11 @@ DFW.integrate_Gk!(G, ω_grid[1], fermi, Hvecs, Hvals, R, k_grid, g_caches);
 
 @test isapprox(sum(G[1:16,1:16]), -1.3067613767591695e-5 + 1.731494091438631e-7im)
 
-exch     = DFW.calc_exchanges(hami, atoms(structure), fermi, R=R, n_ωv = n_ωv, nk=nk, n_ωh=n_ωh, ωv = 0.5)
-@test abs(minimum(tr.([e.J for e in exch])) + 43.27722) < 5.0
+exch     = DFW.calc_exchanges(hami, atoms(structure), fermi, R=R, n_ωv = n_ωv, nk=nk, n_ωh=n_ωh, ωv = 0.5, site_diag=false)
+maxJ = abs(minimum(tr.([e.J for e in exch])))
+@test maxJ - 43.27722 < 5.0
+
+exch1     = DFW.calc_exchanges(hami, atoms(structure), fermi, R=R, n_ωv = n_ωv, nk=nk, n_ωh=n_ωh, ωv = 0.5, site_diag=true)
+maxJ1 = abs(minimum(sum.([e.J for e in exch1])))
+@test maxJ1 - 43.27722 < 5.0
+@test isapprox(maxJ, maxJ1)  

@@ -102,11 +102,17 @@ getindex(A::AbstractMatrix, a1::T , a2::T) where {T<:Union{AbstractAtom, Project
 getindex(A::AbstractMatrix, a::AbstractAtom) =
 	getindex(A, a, a)
 
+getindex(A::AbstractVector, a::AbstractAtom) =
+	getindex(A, range(a))
+
 view(A::AbstractMatrix, a1::T, a2::T) where {T<:Union{AbstractAtom, Projection}} =
 	view(A, range(a1), range(a2))
 
 view(A::AbstractMatrix, a::Union{AbstractAtom, Projection}) =
 	view(A, range(a), range(a))
+
+view(A::AbstractVector, a::Union{AbstractAtom, Projection}) =
+	view(A, range(a))
 
 import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, read_wannier_output
 
@@ -150,6 +156,15 @@ struct RmnBlock{T<:AbstractFloat}
 end
 
 const TbRmn{T} = Vector{RmnBlock{T}}
+
+struct SiteDiagonalD{T<:AbstractFloat}
+	values ::Vector{T}
+	T      ::Matrix{Complex{T}}
+end
+
+# view(D::SiteDiagonalD, at::AbstractAtom) =
+# 	()
+
 
 mutable struct WanStructure{T<:AbstractFloat} <: AbstractStructure{T}
     structure ::Structure{T}
