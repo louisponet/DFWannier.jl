@@ -155,6 +155,7 @@
             end
         end
     end
+    legend --> false
     ks,out
 end
 

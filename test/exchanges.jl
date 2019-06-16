@@ -5,7 +5,7 @@ n_ωh = 300
 n_ωv = 50
 ωh = -30.0
 ωv = 0.5
-i, structure = DFW.DFControl.read_wannier_input(assetfile("wan_up.win"))
+i, structure = DFW.DFControl.wan_read_input(assetfile("wan_up.win"))
 DFW.DFControl.projections(structure)
 setprojections!(structure, :Ni1=>[:d], :Ni2=>[:d], :O=>[:s])
 hami = DFW.read_colin_hamis(assetfile("wan_up_hr.dat"), assetfile("wan_dn_hr.dat"), structure)

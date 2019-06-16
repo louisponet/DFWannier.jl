@@ -1,5 +1,5 @@
 using DFControl: searchdir, Band, DFBand, Point3, Vec3, Point, Mat3
-import DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, pseudo, projections, setpseudo!, atom
+import DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, pseudo, projections, setpseudo!, atom, Length
 import Base: getindex, zero, show, -, +, ==, !=, *, /, view
 # Cleanup Do we really need <:abstractfloat, check this!
 
@@ -84,8 +84,8 @@ struct OperatorBlock{T <: AbstractFloat}
     J::Vector{Matrix{Complex{T}}}
 end
 
-struct WanAtom{T <: AbstractFloat} <: AbstractAtom{T}
-    atom    ::Atom{T}
+struct WanAtom{T <: AbstractFloat, LT <: Length{T}} <: AbstractAtom{T, LT}
+    atom    ::Atom{T, LT}
     wandata ::Dict{Symbol, <:Any}
 end
 
@@ -114,10 +114,10 @@ view(A::AbstractMatrix, a::Union{AbstractAtom, Projection}) =
 view(A::AbstractVector, a::Union{AbstractAtom, Projection}) =
 	view(A, range(a))
 
-import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, read_wannier_output
+import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, wan_read_input
 
-struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}}
-    R_cart  ::Vec3{T}
+struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, LT<:Length{T}}
+    R_cart  ::Vec3{LT}
     R_cryst ::Vec3{Int}
     block   ::M
 end
@@ -131,7 +131,7 @@ end
 LinearAlgebra.eigen(h::TbBlock) =
 	eigen(block(h))
 
-const TbHami{T, M}  = Vector{TbBlock{T, M}}
+const TbHami{T, M, LT}  = Vector{TbBlock{T, M, LT}}
 
 getindex(h::TbHami, R::Vec3{Int}) =
 	getfirst(x -> x.R_cryst == R, h)
@@ -166,8 +166,8 @@ end
 # 	()
 
 
-mutable struct WanStructure{T<:AbstractFloat} <: AbstractStructure{T}
-    structure ::Structure{T}
+mutable struct WanStructure{T<:AbstractFloat, LT<:Length{T}} <: AbstractStructure{T, LT}
+    structure ::Structure{T, LT}
     tbhamis   ::Vector{TbHami{T}}
     tbRmns    ::Vector{TbRmn{T}}
 end

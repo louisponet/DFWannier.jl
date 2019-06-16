@@ -80,7 +80,7 @@ function rs(R, r1, r2, r3, r4)
     end
 end
 
-function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T}}}, structure::AbstractStructure{T}) where  T
+function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T, LT}}}, structure::AbstractStructure{T, LT}) where  {T, LT<:Length{T}}
     forwardmap = AFMmap(structure, Vec3(1,0,0))
     Hup = getfirst(x -> x.R_cryst == Vec3(0,0,0), tb_hamis[1]).block
     Hdn = getfirst(x -> x.R_cryst == Vec3(0,0,0), tb_hamis[2]).block

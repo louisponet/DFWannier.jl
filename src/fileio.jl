@@ -111,9 +111,9 @@ end
 
 Returns a vector of TbBlocks with the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
-function readhami(filename::String, structure::AbstractStructure{T}) where  T
+function readhami(filename::String, structure::AbstractStructure{T, LT}) where  {T<:AbstractFloat,LT<:Length{T}}
     open(filename) do f
-        out = TbBlock{T, Matrix{Complex{T}}}[]
+        out = TbBlock{T, Matrix{Complex{T}}, LT}[]
         degen = Int64[]
         linenr = 0
         readline(f)
@@ -163,37 +163,6 @@ function read_colin_hamis(upfile::String, downfile::String, structure::AbstractS
 	end
 	return outhami
 end
-
-	# fs   = open.((upfile, downfile)   "r")
- #    out = TbBlock{T}[]
- #    degen = Int64[]
- #    linenr = 0
- #    readline.(fs)
- #    nwanfuns   = parse.(Int64, readline.(fs))
- #    ndegens    = parse.(Int64, readline.(fs))
-
- #    while length(degen) < ndegen
- #        push!(degen, parse.(Int, split(readline(f)))...)
- #    end
-	# close.(fs)
- #    open(filename) do f
- #        while !eof(f)
- #            l = split(readline(f))
- #            linenr += 1
- #            rpt = div(linenr - 1, nwanfun^2) + 1
- #            R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
- #            if length(out) < rpt
- #                block = TbBlock(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
- #                push!(out, block)
- #            else
- #                block = out[rpt]
- #            end
- #            complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) / degen[rpt]
- #            block.block[parse(Int, l[4]), parse(Int, l[5])] = complex
- #        end
- #        return out
- #    end
-# end
 
 """
     readhamis(job::DFJob)
