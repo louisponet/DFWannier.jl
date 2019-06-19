@@ -51,7 +51,7 @@ end
 
 function setup_exchanges(atoms::Vector{<:AbstractAtom{T}}, site_diag=false) where T <: AbstractFloat
     exchanges = Exchange{T}[]
-    for (i, at1) in enumerate(atoms), at2 in atoms[i+1:end]
+    for (i, at1) in enumerate(atoms), at2 in atoms[i:end]
         if site_diag
 	        push!(exchanges, Exchange{T}(zeros(T, length(range(at1)), length(range(at2))), at1, at2))
         else
