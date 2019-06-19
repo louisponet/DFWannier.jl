@@ -302,11 +302,11 @@ wannierbands(kpoints::Vector{<:Vec3}, dim::Int) =
 	[WannierBand(kpoints, dim) for i=1:dim]
 
 function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
-    matdim = blockdim(tbhamis, 1)
+    matdim = blocksize(tbhamis, 2)
     outbands = wannierbands(kpoints, matdim)
 	calc_caches = [EigCache(block(tbhamis[1])) for i = 1:nthreads()]
 
-    @threads for i = 1:length(kpoints)
+    for i = 1:length(kpoints)
 	    tid  = threadid()
 	    k    = kpoints[i]
 	    c    = calc_caches[tid]
