@@ -26,7 +26,7 @@ function calc_exchanges(hami,  atoms, fermi::T;
                         nk::NTuple{3, Int} = (10, 10, 10),
                         R                  = Vec3(0, 0, 0),
                         ωh::T              = T(-30.), #starting energy
-                        ωv::T              = T(0.001), #height of vertical contour
+                        ωv::T              = T(0.15), #height of vertical contour
                         n_ωh::Int          = 3000,
                         n_ωv::Int          = 500,
                         temp::T            = T(0.01),
@@ -45,6 +45,7 @@ function calc_exchanges(hami,  atoms, fermi::T;
     else
 	    calc_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
     end
+
     return exchanges
 end
 
@@ -132,11 +133,11 @@ function calc_exchanges!(exchanges::Vector{Exchange{T}},
     end
 
     for (eid, exch) in enumerate(exchanges)
-        exch.J = 1e3 / 2π * gather(J_caches[eid])
+        exch.J = -1e3 / 2π * gather(J_caches[eid])
     end
 end
 
-spin_sign(D) = sign(real(tr(D))) #up = +1, down = -1
+spin_sign(D) = -sign(real(tr(D))) #up = +1, down = -1. If D_upup > D_dndn, onsite spin will be down and the tr(D) will be positive. Thus explaining the - in front of this.
 spin_sign(D::Vector) = sign(real(sum(D))) #up = +1, down = -1
 
 @inline function Jω(exch, D, G, dω)
