@@ -1,4 +1,6 @@
-using DFControl: Projection, Orbital, Structure, orbital, size, orbsize
+import DFControl: Projection, Orbital, Structure, orbital, size, orbsize, dfprintln, dfprint
+
+import DFControl.Crayons: @crayon_str
 
 uniform_shifted_kgrid(::Type{T}, nkx::Integer, nky::Integer, nkz::Integer) where {T} =
 	[Vec3{T}(kx, ky, kz) for kx = 0.5/nkx:1/nkx:1, ky = 0.5/nky:1/nky:1, kz = 0.5/nkz:1/nkz:1]
@@ -22,6 +24,15 @@ mutable struct Exchange{T <: AbstractFloat}
     atom2   ::Atom{T}
 end
 
+function Base.show(io::IO, e::Exchange)
+	dfprint(io, crayon"red", "atom1:", crayon"reset")
+	dfprintln(io,"name: $(name(e.atom1)), pos: $(position_cryst(e.atom1))")
+	dfprint(io, crayon"red", " atom2:", crayon"reset")
+	dfprintln(io,"name: $(name(e.atom2)), pos: $(position_cryst(e.atom2))")
+
+	dfprint(io, crayon"red", " J: ", crayon"reset", "$(e.J)")
+end
+
 function calc_exchanges(hami,  atoms, fermi::T;
                         nk::NTuple{3, Int} = (10, 10, 10),
                         R                  = Vec3(0, 0, 0),
@@ -30,16 +41,16 @@ function calc_exchanges(hami,  atoms, fermi::T;
                         n_ωh::Int          = 3000,
                         n_ωv::Int          = 500,
                         temp::T            = T(0.01),
-                        site_diag          = false) where T <: AbstractFloat
+                        site_diagonal      = false) where T <: AbstractFloat
 
     μ               = fermi
     k_grid          = uniform_shifted_kgrid(nk...)
     ω_grid          = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
     
-    exchanges       = setup_exchanges(atoms, site_diag)
+    exchanges       = setup_exchanges(atoms, site_diagonal)
 
     Hvecs, Hvals, D = DHvecvals(hami, k_grid)
-    if site_diag
+    if site_diagonal
 		Ddiag           = site_diagonalize(D, atoms)
 	    calc_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, Ddiag)
     else

@@ -8,7 +8,7 @@ n_ωv = 50
 i, structure = DFW.DFControl.wan_read_input(assetfile("wan_up.win"))
 DFW.DFControl.projections(structure)
 setprojections!(structure, :Ni1=>[:d], :Ni2=>[:d], :O=>[:s])
-hami = DFW.read_colin_hamis(assetfile("wan_up_hr.dat"), assetfile("wan_dn_hr.dat"), structure)
+hami = DFW.read_colin_hami(assetfile("wan_up_hr.dat"), assetfile("wan_dn_hr.dat"), structure)
 
 
 k_grid = DFW.uniform_shifted_kgrid(nk...)
@@ -26,11 +26,11 @@ DFW.integrate_Gk!(G, ω_grid[1], fermi, Hvecs, Hvals, R, k_grid, g_caches);
 
 @test isapprox(sum(G[1:16,1:16]), -1.3067613767591695e-5 + 1.731494091438631e-7im)
 
-exch     = DFW.calc_exchanges(hami, atoms(structure), fermi, R=R, n_ωv = n_ωv, nk=nk, n_ωh=n_ωh, ωv = 0.5, site_diag=false)
+exch     = calc_exchanges(hami, atoms(structure), fermi, R=R, n_ωv = n_ωv, nk=nk, n_ωh=n_ωh, ωv = 0.5, site_diagonal=false)
 maxJ = abs(maximum(tr.([e.J for e in exch])))
 @test maxJ - 43.27722 < 5.0
 
-exch1     = DFW.calc_exchanges(hami, atoms(structure), fermi, R=R, n_ωv = n_ωv, nk=nk, n_ωh=n_ωh, ωv = 0.5, site_diag=true)
+exch1     = calc_exchanges(hami, atoms(structure), fermi, R=R, n_ωv = n_ωv, nk=nk, n_ωh=n_ωh, ωv = 0.5, site_diagonal=true)
 maxJ1 = abs(maximum(sum.([e.J for e in exch1])))
 @test maxJ1 - 43.27722 < 5.0
 @test isapprox(maxJ, maxJ1)  

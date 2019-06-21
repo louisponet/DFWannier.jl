@@ -142,11 +142,11 @@ end
 
 #super not optimized
 @doc raw"""
-	read_colin_hamis(upfile::String, downfile::String, structure::AbstractStructure{T})
+	read_colin_hami(upfile::String, downfile::String, structure::AbstractStructure{T})
 
 Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
-function read_colin_hamis(upfile::String, downfile::String, structure::AbstractStructure{T}) where  T
+function read_colin_hami(upfile::String, downfile::String, structure::AbstractStructure{T}) where  T
 	uphami   = readhami(upfile, structure)
 	downhami = readhami(downfile, structure)
 	dim = blocksize(uphami)
@@ -164,10 +164,17 @@ function read_colin_hamis(upfile::String, downfile::String, structure::AbstractS
 	return outhami
 end
 
+#TODO make this more robust
 """
     readhamis(job::DFJob)
 """
-readhamis(job::DFJob) = reverse(readhami.(job.local_dir .* searchdir(job.local_dir, "hr.dat"), (job.structure,)))
+function readhami(job::DFJob)
+	if !any(DFC.iscolincalc.(job.inputs))
+		return readhami(job.local_dir * searchdir(job.local_dir, "hr.dat")[1], (job.structure,))
+	else
+		return read_colin_hami(joinpath.((job,), searchdir(job.local_dir, "hr.dat"))..., job.structure)
+	end
+end
 
 """
 read_rmn_file(filename::String, structure::AbstractStructure{T})
