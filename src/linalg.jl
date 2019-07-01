@@ -16,6 +16,9 @@ function ColinMatrix(up::AbstractMatrix, down::AbstractMatrix)
 	ColinMatrix([up down])
 end
 
+Base.similar(::Type{DFWannier.ColinMatrix{Complex{Float64},M} where M<:AbstractArray{Complex{Float64},2}}, i::Tuple{Int64,Int64}) =
+	ColinMatrix(Matrix{ComplexF64}(undef, i))
+
 up(c::ColinMatrix)   = view(c.data, 1:blockdim(c), 1:blockdim(c))
 # down(c::ColinMatrix) = view(c.data, blockdim(c)+1:2*blockdim(c), 1:blockdim(c))
 down(c::ColinMatrix) = view(c.data, 1:blockdim(c), blockdim(c)+1:2*blockdim(c))
@@ -26,14 +29,14 @@ for f in (:length, :size, :setindex!, :elsize)
 	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix, args...) = Base.$f(c.data, args...)
 end
 
-@inline @propagate_inbounds Base.getindex(c::ColinMatrix, args::Int...) = getindex(c.data, args...)
+@inline @propagate_inbounds Base.getindex(c::ColinMatrix, args...) = getindex(c.data, args...)
 
 for f in (:view, :getindex)
 	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix{T, M} where {T, M<:AbstractMatrix{T}}, args::AbstractUnitRange...) =
 		Base.$f(c.data, args...)
 end
 
-Base.similar(c::ColinMatrix{T, M} where {T, M<:AbstractMatrix{T}}, args::AbstractUnitRange...) =
+Base.similar(c::ColinMatrix{T, M} where {T, M}, args::AbstractUnitRange...) =
 	ColinMatrix(similar(c.data), args...)
 
 for f in (:view, :getindex)
@@ -49,9 +52,28 @@ for f in (:view, :getindex)
 
 	@eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Down) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
 		$f(c, range(a1), range(a2) .+ blockdim(c))
+
+	@eval Base.$f(c::ColinMatrix, ::Up) =
+		$f(c, 1:blockdim(c), 1:blockdim(c))
+
+	@eval Base.$f(c::ColinMatrix, ::Down) =
+		$f(c, 1:blockdim(c), (1:blockdim(c)) .+ blockdim(c))
 end
 
-@inline @propagate_inbounds Base.broadcastable(c::ColinMatrix)      = c.data
+Base.BroadcastStyle(::Type{<:ColinMatrix}) =
+	Broadcast.ArrayStyle{ColinMatrix}()
+
+Base.ndims(::Type{<:ColinMatrix}) =
+	2
+	
+Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{ColinMatrix}}, ::Type{ElType}) where {ElType} =
+	Base.similar(ColinMatrix{ElType}, axes(bc))
+	
+
+Base.axes(c::ColinMatrix) =
+	Base.axes(c.data)
+
+@inline @propagate_inbounds Base.broadcastable(c::ColinMatrix)      = c
 
 @inline @propagate_inbounds Base.unsafe_convert(::Type{Ptr{T}}, c::ColinMatrix{T}) where {T} = Base.unsafe_convert(Ptr{T}, c.data)
 

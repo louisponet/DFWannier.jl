@@ -7,18 +7,87 @@ uniform_shifted_kgrid(::Type{T}, nkx::Integer, nky::Integer, nkz::Integer) where
 
 uniform_shifted_kgrid(nkx::Integer, nky::Integer, nkz::Integer) = uniform_shifted_kgrid(Float64, nkx, nky, nkz)
 
-setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.001) = vcat(range(ωh,              ωh + ωv*1im,     length=n_ωv)[1:end-1],
+setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.001) = vcat(range(ωh,             ωh + ωv*1im,     length=n_ωv)[1:end-1],
 											         range(ωh + ωv*1im,     offset + ωv*1im, length=n_ωh)[1:end-1],
 											         range(offset + ωv*1im, offset,          length=n_ωv))
 
+struct KPoint{T<:AbstractFloat,MT<:AbstractMatrix{Complex{T}}}
+	k_cryst ::Vec3{T}
+	phase   ::Complex{T}
+	eigvals ::Vector{T}
+	eigvecs ::MT
+end
+
+@doc raw"""
+	calc_kgrid_D(hami, R, nk)
+
+Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
 """
-    Exchange{T <: AbstractFloat}
+function calc_kgrid_D(hami::TbHami{T}, R, nk) where T
+    k_grid  = uniform_shifted_kgrid(nk...)
+	kpoints = [KPoint(k, exp(2im * π * dot(R, k)), Vector{T}(undef, 2*blocksize(hami,1)), zeros_block(hami)) for k in k_grid]
+
+	nk    = length(kpoints)
+    D     = ThreadCache(zeros_block(hami))
+	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
+    @threads for i=1:nk
+	    tid = threadid()
+	    kp = kpoints[i]
+        #= kp.eigvecs is used as a temporary cache to store H(k) in. Since we
+        don't need H(k) but only Hvecs etc, this is ok.
+        =#
+        Hk!(kp, hami)
+        D .+= kp.eigvecs
+        eigen!(kp.eigvals, kp.eigvecs, calc_caches[tid])
+    end
+	Ds = gather(D)
+    return kpoints, (Ds[Up()] - Ds[Down()])/nk
+end
+
+function Hk!(kpoint::KPoint{T}, tbhami::TbHami{T, M}) where {T, M <: AbstractMatrix{Complex{T}}}
+    for b in tbhami
+	    fac = ℯ^(-2im*pi*(b.R_cryst ⋅ kpoint.k_cryst))
+        Hk_sum!(kpoint.eigvecs, block(b), fac)
+    end
+end
+
+struct ColinGreensFunction{T<:AbstractFloat}
+	ω::T
+	G::ColinMatrix{Complex{T}} #forward part is always spin up, backward spin down
+end
+
+function calc_greens_functions(ω_grid::Vector{Complex{T}}, kpoints, μ) where T
+    g_caches = [ThreadCache(fill!(similar(kpoints[1].eigvecs), zero(Complex{T}))) for i=1:3]
+    Gs = [fill!(similar(kpoints[1].eigvecs), zero(Complex{T})) for i = 1:length(ω_grid)-1]
+    function iGk!(G, ω)
+	    fill!(G, zero(Complex{T}))
+        integrate_Gk!(G, ω, μ, kpoints, cache.(g_caches))
+    end
+
+    @threads for j=1:length(ω_grid) - 1
+        ω   = ω_grid[j]
+        dω  = ω_grid[j + 1] - ω
+        iGk!(Gs[j], ω)
+    end
+    return Gs
+end
+
+
+abstract type Exchange{T<:AbstractFloat} end
+
+function (::Type{E})(at1::AbstractAtom{T}, at2::AbstractAtom{T}; site_diagonal::Bool=false) where {E<:Exchange,T}
+    l1 = length(range(at1))
+    l2 = length(range(at2))
+    return site_diagonal ? E{T}(zeros(T, l1, l2), at1, at2) : E{T}(zeros(T, l1, l1), at1, at2)
+end
+"""
+    Exchange2ndOrder{T <: AbstractFloat}
 
 This holds the exhanges between different orbitals and calculated sites.
 Projections and atom datablocks are to be found in the corresponding wannier input file.
 It turns out the ordering is first projections, then atom order in the atoms datablock.
 """
-mutable struct Exchange{T <: AbstractFloat}
+mutable struct Exchange2ndOrder{T <: AbstractFloat} <: Exchange{T}
     J       ::Matrix{T}
     atom1   ::Atom{T}
     atom2   ::Atom{T}
@@ -33,7 +102,20 @@ function Base.show(io::IO, e::Exchange)
 	dfprint(io, crayon"red", " J: ", crayon"reset", "$(e.J)")
 end
 
-function calc_exchanges(hami,  atoms, fermi::T;
+"""
+    Exchange4thOrder{T <: AbstractFloat}
+
+This holds the exhanges between different orbitals and calculated sites.
+Projections and atom datablocks are to be found in the corresponding wannier input file.
+It turns out the ordering is first projections, then atom order in the atoms datablock.
+"""
+mutable struct Exchange4thOrder{T <: AbstractFloat} <: Exchange{T}
+    J       ::Matrix{T}
+    atom1   ::Atom{T}
+    atom2   ::Atom{T}
+end
+
+function calc_exchanges(hami,  atoms, fermi::T, ::Type{E}=Exchange2ndOrder;
                         nk::NTuple{3, Int} = (10, 10, 10),
                         R                  = Vec3(0, 0, 0),
                         ωh::T              = T(-30.), #starting energy
@@ -41,66 +123,22 @@ function calc_exchanges(hami,  atoms, fermi::T;
                         n_ωh::Int          = 3000,
                         n_ωv::Int          = 500,
                         temp::T            = T(0.01),
-                        site_diagonal      = false) where T <: AbstractFloat
+                        site_diagonal      = false) where {T<:AbstractFloat, E<:Exchange}
 
     μ               = fermi
-    k_grid          = uniform_shifted_kgrid(nk...)
     ω_grid          = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
     
-    exchanges       = setup_exchanges(atoms, site_diagonal)
-
-    Hvecs, Hvals, D = DHvecvals(hami, k_grid)
-    if site_diagonal
-		Ddiag           = site_diagonalize(D, atoms)
-	    calc_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, Ddiag)
-    else
-	    calc_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
-    end
-
-    return exchanges
-end
-
-function setup_exchanges(atoms::Vector{<:AbstractAtom{T}}, site_diag=false) where T <: AbstractFloat
-    exchanges = Exchange{T}[]
+    exchanges       = E{T}[]
     for (i, at1) in enumerate(atoms), at2 in atoms[i:end]
-        if site_diag
-	        push!(exchanges, Exchange{T}(zeros(T, length(range(at1)), length(range(at2))), at1, at2))
-        else
-	        push!(exchanges, Exchange{T}(zeros(T, length(range(at1)), length(range(at1))), at1, at2))
-        end
+	    push!(exchanges, E(at1, at2, site_diagonal=site_diagonal))
     end
+
+    kpoints, D = calc_kgrid_D(hami, R, nk)
+
+    D_ = site_diagonal ? site_diagonalize(D, atoms) : D
+    calc_exchanges!(exchanges, μ, ω_grid, kpoints, D_)
+
     return exchanges
-end
-
-
-@doc raw"""
-	DHvecvals(hami::TbHami{T, AbstractMatrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
-
-Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
-"""
-function DHvecvals(hami::TbHami{T, <:AbstractMatrix{Complex{T}}}, k_grid::AbstractArray{Vec3{T}}) where T <: AbstractFloat
-	dim   = blocksize(hami, 1)
-	d2    = div(dim, 2)
-
-	b_ranges = [1:dim, dim+1:2dim]
-
-	nk    = length(k_grid)
-    Hvecs = [zeros_block(hami) for i=1:nk]
-    Hvals = [Vector{T}(undef, 2dim) for i=1:nk]
-    D     = ThreadCache(zeros_block(hami))
-	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
-    @threads for i=1:length(k_grid)
-	    tid = threadid()
-        #= Hvecs[j][i] is used as a temporary cache to store H(k) in. Since we
-        don't need H(k) but only Hvecs etc, this is ok.
-        =#
-        hvk = Hvecs[i]
-        Hk!(hvk, hami, k_grid[i])
-        D.+= hvk
-        eigen!(Hvals[i], hvk, calc_caches[tid])
-    end
-	Ds = gather(D)
-    return Hvecs, Hvals, (Ds[b_ranges[1], b_ranges[1]] - Ds[b_ranges[1], b_ranges[2]])/length(k_grid)
 end
 
 function site_diagonalize(D::Matrix{Complex{T}}, ats::Vector{<:DFC.AbstractAtom}) where {T}
@@ -114,35 +152,20 @@ function site_diagonalize(D::Matrix{Complex{T}}, ats::Vector{<:DFC.AbstractAtom}
 	return SiteDiagonalD(Dvals, Ts)
 end
 
-function calc_exchanges!(exchanges::Vector{Exchange{T}},
+function calc_exchanges!(exchanges::Vector{<:Exchange{T}},
 	                                 μ         ::T,
-	                                 R         ::Vec3,
-	                                 k_grid    ::AbstractArray{Vec3{T}},
 	                                 ω_grid    ::AbstractArray{Complex{T}},
-	                                 Hvecs     ::Vector{<:ColinMatrix{Complex{T}}},
-	                                 Hvals     ::Vector{Vector{T}},
+	                                 kpoints  ,
 	                                 D         ::Union{Matrix{Complex{T}}, SiteDiagonalD{T}}) where T <: AbstractFloat
-    dim     = size(Hvecs[1])
+    dim     = size(kpoints[1].eigvecs)
     d2      = div(dim[1], 2)
     J_caches = [ThreadCache(zeros(T, size(e.J))) for e in exchanges]
-    g_caches = [ThreadCache(fill!(similar(Hvecs[1]), zero(Complex{T}))) for i=1:3]
-    G = ThreadCache(fill!(similar(Hvecs[1]), zero(Complex{T})))
-    function iGk!(ω)
-	    fill!(G, zero(Complex{T}))
-        integrate_Gk!(cache(G), ω, μ, Hvecs, Hvals, R, k_grid, cache.(g_caches))
-    end
-
-    @threads for j=1:length(ω_grid[1:end-1])
-        ω   = ω_grid[j]
-        dω  = ω_grid[j + 1] - ω
-        iGk!(ω)
-		# The two kind of ranges are needed because we calculate D only for the projections we care about
-		# whereas G is calculated from the full Hamiltonian, the is needed.
+	Gs = calc_greens_functions(ω_grid, kpoints, μ)
+	@threads for i =1:length(Gs)
         for (eid, exch) in enumerate(exchanges)
-            J_caches[eid] .+= Jω(exch, D, G, dω)
+            J_caches[eid] .+= Jω(exch, D, Gs[i], ω_grid[i+1]-ω_grid[i])
         end
     end
-
     for (eid, exch) in enumerate(exchanges)
         exch.J = -1e3 / 2π * gather(J_caches[eid])
     end
@@ -151,12 +174,22 @@ end
 spin_sign(D) = -sign(real(tr(D))) #up = +1, down = -1. If D_upup > D_dndn, onsite spin will be down and the tr(D) will be positive. Thus explaining the - in front of this.
 spin_sign(D::Vector) = sign(real(sum(D))) #up = +1, down = -1
 
+perturbation_loop(exch::Exchange2ndOrder, D_site1, G_forward, D_site2, G_backward) =
+	D_site1 * G_forward * D_site2 * G_backward
+
+perturbation_loop(exch::Exchange4thOrder, D_site1, G_forward, D_site2, G_backward) =
+	D_site1 * G_forward * D_site2 * G_backward * D_site1 * G_forward * D_site2 * G_backward
+
 @inline function Jω(exch, D, G, dω)
     D_site1    = view(D, exch.atom1)
     D_site2    = view(D, exch.atom2)
     G_forward  = view(G, exch.atom1, exch.atom2, Up())
     G_backward = view(G, exch.atom2, exch.atom1, Down())
-	return spin_sign(D_site1) .* spin_sign(D_site2) .* imag.(D_site1 * G_forward * D_site2 * G_backward * dω)
+	return spin_sign(D_site1) .* spin_sign(D_site2) .* imag.(perturbation_loop(exch,
+																			   D_site1,
+																			   G_forward,
+																			   D_site2,
+																			   G_backward) * dω)
 end
 
 @inline function Jω(exch, D::SiteDiagonalD, G, dω)
@@ -171,34 +204,34 @@ end
 	return t  
 end
 
-function integrate_Gk!(G::AbstractMatrix, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
+function integrate_Gk!(G::AbstractMatrix, ω::T, μ, kpoints, caches) where {T <: Complex}
     dim = size(G, 1)
 	cache1, cache2, cache3 = caches
 
 	b_ranges = [1:dim, dim+1:2dim]
-    @inbounds for ik=1:length(kgrid)
+    @inbounds for ik=1:length(kpoints)
 	    # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(T))
         for x=1:dim
-            cache1[x, x] = 1.0 /(μ + ω - Hvals[ik][x])
-            cache1[x, x+dim] = 1.0 /(μ + ω - Hvals[ik][x+dim])
+            cache1[x, x] = 1.0 /(μ + ω - kpoints[ik].eigvals[x])
+            cache1[x, x+dim] = 1.0 /(μ + ω - kpoints[ik].eigvals[x+dim])
         end
      	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
 
-        mul!(cache2, Hvecs[ik], cache1)
-        adjoint!(cache3, Hvecs[ik])
+        mul!(cache2, kpoints[ik].eigvecs, cache1)
+        adjoint!(cache3, kpoints[ik].eigvecs)
         mul!(cache1, cache2, cache3)
-		t = exp(2im * π * dot(R, kgrid[ik]))
+		t = kpoints[ik].phase
 		tp = t'
         for i in 1:dim, j in 1:dim
             G[i, j]     += cache1[i, j] * t
             G[i, j+dim] += cache1[i, j+dim] * tp
         end
     end
-    G  ./= length(kgrid)
+    G  ./= length(kpoints)
 end
 
-mutable struct AnisotropicExchange{T <: AbstractFloat}
+mutable struct AnisotropicExchange2ndOrder{T <: AbstractFloat}
     J       ::Matrix{Matrix{T}}
     atom1   ::Atom{T}
     atom2   ::Atom{T}
@@ -226,7 +259,7 @@ function calc_anisotropic_exchanges(hami,  atoms, fermi::T;
     return exchanges
 end
 
-function calc_anisotropic_exchanges!(exchanges ::Vector{AnisotropicExchange{T}}, 
+function calc_anisotropic_exchanges!(exchanges ::Vector{AnisotropicExchange2ndOrder{T}}, 
                                    μ         ::T, 
                                    R         ::Vec3, 
                                    k_grid    ::AbstractArray{Vec3{T}}, 
@@ -271,10 +304,10 @@ function calc_anisotropic_exchanges!(exchanges ::Vector{AnisotropicExchange{T}},
 end
 
 function setup_anisotropic_exchanges(atoms::Vector{<: AbstractAtom{T}}) where T <: AbstractFloat
-    exchanges = AnisotropicExchange{T}[]
+    exchanges = AnisotropicExchange2ndOrder{T}[]
     for (i, at1) in enumerate(atoms), at2 in atoms[i+1:end]
         for proj1 in projections(at1), proj2 in projections(at2)
-            push!(exchanges, AnisotropicExchange{T}([zeros(T, orbsize(proj1), orbsize(proj1)) for i=1:3, j=1:3],
+            push!(exchanges, AnisotropicExchange2ndOrder{T}([zeros(T, orbsize(proj1), orbsize(proj1)) for i=1:3, j=1:3],
             										at1.atom,
             										at2.atom,
             										proj1,

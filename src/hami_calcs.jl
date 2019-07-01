@@ -16,6 +16,7 @@ function Hk!(out::M, tbhami::TbHami{T, M}, kpoint::Vec3{T}) where {T, M <: Abstr
     end
 end
 
+
 function Hk(tbhami, kpoint)
     out = similar(tbhami[1].block)
     Hk!(out, tbhami, kpoint)

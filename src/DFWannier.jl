@@ -13,6 +13,7 @@ module DFWannier
 	using Base.Threads
 	using Documenter
 	using Parameters
+	using StructArrays
 
 	include("linalg.jl")
 	include("types.jl")
