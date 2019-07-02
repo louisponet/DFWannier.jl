@@ -149,6 +149,15 @@ similar_block(h::TbHami) =
 blocksize(h::TbHami, args...) =
 	size(block(h[1]), args...)
 
+for op in (:+, :-, :*, :/)
+	@eval $op(t::TbBlock{T}, v::T) where {T} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), v))
+	@eval $op(v::T, t::TbBlock{T}) where {T} = TbBlock(t.R_cart, t.R_cryst, $op(v, block(t)))
+	@eval $op(t::TbBlock{T,M}, v::M) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), v))
+	@eval $op(v::M, t::TbBlock{T,M}) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(v, block(t)))
+	@eval $op(t::TbBlock{T,M}, v::TbBlock{T,M}) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), block(v)))
+end
+
+
 struct RmnBlock{T<:AbstractFloat}
     R_cart  ::Vec3{T}
     R_cryst ::Vec3{Int}
@@ -323,7 +332,6 @@ end
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) =
 	wannierbands(tbhamis, dfbands[1].k_points_cryst)
 
-import Base: +, -, *, /
 
 struct ThreadCache{T}
 	caches::Vector{T}

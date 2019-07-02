@@ -231,13 +231,14 @@ function integrate_Gk!(G::AbstractMatrix, ω::T, μ, kpoints, caches) where {T <
     G  ./= length(kpoints)
 end
 
-mutable struct AnisotropicExchange2ndOrder{T <: AbstractFloat}
+mutable struct AnisotropicExchange2ndOrder{T <: AbstractFloat} <: Exchange{T}
     J       ::Matrix{Matrix{T}}
     atom1   ::Atom{T}
     atom2   ::Atom{T}
-    proj1   ::Projection
-    proj2   ::Projection
 end
+
+AnisotropicExchange2ndOrder(at1::AbstractAtom{T}, at2::AbstractAtom{T}) where {T} =
+	AnisotropicExchange2ndOrder{T}([zeros(T, length(range(at1)), length(range(at1))) for i=1:3,j=1:3], atom(at1), atom(at2))
 
 function calc_anisotropic_exchanges(hami,  atoms, fermi::T;
                              nk::NTuple{3, Int} = (10, 10, 10),
@@ -254,6 +255,7 @@ function calc_anisotropic_exchanges(hami,  atoms, fermi::T;
     exchanges       = setup_anisotropic_exchanges(atoms)
 
     Hvecs, Hvals, D = DHvecvals(hami, k_grid, atoms)
+    # @show D
 
     calc_anisotropic_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
     return exchanges
@@ -278,21 +280,19 @@ function calc_anisotropic_exchanges!(exchanges ::Vector{AnisotropicExchange2ndOr
         integrate_Gk!(G_forward, G_backward, ω, μ, Hvecs, Hvals, R, k_grid, g_caches) 
     end 
  
-    @threads for j=1:length(ω_grid[1:end-1]) 
+    for j=1:length(ω_grid[1:end-1]) 
         ω   = ω_grid[j] 
         dω  = ω_grid[j + 1] - ω 
         iGk!(ω) 
     # The two kind of ranges are needed because we calculate D only for the projections we care about 
     # whereas G is calculated from the full Hamiltonian, the is needed. 
         for (eid, exch) in enumerate(exchanges) 
-            rm  = range(exch.proj1) 
-            rn  = range(exch.proj2) 
-            drm = 1:orbsize(exch.proj1) 
-            drn = 1:orbsize(exch.proj2) 
+            rm  = range(exch.atom1) 
+            rn  = range(exch.atom2) 
       for i =1:3, j=1:3 #x,y,z 
-              J_caches[eid][i, j] .+=  imag.((view(D[eid][i], drm, drm) * 
+              J_caches[eid][i, j] .+=  imag.((view(D[eid][i], 1:length(rm), 1:length(rm)) * 
                                   view(G_forward, rm, rn)    * 
-                                  view(D[eid][j], drn, drn)  * 
+                                  view(D[eid][j], 1:length(rn), 1:length(rn))  * 
                                   view(G_backward, rn, rm)) .* dω) 
             end 
         end 
@@ -305,14 +305,8 @@ end
 
 function setup_anisotropic_exchanges(atoms::Vector{<: AbstractAtom{T}}) where T <: AbstractFloat
     exchanges = AnisotropicExchange2ndOrder{T}[]
-    for (i, at1) in enumerate(atoms), at2 in atoms[i+1:end]
-        for proj1 in projections(at1), proj2 in projections(at2)
-            push!(exchanges, AnisotropicExchange2ndOrder{T}([zeros(T, orbsize(proj1), orbsize(proj1)) for i=1:3, j=1:3],
-            										at1.atom,
-            										at2.atom,
-            										proj1,
-            										proj2))
-        end
+    for (i, at1) in enumerate(atoms), at2 in atoms[i:end]
+            push!(exchanges, AnisotropicExchange2ndOrder(at1, at2))
     end
     return exchanges
 end
@@ -324,26 +318,21 @@ end
 Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
 `hami` should be the full Hamiltonian containing both spin-diagonal and off-diagonal blocks.
 """
-function DHvecvals(hami::TbHami{T, AbstractMatrix{Complex{T}}}, k_grid::AbstractArray{Vec3{T}}, atoms::Vector{WanAtom{T}}) where T <: AbstractFloat
-	# Get all the projections that we care about, basically the indices of the hami blocks.
-	all_projections = Projection[]
-	append!.((all_projections,), projections.(atoms))
+function DHvecvals(hami, k_grid::AbstractArray{Vec3{T}}, atoms::Vector{WanAtom{T}}) where T <: AbstractFloat
 
 	# Get all J matrices corresponding to the projections
-	all_Js = Vector{Matrix{Complex{T}}}[]
-	for at in atoms
-		for b in at[:operator_blocks]
-			push!(all_Js, b.J)
-		end
-	end
+	# all_Js = Vector{Matrix{Complex{T}}}[]
+	# for at in atoms
+	# 	push!(all_Js, at[:operator_block].J)
+	# end
 
 	nk        = length(k_grid)
     Hvecs     = [zeros_block(hami) for i=1:nk]
-    Hvals     = [Vector{T}(undef, blockdim(hami)[1]) for i=1:nk]
+    Hvals     = [Vector{T}(undef, blocksize(hami, 1)) for i=1:nk]
     # Hvals     = [Vector{Complex{T}}(undef, blockdim(hami)[1]) for i=1:nk]
-    δH_onsite = ThreadCache([[zeros(Complex{T}, orbsize(projection), orbsize(projection)) for i=1:3] for projection in all_projections])
+    δH_onsite = ThreadCache([[zeros(Complex{T}, 2length(range(at)), 2length(range(at))) for i=1:3] for at in atoms])
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
-    @threads for i=1:nk
+    for i=1:nk
     # for i=1:nk
 	    tid = threadid()
         # Hvecs[i] is used as a temporary cache to store H(k) in. Since we
@@ -351,10 +340,12 @@ function DHvecvals(hami::TbHami{T, AbstractMatrix{Complex{T}}}, k_grid::Abstract
         Hk!(Hvecs[i], hami, k_grid[i])
 
         # For each of the dh block, proj block and J combo we have to add it to the variation of onsite hami
-        for (δh, projection, j) in zip(δH_onsite, all_projections, all_Js)
-	        δh .+= commutator.((view(Hvecs[i], range(projection), range(projection)),), j)
+        for (δh, at) in zip(δH_onsite, atoms)
+	        rat = range(at)
+	        lr  = length(rat)
+        	δh .+= commutator.((view(Hvecs[i], rat, rat),), at[:operator_block].J) #in reality this should be just range(at)
+        	# δh .+= commutator.(([Hvecs[i][rat, rat] zeros(Complex{T},lr, lr); zeros(Complex{T}, lr, lr) Hvecs[i][div(blocksize(hami, 1), 2) .+ rat, div(blocksize(hami, 1), 2) .+ rat]],), at[:operator_block].J) #in reality this should be just range(at)
         end
-        # Hvals[i], Hvecs[i] = eigen(Hvecs[i])
         eigen!(Hvals[i], Hvecs[i], calc_caches[tid])
     end
     return Hvecs, Hvals, gather(δH_onsite)./nk
