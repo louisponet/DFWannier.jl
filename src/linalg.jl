@@ -7,7 +7,7 @@ abstract type Spin end
 struct Up <: Spin end
 struct Down <: Spin end 
 
-struct ColinMatrix{T, M <: AbstractArray{T, 2}} <: AbstractMatrix{T}
+struct ColinMatrix{T, M <: AbstractMatrix{T}} <: AbstractMatrix{T}
 	data::M
 end
 
@@ -16,8 +16,12 @@ function ColinMatrix(up::AbstractMatrix, down::AbstractMatrix)
 	ColinMatrix([up down])
 end
 
-Base.similar(::Type{DFWannier.ColinMatrix{Complex{Float64},M} where M<:AbstractArray{Complex{Float64},2}}, i::Tuple{Int64,Int64}) =
-	ColinMatrix(Matrix{ComplexF64}(undef, i))
+Base.similar(::Type{<:DFWannier.ColinMatrix{T}}, i::NTuple{2, Int}) where T =
+	ColinMatrix(Matrix{T}(undef, i))
+
+Base.Array(c::ColinMatrix{T}) where T =
+	[c[Up()] zeros(T, blockdim(c), blockdim(c)); zeros(T, blockdim(c), blockdim(c)) c[Down()]]
+
 
 up(c::ColinMatrix)   = view(c.data, 1:blockdim(c), 1:blockdim(c))
 # down(c::ColinMatrix) = view(c.data, blockdim(c)+1:2*blockdim(c), 1:blockdim(c))
@@ -26,17 +30,19 @@ down(c::ColinMatrix) = view(c.data, 1:blockdim(c), blockdim(c)+1:2*blockdim(c))
 blockdim(c::ColinMatrix) = size(c.data, 1)
 
 for f in (:length, :size, :setindex!, :elsize)
-	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix, args...) = Base.$f(c.data, args...)
-end
-
-@inline @propagate_inbounds Base.getindex(c::ColinMatrix, args...) = getindex(c.data, args...)
-
-for f in (:view, :getindex)
-	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix{T, M} where {T, M<:AbstractMatrix{T}}, args::AbstractUnitRange...) =
+	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix, args...) =
 		Base.$f(c.data, args...)
 end
 
-Base.similar(c::ColinMatrix{T, M} where {T, M}, args::AbstractUnitRange...) =
+@inline @propagate_inbounds Base.getindex(c::ColinMatrix, args...) =
+	getindex(c.data, args...)
+
+for f in (:view, :getindex)
+	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix, args::AbstractUnitRange...) =
+		Base.$f(c.data, args...)
+end
+
+Base.similar(c::ColinMatrix, args::AbstractUnitRange...) =
 	ColinMatrix(similar(c.data), args...)
 
 for f in (:view, :getindex)
@@ -60,6 +66,7 @@ for f in (:view, :getindex)
 		$f(c, 1:blockdim(c), (1:blockdim(c)) .+ blockdim(c))
 end
 
+# BROADCASTING
 Base.BroadcastStyle(::Type{<:ColinMatrix}) =
 	Broadcast.ArrayStyle{ColinMatrix}()
 
@@ -69,60 +76,38 @@ Base.ndims(::Type{<:ColinMatrix}) =
 Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{ColinMatrix}}, ::Type{ElType}) where {ElType} =
 	Base.similar(ColinMatrix{ElType}, axes(bc))
 	
-
 Base.axes(c::ColinMatrix) =
 	Base.axes(c.data)
 
-@inline @propagate_inbounds Base.broadcastable(c::ColinMatrix)      = c
+@inline @propagate_inbounds Base.broadcastable(c::ColinMatrix) =
+	c
 
-@inline @propagate_inbounds Base.unsafe_convert(::Type{Ptr{T}}, c::ColinMatrix{T}) where {T} = Base.unsafe_convert(Ptr{T}, c.data)
+@inline @propagate_inbounds Base.unsafe_convert(::Type{Ptr{T}}, c::ColinMatrix{T}) where {T} =
+	Base.unsafe_convert(Ptr{T}, c.data)
 
-@inline function LinearAlgebra.mul!(C::ColinMatrix{ComplexF32}, A::ColinMatrix{ComplexF32}, B::ColinMatrix{ComplexF32})
-	dim = blockdim(C)
-	dim2 = dim*dim
-	ccall((@blasfunc(cgemm_), libblas), Cvoid,
-	                (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
-	                 Ref{BlasInt}, Ref{ComplexF32}, Ptr{ComplexF32}, Ref{BlasInt},
-	                 Ptr{ComplexF32}, Ref{BlasInt}, Ref{ComplexF32}, Ptr{ComplexF32},
-	                 Ref{BlasInt}),
-	                 'N', 'N', dim, dim,
-	                 dim, one(ComplexF32), A, dim,
-	                 B, dim, zero(ComplexF32), C, dim)
-	ccall((@blasfunc(cgemm_), libblas), Cvoid,
-	                (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
-	                 Ref{BlasInt}, Ref{ComplexF32}, Ptr{ComplexF32}, Ref{BlasInt},
-	                 Ptr{ComplexF32}, Ref{BlasInt}, Ref{ComplexF32}, Ptr{ComplexF32},
-	                 Ref{BlasInt}),
-	                 'N', 'N', dim, dim,
-	                 dim, one(ComplexF32), pointer(A, dim2+1), dim,
-	                 pointer(B, dim2+1), dim, zero(ComplexF32), pointer(C,dim2+1), dim)
+for (elty, cfunc) in zip((:ComplexF32, :ComplexF64), (:cgemm_, :zgemm_))
+	@eval @inline function LinearAlgebra.mul!(C::ColinMatrix{$elty}, A::ColinMatrix{$elty}, B::ColinMatrix{$elty})
+		dim = blockdim(C)
+		dim2 = dim*dim
+		ccall((@blasfunc($(cfunc)), libblas), Cvoid,
+		                (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
+		                 Ref{BlasInt}, Ref{$elty}, Ptr{$elty}, Ref{BlasInt},
+		                 Ptr{$elty}, Ref{BlasInt}, Ref{$elty}, Ptr{$elty},
+		                 Ref{BlasInt}),
+		                 'N', 'N', dim, dim,
+		                 dim, one($elty), A, dim,
+		                 B, dim, zero($elty), C, dim)
+		ccall((@blasfunc($(cfunc)), libblas), Cvoid,
+		                (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
+		                 Ref{BlasInt}, Ref{$elty}, Ptr{$elty}, Ref{BlasInt},
+		                 Ptr{$elty}, Ref{BlasInt}, Ref{$elty}, Ptr{$elty},
+		                 Ref{BlasInt}),
+		                 'N', 'N', dim, dim,
+		                 dim, one($elty), pointer(A, dim2+1), dim,
+		                 pointer(B, dim2+1), dim, zero($elty), pointer(C,dim2+1), dim)
 
-    C
-end
-
-@inline function LinearAlgebra.mul!(C::ColinMatrix{ComplexF64}, A::ColinMatrix{ComplexF64}, B::ColinMatrix{ComplexF64})
-	dim = blockdim(C)
-	dim2 = dim*dim
-
-	ccall((@blasfunc(zgemm_), libblas), Cvoid,
-	                (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
-	                 Ref{BlasInt}, Ref{ComplexF64}, Ptr{ComplexF64}, Ref{BlasInt},
-	                 Ptr{ComplexF64}, Ref{BlasInt}, Ref{ComplexF64}, Ptr{ComplexF64},
-	                 Ref{BlasInt}),
-	                 'N', 'N', dim, dim,
-	                 dim, one(ComplexF64), A, dim,
-	                 B, dim, zero(ComplexF64), C, dim)
-
-	ccall((@blasfunc(zgemm_), libblas), Cvoid,
-	                (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ref{BlasInt},
-	                 Ref{BlasInt}, Ref{ComplexF64}, Ptr{ComplexF64}, Ref{BlasInt},
-	                 Ptr{ComplexF64}, Ref{BlasInt}, Ref{ComplexF64}, Ptr{ComplexF64},
-	                 Ref{BlasInt}),
-	                 'N', 'N', dim, dim,
-	                 dim, one(ComplexF64), pointer(A, dim2+1), dim,
-	                 pointer(B, dim2+1), dim, zero(ComplexF64), pointer(C,dim2+1), dim)
-
-    C
+	    return C
+	end
 end
 
 @inline function LinearAlgebra.adjoint!(out::ColinMatrix, in1::ColinMatrix)
@@ -133,37 +118,25 @@ end
 			out[j, i+dim] = in1[i, j+dim]'
 		end
 	end
-	out
+	return out
 end
 
+for (elty, relty, cfunc) in zip((:ComplexF32, :ComplexF64), (:Float32, :Float64), (:cheev_, :zheev_))
 # We use Upper Triangular blas for everything! And Eigvals are always all calculated
-@inline function blas_eig_ccall(A     ::AbstractMatrix{ComplexF32},
-	                    W     ::AbstractVector{Float32},
-                        work  ::Vector{ComplexF32},
-                        lwork ::BlasInt,
-                        rwork ::Vector{Float32},
-                        n     ::Int,
-                        info  ::Ref{BlasInt})
+	@eval @inline function blas_eig_ccall(A     ::AbstractMatrix{$elty},
+		                    W     ::AbstractVector{$relty},
+	                        work  ::Vector{$elty},
+	                        lwork ::BlasInt,
+	                        rwork ::Vector{$relty},
+	                        n     ::Int,
+	                        info  ::Ref{BlasInt})
 
-	ccall((@blasfunc(cheev_), liblapack), Cvoid,
-	          (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ptr{ComplexF32}, Ref{BlasInt},
-	          Ptr{Float32}, Ptr{ComplexF32}, Ref{BlasInt}, Ptr{Float32}, Ptr{BlasInt}),
-	          'V', 'U', n, A, n, W, work, lwork, rwork, info)
-	chklapackerror(info[])
-end
-@inline function blas_eig_ccall(A     ::AbstractMatrix{ComplexF64},
-	                    W     ::AbstractVector{Float64},
-                        work  ::Vector{ComplexF64},
-                        lwork ::BlasInt,
-                        rwork ::Vector{Float64},
-                        n     ::Int,
-                        info  ::Ref{BlasInt})
-
-	ccall((@blasfunc(zheev_), liblapack), Cvoid,
-	          (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ptr{ComplexF64}, Ref{BlasInt},
-	          Ptr{Float64}, Ptr{ComplexF64}, Ref{BlasInt}, Ptr{Float64}, Ptr{BlasInt}),
-	          'V', 'U', n, A, n, W, work, lwork, rwork, info)
-	chklapackerror(info[])
+		ccall((@blasfunc($cfunc), liblapack), Cvoid,
+		          (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
+		          Ptr{$relty}, Ptr{$elty}, Ref{BlasInt}, Ptr{$relty}, Ptr{BlasInt}),
+		          'V', 'U', n, A, n, W, work, lwork, rwork, info)
+		chklapackerror(info[])
+	end
 end
 
 struct EigCache{T <: AbstractFloat}

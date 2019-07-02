@@ -12,7 +12,7 @@ hami = DFW.read_colin_hami(assetfile("wan_up_hr.dat"), assetfile("wan_dn_hr.dat"
 
 
 ω_grid = DFW.setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
-kpoints, D = DFW.calc_kgrid_D(hami, R, nk)
+kpoints, D = DFW.fill_kgrid_D(hami, R, nk)
 
 @test isapprox(sum(sum.(sum.(map(x->x.eigvecs, kpoints)))), 146.3532485358504 - 29.46182528401771im) 
 @test isapprox(sum(sum.(map(x->x.eigvals, kpoints))), 27844.595124999996)

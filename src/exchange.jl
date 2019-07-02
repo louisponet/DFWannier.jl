@@ -19,11 +19,11 @@ struct KPoint{T<:AbstractFloat,MT<:AbstractMatrix{Complex{T}}}
 end
 
 @doc raw"""
-	calc_kgrid_D(hami, R, nk)
+	fill_kgrid_D(hami, R, nk)
 
 Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
 """
-function calc_kgrid_D(hami::TbHami{T}, R, nk) where T
+function fill_kgrid_D(hami::TbHami{T}, R, nk) where T
     k_grid  = uniform_shifted_kgrid(nk...)
 	kpoints = [KPoint(k, exp(2im * π * dot(R, k)), Vector{T}(undef, 2*blocksize(hami,1)), zeros_block(hami)) for k in k_grid]
 
@@ -133,7 +133,7 @@ function calc_exchanges(hami,  atoms, fermi::T, ::Type{E}=Exchange2ndOrder;
 	    push!(exchanges, E(at1, at2, site_diagonal=site_diagonal))
     end
 
-    kpoints, D = calc_kgrid_D(hami, R, nk)
+    kpoints, D = fill_kgrid_D(hami, R, nk)
 
     D_ = site_diagonal ? site_diagonalize(D, atoms) : D
     calc_exchanges!(exchanges, μ, ω_grid, kpoints, D_)
