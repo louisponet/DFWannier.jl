@@ -53,6 +53,9 @@ for f in (:view, :getindex)
 		return ColinMatrix($f(c, projrange1, projrange2), $f(c, projrange1, projrange2 .+ blockdim(c)))
 	end
 
+	@eval Base.$f(c::ColinMatrix, a1::T) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+		$f(c, a1, a1)
+
 	@eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Up) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
 		$f(c, range(a1), range(a2))
 
@@ -64,6 +67,11 @@ for f in (:view, :getindex)
 
 	@eval Base.$f(c::ColinMatrix, ::Down) =
 		$f(c, 1:blockdim(c), (1:blockdim(c)) .+ blockdim(c))
+end
+
+for op in (:*, :-, :+, :/)
+	@eval @inline Base.$op(c1::ColinMatrix, c2::ColinMatrix) =
+		ColinMatrix($op(c1[Up()], c2[Up()]), $op(c1[Down()], c2[Down()]))
 end
 
 # BROADCASTING
@@ -108,6 +116,11 @@ for (elty, cfunc) in zip((:ComplexF32, :ComplexF64), (:cgemm_, :zgemm_))
 
 	    return C
 	end
+end
+
+@inline function LinearAlgebra.adjoint(c::ColinMatrix)
+	out = similar(c)
+	adjoint!(out, c)
 end
 
 @inline function LinearAlgebra.adjoint!(out::ColinMatrix, in1::ColinMatrix)

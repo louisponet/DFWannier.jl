@@ -96,22 +96,22 @@ getindex(at::WanAtom, s::Symbol) =
 atom(at::WanAtom) =
 	at.atom
 
-getindex(A::AbstractMatrix, a1::T , a2::T) where {T<:Union{AbstractAtom, Projection}} =
+getindex(A::Matrix, a1::T , a2::T) where {T<:Union{AbstractAtom, Projection}} =
 	getindex(A, range(a1), range(a2))
 
-getindex(A::AbstractMatrix, a::AbstractAtom) =
+getindex(A::Matrix, a::AbstractAtom) =
 	getindex(A, a, a)
 
-getindex(A::AbstractVector, a::AbstractAtom) =
+getindex(A::Vector, a::AbstractAtom) =
 	getindex(A, range(a))
 
-view(A::AbstractMatrix, a1::T, a2::T) where {T<:Union{AbstractAtom, Projection}} =
+view(A::Matrix, a1::T, a2::T) where {T<:Union{AbstractAtom, Projection}} =
 	view(A, range(a1), range(a2))
 
-view(A::AbstractMatrix, a::Union{AbstractAtom, Projection}) =
+view(A::Matrix, a::Union{AbstractAtom, Projection}) =
 	view(A, range(a), range(a))
 
-view(A::AbstractVector, a::Union{AbstractAtom, Projection}) =
+view(A::Vector, a::Union{AbstractAtom, Projection}) =
 	view(A, range(a))
 
 import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, wan_read_input

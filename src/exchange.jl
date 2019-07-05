@@ -19,29 +19,40 @@ struct KPoint{T<:AbstractFloat,MT<:AbstractMatrix{Complex{T}}}
 end
 
 @doc raw"""
-	fill_kgrid_D(hami, R, nk)
+	fill_kgrid(hami::TbHami{T}, R, nk, Hfunc::Function = x -> nothing) where T
 
-Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
+Generates a grid of `KPoint`s and fills them with the diagonalized hamiltonians and phases.
+An extra function Hfunc can be passed which will be run on every $H(k)$ like `Hfunc(Hk)`.
 """
-function fill_kgrid_D(hami::TbHami{T}, R, nk) where T
+function fill_kgrid(hami::TbHami{T}, R, nk, Hfunc::Function = x -> nothing) where T
     k_grid  = uniform_shifted_kgrid(nk...)
 	kpoints = [KPoint(k, exp(2im * π * dot(R, k)), Vector{T}(undef, 2*blocksize(hami,1)), zeros_block(hami)) for k in k_grid]
-
 	nk    = length(kpoints)
-    D     = ThreadCache(zeros_block(hami))
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
     @threads for i=1:nk
 	    tid = threadid()
 	    kp = kpoints[i]
-        #= kp.eigvecs is used as a temporary cache to store H(k) in. Since we
-        don't need H(k) but only Hvecs etc, this is ok.
-        =#
-        Hk!(kp, hami)
-        D .+= kp.eigvecs
-        eigen!(kp.eigvals, kp.eigvecs, calc_caches[tid])
+	    cache = calc_caches[tid]
+	    #= kp.eigvecs is used as a temporary cache to store H(k) in. Since we
+	    don't need H(k) but only Hvecs etc, this is ok.
+	    =#
+	    Hk!(kp, hami)
+	    Hfunc(kp.eigvecs)
+	    eigen!(kp.eigvals, kp.eigvecs, cache)
     end
+    return kpoints
+end
+
+@doc raw"""
+	fill_kgrid_D(hami, R, nk)
+
+Generates kpoints with `fill_kgrid` and calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
+"""
+function fill_kgrid_D(hami::TbHami{T}, R, nk) where T
+    D     = ThreadCache(zeros_block(hami))
+    kpoints = fill_kgrid(hami, R, nk, x -> D .+= x)
 	Ds = gather(D)
-    return kpoints, (Ds[Up()] - Ds[Down()])/nk
+    return kpoints, (Ds[Up()] - Ds[Down()])/prod(nk)
 end
 
 function Hk!(kpoint::KPoint{T}, tbhami::TbHami{T, M}) where {T, M <: AbstractMatrix{Complex{T}}}
