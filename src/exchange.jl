@@ -18,15 +18,18 @@ struct KPoint{T<:AbstractFloat,MT<:AbstractMatrix{Complex{T}}}
 	eigvecs ::MT
 end
 
+KPoint(k::Vec3{T}, dims::NTuple{2, Int}, R=zero(Vec3{T}), vecmat=zeros(Complex{T}, dims)) where {T} =
+	KPoint(k, exp(2im * π * dot(R, k)), zeros(T, max(dims...)), vecmat)
+
 @doc raw"""
 	fill_kgrid(hami::TbHami{T}, R, nk, Hfunc::Function = x -> nothing) where T
 
 Generates a grid of `KPoint`s and fills them with the diagonalized hamiltonians and phases.
 An extra function Hfunc can be passed which will be run on every $H(k)$ like `Hfunc(Hk)`.
 """
-function fill_kgrid(hami::TbHami{T}, R, nk, Hfunc::Function = x -> nothing) where T
+function fill_kgrid(hami::TbHami{T}, nk, R=zero(Vec3{T}), Hfunc::Function = x -> nothing) where T
     k_grid  = uniform_shifted_kgrid(nk...)
-	kpoints = [KPoint(k, exp(2im * π * dot(R, k)), Vector{T}(undef, 2*blocksize(hami,1)), zeros_block(hami)) for k in k_grid]
+	kpoints = [KPoint(k, blocksize(hami), R, zeros_block(hami)) for k in k_grid]
 	nk    = length(kpoints)
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
     @threads for i=1:nk
@@ -48,9 +51,9 @@ end
 
 Generates kpoints with `fill_kgrid` and calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
 """
-function fill_kgrid_D(hami::TbHami{T}, R, nk) where T
+function fill_kgrid_D(hami::TbHami{T}, nk, R=zero(Vec3{T})) where T
     D     = ThreadCache(zeros_block(hami))
-    kpoints = fill_kgrid(hami, R, nk, x -> D .+= x)
+    kpoints = fill_kgrid(hami, nk, R, x -> D .+= x)
 	Ds = gather(D)
     return kpoints, (Ds[Up()] - Ds[Down()])/prod(nk)
 end
@@ -243,9 +246,9 @@ function integrate_Gk!(G::AbstractMatrix, ω::T, μ, kpoints, caches) where {T <
 end
 
 mutable struct AnisotropicExchange2ndOrder{T <: AbstractFloat} <: Exchange{T}
-    J       ::Matrix{Matrix{T}}
-    atom1   ::Atom{T}
-    atom2   ::Atom{T}
+    J     ::Matrix{Matrix{T}}
+    atom1 ::Atom{T}
+    atom2 ::Atom{T}
 end
 
 AnisotropicExchange2ndOrder(at1::AbstractAtom{T}, at2::AbstractAtom{T}) where {T} =
@@ -331,16 +334,9 @@ Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(
 """
 function DHvecvals(hami, k_grid::AbstractArray{Vec3{T}}, atoms::Vector{WanAtom{T}}) where T <: AbstractFloat
 
-	# Get all J matrices corresponding to the projections
-	# all_Js = Vector{Matrix{Complex{T}}}[]
-	# for at in atoms
-	# 	push!(all_Js, at[:operator_block].J)
-	# end
-
 	nk        = length(k_grid)
     Hvecs     = [zeros_block(hami) for i=1:nk]
     Hvals     = [Vector{T}(undef, blocksize(hami, 1)) for i=1:nk]
-    # Hvals     = [Vector{Complex{T}}(undef, blockdim(hami)[1]) for i=1:nk]
     δH_onsite = ThreadCache([[zeros(Complex{T}, 2length(range(at)), 2length(range(at))) for i=1:3] for at in atoms])
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
     for i=1:nk
@@ -350,7 +346,6 @@ function DHvecvals(hami, k_grid::AbstractArray{Vec3{T}}, atoms::Vector{WanAtom{T
         # don't need H(k) but only Hvecs etc, this is ok.
         Hk!(Hvecs[i], hami, k_grid[i])
 
-        # For each of the dh block, proj block and J combo we have to add it to the variation of onsite hami
         for (δh, at) in zip(δH_onsite, atoms)
 	        rat = range(at)
 	        lr  = length(rat)
@@ -393,3 +388,48 @@ function totocc(Hvals, fermi::T, temp::T) where T
     end
     return totocc/length(Hvals)
 end
+
+"Generates a Pauli σx matrix with the dimension that is passed through `n`."
+σx(::Type{T}, n::Int) where {T} =
+	kron(Mat2([0 1; 1 0]), diagm(0 => ones(T, div(n, 2))))
+
+"Generates a Pauli σy matrix with the dimension that is passed through `n`."
+σy(::Type{T}, n::Int) where {T} =
+	kron(Mat2([0 -1im; 1im 0]), diagm(0 => ones(T, div(n, 2))))
+
+"Generates a Pauli σz matrix with the dimension that is passed through `n`."
+σz(::Type{T}, n::Int) where {T} =
+	kron(Mat2([1 0; 0 -1]), diagm(0 => ones(T, div(n, 2))))
+
+for s in (:σx, :σy, :σz)
+	@eval @inline $s(m::AbstractArray{T}) where {T} =
+		$s(T, size(m, 1))
+	@eval $s(m::TbHami) = $s(block(m[1]))
+end
+
+σx(m::ColinMatrix{T}) where {T} =
+	zeros(m)
+
+σy(m::ColinMatrix{T}) where {T} =
+	zeros(m)
+
+σz(m::ColinMatrix{T}) where {T} =
+	ColinMatrix(diagm(0 => ones(T, size(m, 1))), diagm(0 => -1.0 .* ones(T, size(m, 1))))
+
+function calc_onsite_spin(kpoints::AbstractArray{<:KPoint{T}}, atom, fermi=0.0) where {T}
+	S = Vec3(σx(kpoints[1].eigvecs[atom]),
+	         σy(kpoints[1].eigvecs[atom]),
+	         σz(kpoints[1].eigvecs[atom]))
+
+	S_out = zero(Vec3{T})
+	for k in kpoints
+		for (i, v) in enumerate(k.eigvals)
+			if i - fermi <= 0.0
+				vec = k.eigvecs[:, i][atom]
+			    S_out += real((vec',) .* S .* (vec,))
+			end
+		end
+	end
+	return S_out./length(kpoints)
+end
+
