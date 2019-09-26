@@ -147,7 +147,7 @@ function calc_exchanges(hami,  atoms, fermi::T, ::Type{E}=Exchange2ndOrder;
 	    push!(exchanges, E(at1, at2, site_diagonal=site_diagonal))
     end
 
-    kpoints, D = fill_kgrid_D(hami, n, R)
+    kpoints, D = fill_kgrid_D(hami, nk, R)
 
     D_ = site_diagonal ? site_diagonalize(D, atoms) : D
     calc_exchanges!(exchanges, μ, ω_grid, kpoints, D_)
