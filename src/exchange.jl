@@ -47,7 +47,7 @@ function fill_kgrid(hami::TbHami{T}, nk, R=zero(Vec3{T}), Hfunc::Function = x ->
 end
 
 @doc raw"""
-	fill_kgrid_D(hami, R, nk)
+	fill_kgrid_D(hami::TbHami{T}, nk, R=zero(Vec3{T})) where T
 
 Generates kpoints with `fill_kgrid` and calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
 """
@@ -147,7 +147,7 @@ function calc_exchanges(hami,  atoms, fermi::T, ::Type{E}=Exchange2ndOrder;
 	    push!(exchanges, E(at1, at2, site_diagonal=site_diagonal))
     end
 
-    kpoints, D = fill_kgrid_D(hami, R, nk)
+    kpoints, D = fill_kgrid_D(hami, n, R)
 
     D_ = site_diagonal ? site_diagonalize(D, atoms) : D
     calc_exchanges!(exchanges, μ, ω_grid, kpoints, D_)
