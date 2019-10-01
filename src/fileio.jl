@@ -174,7 +174,7 @@ if the job was either nonmagnetic or noncolinear it will read only one hamiltoni
 """
 function readhami(job::DFJob)
 	if !any(DFC.iscolincalc.(job.inputs))
-		return readhami(job.local_dir * searchdir(job.local_dir, "hr.dat")[1], job.structure)
+		return readhami(joinpath(job.local_dir, searchdir(job.local_dir, "hr.dat")[1]), job.structure)
 	else
 		return read_colin_hami(joinpath.((job,), searchdir(job.local_dir, "hr.dat"))..., job.structure)
 	end
