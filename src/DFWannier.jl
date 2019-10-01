@@ -24,5 +24,5 @@ module DFWannier
 	include("exchange.jl")
 	include("fileio.jl")
 
-	export wannierbands, readhami, calc_exchanges
+	export wannierbands, readhami, calc_exchanges, read_colin_hami
 end

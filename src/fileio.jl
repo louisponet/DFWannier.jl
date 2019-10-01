@@ -166,11 +166,15 @@ end
 
 #TODO make this more robust
 """
-    readhamis(job::DFJob)
+    readhami(job::DFJob)
+
+Goes through the job and will attempt to read the hamiltonian files.
+If it finds a colinear calculation in the job it will read the up and down hamiltonians,
+if the job was either nonmagnetic or noncolinear it will read only one hamiltonian file (there should be only one).
 """
 function readhami(job::DFJob)
 	if !any(DFC.iscolincalc.(job.inputs))
-		return readhami(job.local_dir * searchdir(job.local_dir, "hr.dat")[1], (job.structure,))
+		return readhami(job.local_dir * searchdir(job.local_dir, "hr.dat")[1], job.structure)
 	else
 		return read_colin_hami(joinpath.((job,), searchdir(job.local_dir, "hr.dat"))..., job.structure)
 	end
