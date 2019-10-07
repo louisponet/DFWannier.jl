@@ -413,3 +413,84 @@ function read_exchanges(filename::String, T=Float64)
         return real_out
     end
 end
+
+struct WannierParameters
+    n_bands::Int
+    n_excluded_bands::Int
+    real_lattice::Mat3{Float64}
+    recip_lattice::Mat3{Float64}
+    n_kpoints::Int
+    mp_grid::Vec3{Int}
+    kpt_lattice::Vector{Vec3{Float64}}
+    k_nearest_neighbors::Int
+    n_wann::Int
+    have_disentangled::Bool
+    omega_invariant::Float64
+    lwindow::Matrix{Bool}
+    ndimwin::Vector{Int}
+    U_matrix_opt::Array{Float64, 3}
+    U_matrix::Array{Float64, 3}
+    m_matrix::Array{Float64, 4}
+    wannier_centers::Vector{Point3{Float64}}
+    wannier_spreads::Vector{Float64}
+end
+function wan_read_chk(filename)
+    f = FortranFile(filename)
+    header = String(read(f, FString{33}))
+    n_bands = Int(read(f, Int32))
+    n_excluded_bands = Int(read(f, Int32))
+    # exclude_bands_t = zeros(Int32, n_excluded_bands)
+    read(f, (Int32, n_excluded_bands))
+    # exclude_bands= convert.(Int, exclude_bands_t)
+    read(f)
+    real_lattice = Mat3(read(f, (Float64, 3, 3))...)
+    recip_lattice = Mat3(read(f, (Float64, 3, 3))...)
+    n_kpoints = read(f, Int32)
+    mp_grid = Vec3(Int.(read(f, (Int32, 3)))...)
+    kpt_lattice_t = read(f, (Float64, 3, n_kpoints))
+    kpt_lattice = [Vec3(kpt_lattice_t[:, i]...) for i = 1:size(kpt_lattice_t)[2]]
+    k_nearest_neighbors = read(f, Int32)
+
+    n_wann = read(f, Int32)
+    chkpt = strip(String(read(f, FString{20})))
+    have_disentangled = read(f, Int32) == 1 ? true : false
+    if have_disentangled
+        omega_invariant = read(f, Float64)
+        lwindow = map(x-> x==1 ? true : false, read(f, (Int32, n_bands, n_kpoints)))
+        ndimwin = read(f, (Int32, n_kpoints))
+        U_matrix_opt = read(f, (Float64, n_bands, n_wann, n_kpoints))
+    else
+        omega_invariant = 0.0
+        lwindow = Matrix{Int}()
+        ndimwin = Vector{Int}()
+        U_matrix_opt= Array{Float64, 3}()
+    end
+    U_matrix = read(f, (Float64, n_wann, n_wann, n_kpoints))
+    m_matrix = read(f, (Float64, n_wann, n_wann, k_nearest_neighbors, n_kpoints))
+    wannier_centers_t = read(f, (Float64, 3, n_wann))
+    wannier_centers = [Point3(wannier_centers_t[:, i]...) for i = 1:size(wannier_centers_t)[2]]
+    wannier_spreads = read(f, (Float64, n_wann))
+    return WannierParameters(
+        n_bands,
+        n_excluded_bands,
+        real_lattice,
+        recip_lattice,
+        n_kpoints,
+        mp_grid,
+        kpt_lattice,
+        k_nearest_neighbors,
+        n_wann,
+        have_disentangled,
+        omega_invariant,
+        lwindow,
+        ndimwin,
+        U_matrix_opt,
+        U_matrix,
+        m_matrix,
+        wannier_centers,
+        wannier_spreads
+    )
+end
+
+
+

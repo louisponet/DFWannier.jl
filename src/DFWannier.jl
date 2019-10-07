@@ -14,6 +14,7 @@ module DFWannier
 	using Documenter
 	using Parameters
 	using StructArrays
+	using FortranFiles
 
 	include("linalg.jl")
 	include("types.jl")
