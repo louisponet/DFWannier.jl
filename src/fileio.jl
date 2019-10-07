@@ -438,7 +438,7 @@ struct WannierParameters
     wannier_centers::Vector{Point3{Float64}}
     wannier_spreads::Vector{Float64}
 end
-function wan_read_chk(filename)
+function read_chk(filename)
     f = FortranFile(filename)
     header = String(read(f, FString{33}))
     n_bands = Int(read(f, Int32))
@@ -496,5 +496,29 @@ function wan_read_chk(filename)
     )
 end
 
+function read_eig(filename)
+    t = readdlm(filename)
+    n_bands = maximum(t[:,1])
+    n_kpoints = maximum(t[:,2])
+
+    #we follow order of w90 eigval matrix
+    Hk = Matrix{Float64}(undef, Int(n_bands), Int(n_kpoints))
+    for x in 1:size(t)[1]
+        tv = t[x, :]
+        Hk[Int(tv[1]), Int(tv[2])] = tv[3]
+    end
+    return Hk
+end
+
+function read_unk_nc(file)
+    f = FortranFile(file)
+    ngx, ngy, ngz, nk, nbnd = read(f, (Int32, 5))
+    Uk = zeros(ComplexF64, ngx, ngy, ngz,142, 2)
+    for i in 1:nbnd
+        Uk[:,:,:, i, 1] .= read(f, (ComplexF64, 45,45, 36))
+        Uk[:,:,:,i, 2]  .= read(f, (ComplexF64, 45,45, 36))
+    end
+    return Uk
+end
 
 
