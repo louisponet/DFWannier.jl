@@ -86,6 +86,79 @@ function calc_greens_functions(ω_grid::Vector{Complex{T}}, kpoints, μ) where T
     return Gs
 end
 
+function integrate_Gk!(G::AbstractMatrix{T}, ω::T, μ, kpoints, caches) where {T <: Complex}
+    dim = size(G, 1)
+	cache1, cache2, cache3 = caches
+
+	b_ranges = [1:dim, 1:dim]
+    @inbounds for ik=1:length(kpoints)
+	    # Fill here needs to be done because cache1 gets reused for the final result too
+        fill!(cache1, zero(T))
+        for x=1:dim
+            cache1[x, x] = 1.0 /(μ + ω - kpoints[ik].eigvals[x])
+        end
+     	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
+
+        mul!(cache2, kpoints[ik].eigvecs, cache1)
+        adjoint!(cache3, kpoints[ik].eigvecs)
+        mul!(cache1, cache2, cache3)
+		t = kpoints[ik].phase
+		tp = t'
+        for i in 1:dim, j in 1:dim
+            G[i, j]     += cache1[i, j] * t
+        end
+    end
+    G  ./= length(kpoints)
+end
+
+function integrate_Gk!(G::ColinMatrix, ω::T, μ, kpoints, caches) where {T <: Complex}
+    dim = size(G, 1)
+	cache1, cache2, cache3 = caches
+
+	b_ranges = [1:dim, dim+1:2dim]
+    @inbounds for ik=1:length(kpoints)
+	    # Fill here needs to be done because cache1 gets reused for the final result too
+        fill!(cache1, zero(T))
+        for x=1:dim
+            cache1[x, x] = 1.0 /(μ + ω - kpoints[ik].eigvals[x])
+            cache1[x, x+dim] = 1.0 /(μ + ω - kpoints[ik].eigvals[x+dim])
+        end
+     	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
+
+        mul!(cache2, kpoints[ik].eigvecs, cache1)
+        adjoint!(cache3, kpoints[ik].eigvecs)
+        mul!(cache1, cache2, cache3)
+		t = kpoints[ik].phase
+		tp = t'
+        for i in 1:dim, j in 1:dim
+            G[i, j]     += cache1[i, j] * t
+            G[i, j+dim] += cache1[i, j+dim] * tp
+        end
+    end
+    G  ./= length(kpoints)
+end
+
+function integrate_Gk!(G_forward::ThreadCache, G_backward::ThreadCache, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
+    dim = size(G_forward, 1)
+	cache1, cache2, cache3 = caches
+
+    @inbounds for ik=1:length(kgrid)
+	    # Fill here needs to be done because cache1 gets reused for the final result too
+        fill!(cache1, zero(T))
+        for x=1:dim
+            cache1[x, x] = 1.0 /(μ + ω - Hvals[ik][x])
+        end
+     	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
+        mul!(cache2, Hvecs[ik], cache1)
+        adjoint!(cache3, Hvecs[ik])
+        mul!(cache1, cache2, cache3)
+		t = exp(2im * π * dot(R, kgrid[ik]))
+        G_forward  .+= cache1 .* t
+        G_backward .+= cache1 .* t'
+    end
+    G_forward.caches  ./= length(kgrid)
+    G_backward.caches ./= length(kgrid)
+end
 
 abstract type Exchange{T<:AbstractFloat} end
 
@@ -218,33 +291,6 @@ end
 	return t  
 end
 
-function integrate_Gk!(G::AbstractMatrix, ω::T, μ, kpoints, caches) where {T <: Complex}
-    dim = size(G, 1)
-	cache1, cache2, cache3 = caches
-
-	b_ranges = [1:dim, dim+1:2dim]
-    @inbounds for ik=1:length(kpoints)
-	    # Fill here needs to be done because cache1 gets reused for the final result too
-        fill!(cache1, zero(T))
-        for x=1:dim
-            cache1[x, x] = 1.0 /(μ + ω - kpoints[ik].eigvals[x])
-            cache1[x, x+dim] = 1.0 /(μ + ω - kpoints[ik].eigvals[x+dim])
-        end
-     	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
-
-        mul!(cache2, kpoints[ik].eigvecs, cache1)
-        adjoint!(cache3, kpoints[ik].eigvecs)
-        mul!(cache1, cache2, cache3)
-		t = kpoints[ik].phase
-		tp = t'
-        for i in 1:dim, j in 1:dim
-            G[i, j]     += cache1[i, j] * t
-            G[i, j+dim] += cache1[i, j+dim] * tp
-        end
-    end
-    G  ./= length(kpoints)
-end
-
 mutable struct AnisotropicExchange2ndOrder{T <: AbstractFloat} <: Exchange{T}
     J     ::Matrix{Matrix{T}}
     atom1 ::Atom{T}
@@ -359,28 +405,6 @@ end
 
 commutator(A1, A2) where T = A1*A2 - A2*A1
  
-function integrate_Gk!(G_forward::ThreadCache, G_backward::ThreadCache, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
-    dim = size(G_forward, 1)
-	cache1, cache2, cache3 = caches
-
-    @threads for ik=1:length(kgrid)
-	    # Fill here needs to be done because cache1 gets reused for the final result too
-        fill!(cache1, zero(T))
-        for x=1:dim
-            cache1[x, x] = 1.0 /(μ + ω - Hvals[ik][x])
-        end
-     	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
-        mul!(cache2, Hvecs[ik], cache1)
-        adjoint!(cache3, Hvecs[ik])
-        mul!(cache1, cache2, cache3)
-		t = exp(2im * π * dot(R, kgrid[ik]))
-        G_forward  .+= cache1 .* t
-        G_backward .+= cache1 .* t'
-    end
-    G_forward.caches  ./= length(kgrid)
-    G_backward.caches ./= length(kgrid)
-end
-
 function totocc(Hvals, fermi::T, temp::T) where T
     totocc = zero(Complex{T})
     for i = 1:length(Hvals)
