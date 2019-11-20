@@ -23,12 +23,12 @@ KPoint(k::Vec3{T}, dims::NTuple{2, Int}, R=zero(Vec3{T}), vecmat=zeros(Complex{T
 
 @doc raw"""
 	fill_kgrid(hami::TbHami{T}, R, nk, Hfunc::Function = x -> nothing) where T
+	fill_kgrid(hami::TbHami{T}, R, k_grid, Hfunc::Function = x -> nothing) where T
 
 Generates a grid of `KPoint`s and fills them with the diagonalized hamiltonians and phases.
 An extra function Hfunc can be passed which will be run on every $H(k)$ like `Hfunc(Hk)`.
 """
-function fill_kgrid(hami::TbHami{T}, nk, R=zero(Vec3{T}), Hfunc::Function = x -> nothing) where T
-    k_grid  = uniform_shifted_kgrid(nk...)
+function fill_kgrid(hami::TbHami{T}, k_grid, R=zero(Vec3{T}), Hfunc::Function = x -> nothing) where T
 	kpoints = [KPoint(k, blocksize(hami), R, zeros_block(hami)) for k in k_grid]
 	nk    = length(kpoints)
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
@@ -44,6 +44,11 @@ function fill_kgrid(hami::TbHami{T}, nk, R=zero(Vec3{T}), Hfunc::Function = x ->
 	    eigen!(kp.eigvals, kp.eigvecs, cache)
     end
     return kpoints
+end
+
+function fill_kgrid(hami::TbHami{T}, nk::NTuple{3, Int}, R=zero(Vec3{T}), Hfunc::Function = x -> nothing) where T
+    k_grid  = uniform_shifted_kgrid(nk...)
+    return fill_kgrid(hami, k_grid, R, Hfunc)
 end
 
 @doc raw"""
@@ -70,7 +75,7 @@ struct ColinGreensFunction{T<:AbstractFloat}
 	G::ColinMatrix{Complex{T}} #forward part is always spin up, backward spin down
 end
 
-function calc_greens_functions(ω_grid::Vector{Complex{T}}, kpoints, μ) where T
+function calc_greens_functions(ω_grid, kpoints, μ::T) where T
     g_caches = [ThreadCache(fill!(similar(kpoints[1].eigvecs), zero(Complex{T}))) for i=1:3]
     Gs = [fill!(similar(kpoints[1].eigvecs), zero(Complex{T})) for i = 1:length(ω_grid)-1]
     function iGk!(G, ω)
@@ -86,14 +91,14 @@ function calc_greens_functions(ω_grid::Vector{Complex{T}}, kpoints, μ) where T
     return Gs
 end
 
-function integrate_Gk!(G::AbstractMatrix{T}, ω::T, μ, kpoints, caches) where {T <: Complex}
+function integrate_Gk!(G::AbstractMatrix, ω, μ, kpoints, caches)
     dim = size(G, 1)
 	cache1, cache2, cache3 = caches
 
 	b_ranges = [1:dim, 1:dim]
     @inbounds for ik=1:length(kpoints)
 	    # Fill here needs to be done because cache1 gets reused for the final result too
-        fill!(cache1, zero(T))
+        fill!(cache1, zero(eltype(cache1)))
         for x=1:dim
             cache1[x, x] = 1.0 /(μ + ω - kpoints[ik].eigvals[x])
         end
@@ -111,14 +116,14 @@ function integrate_Gk!(G::AbstractMatrix{T}, ω::T, μ, kpoints, caches) where {
     G  ./= length(kpoints)
 end
 
-function integrate_Gk!(G::ColinMatrix, ω::T, μ, kpoints, caches) where {T <: Complex}
+function integrate_Gk!(G::ColinMatrix, ω, μ, kpoints, caches)
     dim = size(G, 1)
 	cache1, cache2, cache3 = caches
 
 	b_ranges = [1:dim, dim+1:2dim]
     @inbounds for ik=1:length(kpoints)
 	    # Fill here needs to be done because cache1 gets reused for the final result too
-        fill!(cache1, zero(T))
+        fill!(cache1, zero(eltype(cache1)))
         for x=1:dim
             cache1[x, x] = 1.0 /(μ + ω - kpoints[ik].eigvals[x])
             cache1[x, x+dim] = 1.0 /(μ + ω - kpoints[ik].eigvals[x+dim])
@@ -138,13 +143,13 @@ function integrate_Gk!(G::ColinMatrix, ω::T, μ, kpoints, caches) where {T <: C
     G  ./= length(kpoints)
 end
 
-function integrate_Gk!(G_forward::ThreadCache, G_backward::ThreadCache, ω::T, μ, Hvecs, Hvals, R, kgrid, caches) where {T <: Complex}
+function integrate_Gk!(G_forward::ThreadCache, G_backward::ThreadCache, ω, μ, Hvecs, Hvals, R, kgrid, caches)
     dim = size(G_forward, 1)
 	cache1, cache2, cache3 = caches
 
     @inbounds for ik=1:length(kgrid)
 	    # Fill here needs to be done because cache1 gets reused for the final result too
-        fill!(cache1, zero(T))
+        fill!(cache1, zero(eltype(cache1)))
         for x=1:dim
             cache1[x, x] = 1.0 /(μ + ω - Hvals[ik][x])
         end
