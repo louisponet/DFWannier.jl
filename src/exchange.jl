@@ -77,16 +77,14 @@ end
 
 function calc_greens_functions(ω_grid, kpoints, μ::T) where T
     g_caches = [ThreadCache(fill!(similar(kpoints[1].eigvecs), zero(Complex{T}))) for i=1:3]
-    Gs = [fill!(similar(kpoints[1].eigvecs), zero(Complex{T})) for i = 1:length(ω_grid)-1]
+    Gs = [fill!(similar(kpoints[1].eigvecs), zero(Complex{T})) for i = 1:length(ω_grid)]
     function iGk!(G, ω)
 	    fill!(G, zero(Complex{T}))
         integrate_Gk!(G, ω, μ, kpoints, cache.(g_caches))
     end
 
-    @threads for j=1:length(ω_grid) - 1
-        ω   = ω_grid[j]
-        dω  = ω_grid[j + 1] - ω
-        iGk!(Gs[j], ω)
+    @threads for j=1:length(ω_grid)
+        iGk!(Gs[j], ω_grid[j])
     end
     return Gs
 end
@@ -253,7 +251,7 @@ function calc_exchanges!(exchanges::Vector{<:Exchange{T}},
     d2      = div(dim[1], 2)
     J_caches = [ThreadCache(zeros(T, size(e.J))) for e in exchanges]
 	Gs = calc_greens_functions(ω_grid, kpoints, μ)
-	@threads for i =1:length(Gs)
+	@threads for i =1:length(Gs)-1
         for (eid, exch) in enumerate(exchanges)
             J_caches[eid] .+= Jω(exch, D, Gs[i], ω_grid[i+1]-ω_grid[i])
         end
