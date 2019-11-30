@@ -19,12 +19,14 @@ module DFWannier
 
 	include("linalg.jl")
 	include("types.jl")
+	include("k_grid.jl")
 	include("wan_calcs.jl")
 	include("hami_calcs.jl")
 	include("structure_calcs.jl")
 	include("plotting.jl")
 	include("exchange.jl")
 	include("fileio.jl")
+	include("orbital_angular_momentum.jl")
 
 	export wannierbands, readhami, calc_exchanges, read_colin_hami
 end

@@ -3,7 +3,8 @@ import DFControl: Projection, Orbital, Structure, orbital, size, orbsize, dfprin
 import DFControl.Crayons: @crayon_str
 
 uniform_shifted_kgrid(::Type{T}, nkx::Integer, nky::Integer, nkz::Integer) where {T} =
-	[Vec3{T}(kx, ky, kz) for kx = 0.5/nkx:1/nkx:1, ky = 0.5/nky:1/nky:1, kz = 0.5/nkz:1/nkz:1]
+	reshape([Vec3{T}(kx, ky, kz) for kx = 0.5/nkx:1/nkx:1, ky = 0.5/nky:1/nky:1, kz = 0.5/nkz:1/nkz:1], nkx*nky*nkz)
+
 
 uniform_shifted_kgrid(nkx::Integer, nky::Integer, nkz::Integer) = uniform_shifted_kgrid(Float64, nkx, nky, nkz)
 
@@ -11,11 +12,28 @@ setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.001) = vcat(range(ωh,           
 											         range(ωh + ωv*1im,     offset + ωv*1im, length=n_ωh)[1:end-1],
 											         range(offset + ωv*1im, offset,          length=n_ωv))
 
+struct ExchangeKGrid{T, MT} <: AbstractKGrid{T}
+    hamiltonian_kgrid::HamiltonianKGrid{T, MT}
+    phases::Vector{Complex{T}}
+    D::Matrix{Complex{T}}
+end
+
+core_kgrid(x::ExchangeKGrid) = core_kgrid(x.hamiltonian_kgrid)
+
+function ExchangeKGrid(hami::TbHami, kpoints::Vector{Vec3{T}}, R=zero(Vec3{T})) where {T}
+    D       = ThreadCache(zeros_block(hami))
+    hami_kpoints = HamiltonianKGrid(hami, kpoints, x -> D .+= x)
+    nk = length(hami_kpoints)
+	Ds = gather(D)
+    return ExchangeKGrid(hami_kpoints, phases(kpoints, R), (Ds[Up()] - Ds[Down()])/nk)
+end
+
 struct KPoint{T<:AbstractFloat,MT<:AbstractMatrix{Complex{T}}}
 	k_cryst ::Vec3{T}
 	phase   ::Complex{T}
 	eigvals ::Vector{T}
 	eigvecs ::MT
+	
 end
 
 KPoint(k::Vec3{T}, dims::NTuple{2, Int}, R=zero(Vec3{T}), vecmat=zeros(Complex{T}, dims)) where {T} =
@@ -76,8 +94,8 @@ struct ColinGreensFunction{T<:AbstractFloat}
 end
 
 function calc_greens_functions(ω_grid, kpoints, μ::T) where T
-    g_caches = [ThreadCache(fill!(similar(kpoints[1].eigvecs), zero(Complex{T}))) for i=1:3]
-    Gs = [fill!(similar(kpoints[1].eigvecs), zero(Complex{T})) for i = 1:length(ω_grid)]
+    g_caches = [ThreadCache(fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(Complex{T}))) for i=1:3]
+    Gs = [fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(Complex{T})) for i = 1:length(ω_grid)]
     function iGk!(G, ω)
 	    fill!(G, zero(Complex{T}))
         integrate_Gk!(G, ω, μ, kpoints, cache.(g_caches))
@@ -98,14 +116,14 @@ function integrate_Gk!(G::AbstractMatrix, ω, μ, kpoints, caches)
 	    # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(eltype(cache1)))
         for x=1:dim
-            cache1[x, x] = 1.0 /(μ + ω - kpoints[ik].eigvals[x])
+            cache1[x, x] = 1.0 /(μ + ω - kpoints.hamiltonian_kgrid.eigvals[ik][x])
         end
      	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
 
-        mul!(cache2, kpoints[ik].eigvecs, cache1)
-        adjoint!(cache3, kpoints[ik].eigvecs)
+        mul!(cache2, kpoints.hamiltonian_kgrid.eigvecs[ik], cache1)
+        adjoint!(cache3, kpoints.hamiltonian_kgrid.eigvecs[ik])
         mul!(cache1, cache2, cache3)
-		t = kpoints[ik].phase
+		t = kpoints.phases[ik]
 		tp = t'
         for i in 1:dim, j in 1:dim
             G[i, j]     += cache1[i, j] * t
@@ -123,15 +141,15 @@ function integrate_Gk!(G::ColinMatrix, ω, μ, kpoints, caches)
 	    # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(eltype(cache1)))
         for x=1:dim
-            cache1[x, x] = 1.0 /(μ + ω - kpoints[ik].eigvals[x])
-            cache1[x, x+dim] = 1.0 /(μ + ω - kpoints[ik].eigvals[x+dim])
+            cache1[x, x] = 1.0 /(μ + ω - kpoints.hamiltonian_kgrid.eigvals[ik][x])
+            cache1[x, x+dim] = 1.0 /(μ + ω - kpoints.hamiltonian_kgrid.eigvals[ik][x+dim])
         end
      	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
 
-        mul!(cache2, kpoints[ik].eigvecs, cache1)
-        adjoint!(cache3, kpoints[ik].eigvecs)
+        mul!(cache2, kpoints.hamiltonian_kgrid.eigvecs[ik], cache1)
+        adjoint!(cache3, kpoints.hamiltonian_kgrid.eigvecs[ik])
         mul!(cache1, cache2, cache3)
-		t = kpoints[ik].phase
+		t = kpoints.phases[ik]
 		tp = t'
         for i in 1:dim, j in 1:dim
             G[i, j]     += cache1[i, j] * t
@@ -223,9 +241,9 @@ function calc_exchanges(hami,  atoms, fermi::T, ::Type{E}=Exchange2ndOrder;
 	    push!(exchanges, E(at1, at2, site_diagonal=site_diagonal))
     end
 
-    kpoints, D = fill_kgrid_D(hami, nk, R)
+    kpoints = ExchangeKGrid(hami, uniform_shifted_kgrid(nk...), R)
 
-    D_ = site_diagonal ? site_diagonalize(D, atoms) : D
+    D_ = site_diagonal ? site_diagonalize(kpoints.D, atoms) : kpoints.D
     calc_exchanges!(exchanges, μ, ω_grid, kpoints, D_)
 
     return exchanges
@@ -247,7 +265,7 @@ function calc_exchanges!(exchanges::Vector{<:Exchange{T}},
 	                                 ω_grid    ::AbstractArray{Complex{T}},
 	                                 kpoints  ,
 	                                 D         ::Union{Matrix{Complex{T}}, SiteDiagonalD{T}}) where T <: AbstractFloat
-    dim     = size(kpoints[1].eigvecs)
+    dim     = size(kpoints.hamiltonian_kgrid.eigvecs[1])
     d2      = div(dim[1], 2)
     J_caches = [ThreadCache(zeros(T, size(e.J))) for e in exchanges]
 	Gs = calc_greens_functions(ω_grid, kpoints, μ)
@@ -460,3 +478,61 @@ function calc_onsite_spin(kpoints::AbstractArray{<:KPoint{T}}, atom, fermi=0.0) 
 	return S_out./length(kpoints)
 end
 
+# Old stuff
+# function heisenberg_energy(moments::Vector{<:Vec3}, exchanges::Vector{Matrix{T}}, H, anisotropy) where T
+#     energy = zero(T)
+#     nexch  = length(exchanges)
+#     nmom   = length(moments)
+#     for i = 1:nmom
+#         for j = i+1:nmom
+#             for k = 1:nexch
+#                 energy += exchanges[k][i,j] * dot(moments[i], moments[j]) + H * moments[i][1] + anisotropy * moments[i][3]^2
+#             end
+#         end
+#     end
+#     return energy
+# end
+
+# function AFMmap(structure, Rcryst)
+#     R = cell(structure)' * Rcryst/2
+#     atoms = atoms(structure)
+#     map1 = Dict{AbstractAtom, AbstractAtom}()
+#     for at1 in atoms, at2 in atoms
+#         if bondlength(at2, at1, R) < 1.0e-7
+#             map1[at1] = at2
+#         end
+#     end
+#     return map1
+# end
+
+# function rs(R, r1, r2, r3, r4)
+#     sig =
+#     if sign(R) < 0
+#         return r4, r3, r2, r1
+#     else
+#         return r1, r2, r3, r4
+#     end
+# end
+
+# function symmetrize!(tb_hamis::NTuple{2, Vector{TbBlock{T, LT}}}, structure::AbstractStructure{T, LT}) where  {T, LT<:Length{T}}
+#     forwardmap = AFMmap(structure, Vec3(1,0,0))
+#     Hup = getfirst(x -> x.R_cryst == Vec3(0,0,0), tb_hamis[1]).block
+#     Hdn = getfirst(x -> x.R_cryst == Vec3(0,0,0), tb_hamis[2]).block
+
+#     for (at1, at2) in forwardmap, (at3, at4) in forwardmap
+#         for (r1, r2) in zip(range.(projections(at1)), range.(projections(at2))), (r3, r4) in zip(range.(projections(at3)), range.(projections(at4)))
+#             Hup[r1, r3] .= (Hup[r1, r3] .+ Hdn[r2, r4]) ./ 2
+#             Hdn[r2, r4] .= Hup[r1, r3]
+
+#             for R=-1:2:1
+#                 Hu = getfirst(x -> x.R_cryst == Vec3(R,0,0), tb_hamis[1]).block
+#                 Hd = getfirst(x -> x.R_cryst == Vec3(R,0,0), tb_hamis[2]).block
+#                 r1_, r2_, r3_, r4_ = rs(R, r1, r2, r3, r4)
+#                 Hu[r2_, r3_] .= (Hu[r2_, r3_] .+ Hdn[r1_, r4_]) ./ 2
+#                 Hdn[r1_, r4_] .= Hu[r2_, r3_]
+#                 Hd[r2_, r3_]  .= (Hd[r2_, r3_] .+ Hup[r1_, r4_]) ./ 2
+#                 Hup[r1_, r4_] .= Hd[r2_, r3_]
+#             end
+#         end
+#     end
+# end

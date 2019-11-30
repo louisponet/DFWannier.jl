@@ -12,14 +12,14 @@ hami = DFW.read_colin_hami(assetfile("wan_up_hr.dat"), assetfile("wan_dn_hr.dat"
 
 
 ω_grid = DFW.setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
-kpoints, D = DFW.fill_kgrid_D(hami, nk, R)
+kpoints = DFW.ExchangeKGrid(hami, DFW.uniform_shifted_kgrid(nk...), R)
 
-@test isapprox(sum(sum.(sum.(map(x->x.eigvecs, kpoints)))), 146.3532485358504 - 29.46182528401771im) 
-@test isapprox(sum(sum.(map(x->x.eigvals, kpoints))), 27844.595124999996)
-@test isapprox(sum(sum.(D)),-0.010799000000018138 + 1.972617761410861e-15im)
+@test isapprox(sum(sum.(sum.(kpoints.hamiltonian_kgrid.eigvecs))), 146.3532485358504 - 29.46182528401771im) 
+@test isapprox(sum(sum.(kpoints.hamiltonian_kgrid.eigvals)), 27844.595124999996)
+@test isapprox(sum(sum.(kpoints.D)),-0.010799000000018138 + 1.972617761410861e-15im)
 
-g_caches = [fill!(similar(kpoints[1].eigvecs), zero(ComplexF64)) for i=1:3]
-G        =fill!(similar(kpoints[1].eigvecs), zero(ComplexF64))
+g_caches = [fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(ComplexF64)) for i=1:3]
+G        =fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(ComplexF64))
 fill!(G, zero(ComplexF64))
 DFW.integrate_Gk!(G, ω_grid[1], fermi, kpoints, g_caches);
 
