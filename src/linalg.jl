@@ -27,6 +27,7 @@ up(c::ColinMatrix)   = view(c.data, 1:blockdim(c), 1:blockdim(c))
 # down(c::ColinMatrix) = view(c.data, blockdim(c)+1:2*blockdim(c), 1:blockdim(c))
 down(c::ColinMatrix) = view(c.data, 1:blockdim(c), blockdim(c)+1:2*blockdim(c))
 # blockdim(c::ColinMatrix) = size(c.data, 2)
+blockdim(a::AbstractMatrix) = div(size(a, 1), 2)
 blockdim(c::ColinMatrix) = size(c.data, 1)
 
 for f in (:length, :size, :setindex!, :elsize)
@@ -67,6 +68,12 @@ for f in (:view, :getindex)
 
 	@eval Base.$f(c::ColinMatrix, ::Down) =
 		$f(c, 1:blockdim(c), (1:blockdim(c)) .+ blockdim(c))
+
+	@eval Base.$f(c::AbstractMatrix, ::Up) =
+		$f(c, 1:blockdim(c), 1:blockdim(c))
+
+	@eval Base.$f(c::AbstractMatrix, ::Down) =
+		$f(c, blockdim(c)+1:2*blockdim(c),blockdim(c)+1:2*blockdim(c))
 end
 
 for op in (:*, :-, :+, :/)
