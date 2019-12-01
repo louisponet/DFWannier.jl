@@ -28,66 +28,6 @@ function ExchangeKGrid(hami::TbHami, kpoints::Vector{Vec3{T}}, R=zero(Vec3{T})) 
     return ExchangeKGrid(hami_kpoints, phases(kpoints, R), (Ds[Up()] - Ds[Down()])/nk)
 end
 
-struct KPoint{T<:AbstractFloat,MT<:AbstractMatrix{Complex{T}}}
-	k_cryst ::Vec3{T}
-	phase   ::Complex{T}
-	eigvals ::Vector{T}
-	eigvecs ::MT
-	
-end
-
-KPoint(k::Vec3{T}, dims::NTuple{2, Int}, R=zero(Vec3{T}), vecmat=zeros(Complex{T}, dims)) where {T} =
-	KPoint(k, exp(2im * π * dot(R, k)), zeros(T, max(dims...)), vecmat)
-
-@doc raw"""
-	fill_kgrid(hami::TbHami{T}, R, nk, Hfunc::Function = x -> nothing) where T
-	fill_kgrid(hami::TbHami{T}, R, k_grid, Hfunc::Function = x -> nothing) where T
-
-Generates a grid of `KPoint`s and fills them with the diagonalized hamiltonians and phases.
-An extra function Hfunc can be passed which will be run on every $H(k)$ like `Hfunc(Hk)`.
-"""
-function fill_kgrid(hami::TbHami{T}, k_grid, R=zero(Vec3{T}), Hfunc::Function = x -> nothing) where T
-	kpoints = [KPoint(k, blocksize(hami), R, zeros_block(hami)) for k in k_grid]
-	nk    = length(kpoints)
-	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
-    @threads for i=1:nk
-	    tid = threadid()
-	    kp = kpoints[i]
-	    cache = calc_caches[tid]
-	    #= kp.eigvecs is used as a temporary cache to store H(k) in. Since we
-	    don't need H(k) but only Hvecs etc, this is ok.
-	    =#
-	    Hk!(kp, hami)
-	    Hfunc(kp.eigvecs)
-	    eigen!(kp.eigvals, kp.eigvecs, cache)
-    end
-    return kpoints
-end
-
-function fill_kgrid(hami::TbHami{T}, nk::NTuple{3, Int}, R=zero(Vec3{T}), Hfunc::Function = x -> nothing) where T
-    k_grid  = uniform_shifted_kgrid(nk...)
-    return fill_kgrid(hami, k_grid, R, Hfunc)
-end
-
-@doc raw"""
-	fill_kgrid_D(hami::TbHami{T}, nk, R=zero(Vec3{T})) where T
-
-Generates kpoints with `fill_kgrid` and calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
-"""
-function fill_kgrid_D(hami::TbHami{T}, nk, R=zero(Vec3{T})) where T
-    D     = ThreadCache(zeros_block(hami))
-    kpoints = fill_kgrid(hami, nk, R, x -> D .+= x)
-	Ds = gather(D)
-    return kpoints, (Ds[Up()] - Ds[Down()])/prod(nk)
-end
-
-function Hk!(kpoint::KPoint{T}, tbhami::TbHami{T, M}) where {T, M <: AbstractMatrix{Complex{T}}}
-    for b in tbhami
-	    fac = ℯ^(-2im*pi*(b.R_cryst ⋅ kpoint.k_cryst))
-        Hk_sum!(kpoint.eigvecs, block(b), fac)
-    end
-end
-
 struct ColinGreensFunction{T<:AbstractFloat}
 	ω::T
 	G::ColinMatrix{Complex{T}} #forward part is always spin up, backward spin down
@@ -282,10 +222,10 @@ end
 spin_sign(D) = -sign(real(tr(D))) #up = +1, down = -1. If D_upup > D_dndn, onsite spin will be down and the tr(D) will be positive. Thus explaining the - in front of this.
 spin_sign(D::Vector) = sign(real(sum(D))) #up = +1, down = -1
 
-perturbation_loop(exch::Exchange2ndOrder, D_site1, G_forward, D_site2, G_backward) =
+perturbation_bubble(exch::Exchange2ndOrder, D_site1, G_forward, D_site2, G_backward) =
 	D_site1 * G_forward * D_site2 * G_backward
 
-perturbation_loop(exch::Exchange4thOrder, D_site1, G_forward, D_site2, G_backward) =
+perturbation_bubble(exch::Exchange4thOrder, D_site1, G_forward, D_site2, G_backward) =
 	D_site1 * G_forward * D_site2 * G_backward * D_site1 * G_forward * D_site2 * G_backward
 
 @inline function Jω(exch, D, G, dω)
@@ -293,7 +233,7 @@ perturbation_loop(exch::Exchange4thOrder, D_site1, G_forward, D_site2, G_backwar
     D_site2    = view(D, exch.atom2)
     G_forward  = view(G, exch.atom1, exch.atom2, Up())
     G_backward = view(G, exch.atom2, exch.atom1, Down())
-	return spin_sign(D_site1) .* spin_sign(D_site2) .* imag.(perturbation_loop(exch,
+	return spin_sign(D_site1) .* spin_sign(D_site2) .* imag.(perturbation_bubble(exch,
 																			   D_site1,
 																			   G_forward,
 																			   D_site2,
