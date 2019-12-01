@@ -401,22 +401,22 @@ end
 σz(m::ColinMatrix{T}) where {T} =
 	ColinMatrix(diagm(0 => ones(T, size(m, 1))), diagm(0 => -1.0 .* ones(T, size(m, 1))))
 
-function calc_onsite_spin(kpoints::AbstractArray{<:KPoint{T}}, atom, fermi=0.0) where {T}
-	S = Vec3(σx(kpoints[1].eigvecs[atom]),
-	         σy(kpoints[1].eigvecs[atom]),
-	         σz(kpoints[1].eigvecs[atom]))
+# function calc_onsite_spin(kpoints::AbstractArray{<:KPoint{T}}, atom, fermi=0.0) where {T}
+# 	S = Vec3(σx(kpoints[1].eigvecs[atom]),
+# 	         σy(kpoints[1].eigvecs[atom]),
+# 	         σz(kpoints[1].eigvecs[atom]))
 
-	S_out = zero(Vec3{T})
-	for k in kpoints
-		for (i, v) in enumerate(k.eigvals)
-			if i - fermi <= 0.0
-				vec = k.eigvecs[:, i][atom]
-			    S_out += real((vec',) .* S .* (vec,))
-			end
-		end
-	end
-	return S_out./length(kpoints)
-end
+# 	S_out = zero(Vec3{T})
+# 	for k in kpoints
+# 		for (i, v) in enumerate(k.eigvals)
+# 			if i - fermi <= 0.0
+# 				vec = k.eigvecs[:, i][atom]
+# 			    S_out += real((vec',) .* S .* (vec,))
+# 			end
+# 		end
+# 	end
+# 	return S_out./length(kpoints)
+# end
 
 # Old stuff
 # function heisenberg_energy(moments::Vector{<:Vec3}, exchanges::Vector{Matrix{T}}, H, anisotropy) where T
