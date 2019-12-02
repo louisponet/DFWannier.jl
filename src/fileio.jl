@@ -1,4 +1,4 @@
-import DFControl: searchdir
+import DFControl: searchdir, strip_split
 #does this really need the checking for corruption stuff?
 function read_xsf_header(::Type{T}, filename::String) where T
     open(filename) do f
@@ -106,14 +106,22 @@ function write_xsf_file(filename::String, wfc)
     end
 end
 
-@doc raw"""
-	readhami(filename::String,structure::AbstractStructure{T})
+#This comes from w90; it's basically a cube
+const MAX_WIGNER_SEITZ_DEGENERACIES = 8 
 
-Returns a vector of TbBlocks with the hopping parameters of the Wannier Tight Binding Hamiltonian.
+@doc raw"""
+	readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T})
+
+Reads `seedname_hr.dat` and `seedname_wsvec.dat` and returns a vector of TbBlocks with the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
-function readhami(filename::String, structure::AbstractStructure{T, LT}) where  {T<:AbstractFloat,LT<:Length{T}}
-    open(filename) do f
-        out = TbBlock{T, Matrix{Complex{T}}, LT}[]
+function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T, LT}) where  {T<:AbstractFloat,LT<:Length{T}}
+    @assert ispath(hami_file) && ispath(wsvec_file) "Please provide valid hamiltonian and wsvec files."
+
+    wsvec_f = open(wsvec_file, "r")
+    readline(wsvec_f)
+
+    open(hami_file) do f
+        out = TbBlock{T, Matrix{Complex{T}}, Matrix{Vector{Vec3{Int}}}, LT}[]
         degen = Int64[]
         linenr = 0
         readline(f)
@@ -128,12 +136,29 @@ function readhami(filename::String, structure::AbstractStructure{T, LT}) where  
             rpt = div(linenr - 1, nwanfun^2) + 1
             R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
             if length(out) < rpt
-                block = TbBlock(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
+                # Reading all the wigner seitz shifts etc from the wsvec.dat file
+                # TODO Performance: It's probably a better idea to have a nwanfun * nwanfun dimensional matrix with the number of degeneracies,
+                #                   and a vector with all the actual shifts serialized into it.
+
+                wigner_seitz_shift_matrix = Matrix{Vector{Vec3{Int}}}(undef, nwanfun, nwanfun)
+                n_wsvecs_read = 0
+                while n_wsvecs_read < nwanfun^2
+                    wanid1, wanid2 = parse.(Int, strip_split(readline(wsvec_f))[end-1:end]) #R line that should be the same as already read
+                    n_ws_degeneracies = parse(Int, strip(readline(wsvec_f)))
+                    t_shifts = zeros(Vec3{Int}, n_ws_degeneracies)
+                    for i in 1:n_ws_degeneracies
+                        t_shifts[i] = Vec3(parse.(Int, strip_split(readline(wsvec_f)))...)
+                    end
+                    n_wsvecs_read += 1
+                    wigner_seitz_shift_matrix[wanid1, wanid2] = t_shifts
+                end
+
+                block = TbBlock(cell(structure) * R_cryst, R_cryst, wigner_seitz_shift_matrix, degen[rpt], Matrix{Complex{T}}(I, nwanfun, nwanfun))
                 push!(out, block)
             else
                 block = out[rpt]
             end
-            complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) / degen[rpt]
+            complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) 
             block.block[parse(Int, l[4]), parse(Int, l[5])] = complex
         end
         return out
@@ -141,25 +166,29 @@ function readhami(filename::String, structure::AbstractStructure{T, LT}) where  
 end
 
 #super not optimized
+#TODO Test: new wigner seitz shift stuff
 @doc raw"""
-	read_colin_hami(upfile::String, downfile::String, structure::AbstractStructure{T})
+	read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws_file::AbstractString, down_ws_file::AbstractString structure::AbstractStructure{T})
 
 Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
-function read_colin_hami(upfile::String, downfile::String, structure::AbstractStructure{T}) where  T
-	uphami   = readhami(upfile, structure)
-	downhami = readhami(downfile, structure)
+function read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws_file::AbstractString, down_ws_file::AbstractString, structure::AbstractStructure{T}) where  T
+	uphami   = readhami(upfile, up_ws_file, structure)
+	downhami = readhami(downfile, down_ws_file, structure)
 	dim = blocksize(uphami)
 	CT = Complex{T}
 	@assert dim == blocksize(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
 
 	u1 = uphami[1]
 	d1 = downhami[1]
-	first = TbBlock(u1.R_cart, u1.R_cryst, ColinMatrix(block(u1), block(d1)))
+	
+	first = TbBlock(u1.R_cart, u1.R_cryst, ColinMatrix(u1.wigner_seitz_shifts, u2.wigner_seitz_shifts), u1.wigner_seitz_degeneracy, ColinMatrix(block(u1), block(d1)))
 	outhami  = [first]
 	for (u, d) in zip(uphami[2:end], downhami[2:end])
 		tmat = ColinMatrix(block(u), block(d))
-		push!(outhami, TbBlock(u.R_cart, u.R_cryst, tmat))
+		t_shifts = ColinMatrix(u1.wigner_seitz_shifts, u2.wigner_seitz_shifts)
+		degen = u.wigner_seitz_degeneracy
+		push!(outhami, TbBlock(u.R_cart, u.R_cryst, t_shifts, degen, tmat))
 	end
 	return outhami
 end
@@ -173,10 +202,19 @@ If it finds a colinear calculation in the job it will read the up and down hamil
 if the job was either nonmagnetic or noncolinear it will read only one hamiltonian file (there should be only one).
 """
 function readhami(job::DFJob)
+
+    @assert any(x -> x isa DFInput{Wannier90}, job.inputs) "No wannier90 calculations found in the job."
+
+    seedname = getfirst(x -> x isa DFInput{Wannier90}, job.inputs).name
+
+	hami_files  = searchdir(job.local_dir, "hr.dat")
+	wsvec_files = searchdir(job.local_dir, "wsvec.dat")
+	@assert !isempty(hami_files) "No hamiltonian files ($seedname_hr.dat) found."
+	@assert !isempty(wsvec_files) "No wsvec files ($seedname_wsvec.dat) found."
 	if !any(DFC.iscolincalc.(job.inputs))
-		return readhami(joinpath(job.local_dir, searchdir(job.local_dir, "hr.dat")[1]), job.structure)
+		return readhami(joinpath(job, hami_files[1]), joinpath(job, wsvec_files[1]), job.structure)
 	else
-		return read_colin_hami(joinpath.((job,), searchdir(job.local_dir, "hr.dat"))..., job.structure)
+		return read_colin_hami(joinpath.((job,), hami_files)..., joinpath.((job,), wsvec_files)..., job.structure)
 	end
 end
 

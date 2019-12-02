@@ -2,21 +2,43 @@ div1(x, y) = div(x - 1, y) + 1
 
 w_eachindex(m::Matrix) = eachindex(m)
 
-Hk_sum!(out::M, m::M, fac::T) where {T, M <: AbstractMatrix{T}} =
-    out .+= fac .* m
-
-function Hk!(out::M, tbhami::TbHami{T, M}, kpoint::Vec3{T}) where {T, M <: AbstractMatrix{Complex{T}}}
-    fill!(out, zero(Complex{T}))
-    for b in tbhami
-	    fac = ℯ^(-2im*pi*(b.R_cryst ⋅ kpoint))
-        Hk_sum!(out, block(b), fac)
+function Hk!(out::AbstractMatrix, tb_hami::TbHami, kpoint::Vec3)
+    fill!(out, zero(eltype(out)))
+    # fourier_transform(tbhami, kpoint) do i, b, fac
+    # end
+    for (ib, b) in enumerate(tb_hami)
+        degen = b.wigner_seitz_degeneracy
+        for i in eachindex(block(b))
+            shifts = b.wigner_seitz_shifts[i]
+            n_shifts = length(shifts)
+            for is in 1:n_shifts
+                fac = ℯ^(2im*π*((b.R_cryst + shifts[is]) ⋅ kpoint))/(degen * n_shifts)
+                # R_function(i, b, fac)
+                out[i] += fac * block(b)[i]
+            end
+        end
     end
 end
 
-function Hk(tbhami, kpoint)
+function Hk(tbhami::TbHami, kpoint::Vec3)
     out = similar(tbhami[1].block)
     Hk!(out, tbhami, kpoint)
     return out
+end
+
+"Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
+function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
+    for b in tb_hami
+        degen = b.wigner_seitz_degeneracy
+        for i in eachindex(block(b))
+            shifts = b.wigner_seitz_shifts[i]
+            n_shifts = length(shifts)
+            for is in 1:n_shifts
+                fac = ℯ^(2im*π*((b.R_cryst + shifts[is]) ⋅ kpoint))/(degen * n_shifts)
+                R_function(i, b, fac)
+            end
+        end
+    end
 end
 
 "Constructs the total spin-orbit-coupled Hamiltonian out of supplied angular momentums between the Wannier functions and uses the l_soc of the atoms."

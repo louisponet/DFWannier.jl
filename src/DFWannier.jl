@@ -26,7 +26,8 @@ module DFWannier
 	include("plotting.jl")
 	include("exchange.jl")
 	include("fileio.jl")
-	include("orbital_angular_momentum.jl")
+	include("berry.jl")
+	# include("orbital_angular_momentum.jl")
 
 	export wannierbands, readhami, calc_exchanges, read_colin_hami
 end

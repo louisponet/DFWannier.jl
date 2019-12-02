@@ -35,7 +35,7 @@ HamiltonianKGrid(kpoints::Vector{<:Vec3}, args...) = HamiltonianKGrid(CoreKGrid(
 Takes a k grid, calculates Hk for each of them and diagonalizes. Only the eigenvectors and eigenvalues of Hk are stored,
 the H_function_k function is called on the intermediate Hk. 
 """
-function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3}, H_function_k::Function = x -> nothing) where {T}
+function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3}, Hk_function::Function = x -> nothing) where {T}
 	# kpoints = [KPoint(k, blocksize(hami), R, zeros_block(hami)) for k in k_grid]
 	n_eigvals = max(blocksize(hami)...)
 	kgrid = HamiltonianKGrid(kpoints, [zeros(T, n_eigvals) for k in kpoints],  [zeros_block(hami) for k in kpoints])
@@ -49,7 +49,7 @@ function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3}, H_function_k
 	    don't need H(k) but only Hvecs etc, this is ok.
 	    =#
 	    Hk!(kp, hami, k_cryst(kgrid)[i])
-	    H_function_k(kp)
+	    Hk_function(kp)
 	    eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], cache)
     end
     return kgrid
@@ -59,4 +59,3 @@ function HamiltonianKGrid(hami::TbHami{T}, nk::NTuple{3, Int}, H_function_k::Fun
     k_grid  = uniform_shifted_kgrid(nk...)
     return fill_kgrid(hami, k_grid, Hfunc)
 end
-
