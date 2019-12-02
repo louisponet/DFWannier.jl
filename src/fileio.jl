@@ -121,7 +121,7 @@ function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structu
     readline(wsvec_f)
 
     open(hami_file) do f
-        out = TbBlock{T, Matrix{Complex{T}}, Matrix{Vector{Vec3{Int}}}, LT}[]
+        out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Vector{Vec3{Int}}, LT}[]
         degen = Int64[]
         linenr = 0
         readline(f)
@@ -140,20 +140,23 @@ function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structu
                 # TODO Performance: It's probably a better idea to have a nwanfun * nwanfun dimensional matrix with the number of degeneracies,
                 #                   and a vector with all the actual shifts serialized into it.
 
-                wigner_seitz_shift_matrix = Matrix{Vector{Vec3{Int}}}(undef, nwanfun, nwanfun)
+                wigner_seitz_shifts = Vec3{Int}[]
+                wigner_seitz_nshift_matrix = Matrix{Int}(undef, nwanfun, nwanfun)
                 n_wsvecs_read = 0
                 while n_wsvecs_read < nwanfun^2
                     wanid1, wanid2 = parse.(Int, strip_split(readline(wsvec_f))[end-1:end]) #R line that should be the same as already read
                     n_ws_degeneracies = parse(Int, strip(readline(wsvec_f)))
                     t_shifts = zeros(Vec3{Int}, n_ws_degeneracies)
+                    wigner_seitz_nshift_matrix[wanid1, wanid2] = n_ws_degeneracies
                     for i in 1:n_ws_degeneracies
                         t_shifts[i] = Vec3(parse.(Int, strip_split(readline(wsvec_f)))...)
                     end
+                    prepend!(wigner_seitz_shifts, t_shifts)
                     n_wsvecs_read += 1
-                    wigner_seitz_shift_matrix[wanid1, wanid2] = t_shifts
+                    # wigner_seitz_shift_matrix[wanid1, wanid2] = t_shifts
                 end
 
-                block = TbBlock(cell(structure) * R_cryst, R_cryst, wigner_seitz_shift_matrix, degen[rpt], Matrix{Complex{T}}(I, nwanfun, nwanfun))
+                block = TbBlock(cell(structure) * R_cryst, R_cryst, wigner_seitz_shifts, wigner_seitz_nshift_matrix, degen[rpt], Matrix{Complex{T}}(I, nwanfun, nwanfun))
                 push!(out, block)
             else
                 block = out[rpt]

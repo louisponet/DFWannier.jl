@@ -2,21 +2,10 @@ div1(x, y) = div(x - 1, y) + 1
 
 w_eachindex(m::Matrix) = eachindex(m)
 
-function Hk!(out::AbstractMatrix, tb_hami::TbHami, kpoint::Vec3)
+function Hk!(out::AbstractMatrix, tbhami::TbHami, kpoint::Vec3)
     fill!(out, zero(eltype(out)))
-    # fourier_transform(tbhami, kpoint) do i, b, fac
-    # end
-    for (ib, b) in enumerate(tb_hami)
-        degen = b.wigner_seitz_degeneracy
-        for i in eachindex(block(b))
-            shifts = b.wigner_seitz_shifts[i]
-            n_shifts = length(shifts)
-            for is in 1:n_shifts
-                fac = ℯ^(2im*π*((b.R_cryst + shifts[is]) ⋅ kpoint))/(degen * n_shifts)
-                # R_function(i, b, fac)
-                out[i] += fac * block(b)[i]
-            end
-        end
+    fourier_transform(tbhami, kpoint) do i, b, fac
+        @inbounds out[i] += fac * block(b)[i]
     end
 end
 
@@ -30,13 +19,26 @@ end
 function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
     for b in tb_hami
         degen = b.wigner_seitz_degeneracy
+        shifts_used = 0
         for i in eachindex(block(b))
-            shifts = b.wigner_seitz_shifts[i]
-            n_shifts = length(shifts)
+            n_shifts = b.wigner_seitz_nshifts[i]
             for is in 1:n_shifts
-                fac = ℯ^(2im*π*((b.R_cryst + shifts[is]) ⋅ kpoint))/(degen * n_shifts)
+                shift = b.wigner_seitz_shifts[shifts_used + is]
+                fac = ℯ^(2im*π*((b.R_cryst + shift) ⋅ kpoint))/(degen * n_shifts)
                 R_function(i, b, fac)
             end
+            shifts_used += n_shifts
+        end
+    end
+end
+
+"Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
+function fourier_transform_nows(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
+    for b in tb_hami
+        degen = b.wigner_seitz_degeneracy
+        fac = ℯ^(2im*π*(b.R_cryst ⋅ kpoint))/degen
+        for i in eachindex(block(b))
+            R_function(i, b, fac)
         end
     end
 end

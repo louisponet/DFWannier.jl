@@ -117,15 +117,17 @@ view(A::Vector, a::Union{AbstractAtom, Projection}) =
 
 import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, wan_read_input
 
-struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MS <: AbstractMatrix{Vector{Vec3{Int}}}, LT<:Length{T}}
+struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:AbstractMatrix{Int}, VS <: Vector{Vec3{Int}}, LT<:Length{T}}
     R_cart  ::Vec3{LT}
     R_cryst ::Vec3{Int}
-    wigner_seitz_shifts::MS
+    wigner_seitz_shifts::VS
     # Like w90 irdist_ws: The integer number of unit cells to shift the Wannier function j to put its center inside the wigner-seitz of wannier function i. Can have multiple equivalent shifts (maximum of 8), they are all stored. 
+    wigner_seitz_nshifts::MI
     wigner_seitz_degeneracy::Int #not sure if we need to keep this
     # For example on boundaries of the supercell
     block   ::M
 end
+
 
 block(x::TbBlock) = x.block
 
@@ -136,7 +138,7 @@ end
 LinearAlgebra.eigen(h::TbBlock) =
 	eigen(block(h))
 
-const TbHami{T, M, MS, LT}  = Vector{TbBlock{T, M, MS, LT}}
+const TbHami{T, M, MI, VS, LT}  = Vector{TbBlock{T, M, MI, VS, LT}}
 
 getindex(h::TbHami, R::Vec3{Int}) =
 	getfirst(x -> x.R_cryst == R, h)
