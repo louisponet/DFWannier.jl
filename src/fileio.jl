@@ -479,6 +479,7 @@ struct WannierParameters
     wannier_centers::Vector{Point3{Float64}}
     wannier_spreads::Vector{Float64}
 end
+
 function read_chk(filename)
     f = FortranFile(filename)
     header = String(read(f, FString{33}))
@@ -562,4 +563,54 @@ function read_unk_nc(file)
     return Uk
 end
 
+struct ReciprocalOverlap{T}
+    k1_id   ::Int
+    k2_id   ::Int
+    b_cryst ::Vec3{Int} #connecting vector in crystalline coordinates
+    S::Matrix{Complex{T}}
+end
 
+function read_mmn(::Type{T}, file::AbstractString) where {T<:AbstractFloat}
+    open(file, "r") do f
+        readline(f) #header
+        nbands, nkpoints, n_nearest_neighbors = parse.(Int, strip_split(readline(f)))
+
+        overlap_ab_initio_gauge = Matrix{Complex{T}}(undef, nbands, nbands)
+        for i in eachindex(overlap_ab_initio_gauge)
+            overlap_ab_initio_gauge[i] = complex(parse.(T, strip_split(readline(f))))
+        end
+
+        overlap_wannier_gauge = nothing
+      
+
+    end
+end
+read_mmn(file::AbstractString) = read_mmn(Float64, file)
+
+function read_nnkp(file::AbstractString)
+    open(file, "r") do f
+        line = readline(f)
+        while line != "begin kpoints"
+            line = readline(f)
+        end
+        nkpoints = parse(Int, strip(readline(f)))
+        while line != "begin nnkpts"
+            line = readline(f)
+        end
+        n_nearest_neighbors = parse(Int, strip(readline(f)))
+
+        kpoints_neighbor_list = [Vector{Tuple{Int, Vec3{Int}}}(undef, n_nearest_neighbors) for i=1:nkpoints]
+
+        counter = 1
+        line = readline(f)
+        while line != "end nnkpts"
+            counter = mod1(counter, n_nearest_neighbors)
+            sline = strip_split(line)
+            ik, ik2 = parse.(Int, sline[1:2])
+            kpoints_neighbor_list[ik][counter] = (ik2, parse(Vec3{Int}, sline[3:5]))
+            counter += 1
+            line = readline(f)
+        end
+        return kpoints_neighbor_list
+    end
+end
