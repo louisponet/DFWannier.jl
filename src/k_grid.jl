@@ -1,3 +1,5 @@
+const K_CART_TYPE{T} = Quantity{T,Unitful.𝐋^-1,Unitful.FreeUnits{(Ang^-1,),Unitful.𝐋^-1,nothing}} 
+
 phases(kpoints::Vector{<:Vec3}, R::Vec3) = exp.(2im * π .* dot.(kpoints, (R,)))
 
 abstract type AbstractKGrid{T} end
@@ -5,6 +7,7 @@ abstract type AbstractKGrid{T} end
 core_kgrid(x::AbstractKGrid) = x.core
 
 k_cryst(x::AbstractKGrid)    = core_kgrid(x).k_cryst
+k_cryst(x::Vec3) = x
 # k_cart(x::AbstractKGrid)     = core_kgrid(x).k_cart
 # phase(x::AbstractKGrid)      = core_kgrid(x).phase
 Base.length(kgrid::AbstractKGrid) = length(core_kgrid(kgrid))
@@ -59,3 +62,49 @@ function HamiltonianKGrid(hami::TbHami{T}, nk::NTuple{3, Int}, H_function_k::Fun
     k_grid  = uniform_shifted_kgrid(nk...)
     return fill_kgrid(hami, k_grid, Hfunc)
 end
+
+abstract type KPoint{T<:AbstractFloat} end
+
+struct KBond{T<:AbstractFloat} # All matrices/operators are in wannier gauge, i.e. block-like gauge
+    k_id1   ::Int #TODO: Optimize, can we drop these?
+    k_id2   ::Int
+    vr      ::Vec3{K_CART_TYPE{T}}
+end
+
+@with_kw mutable struct AbInitioKPoint{T} <: KPoint{T}
+    k_cryst  ::Vec3{T}
+    k_cart   ::Vec3{K_CART_TYPE{T}}
+    eigvals  ::Vector{T}        = T[] #original eigenvalues, in hamiltonian gauge
+    neighbors::Vector{KBond{T}} = KBond{T}[]
+    overlaps ::Vector{Matrix{Complex{T}}} = Matrix{Complex{T}}[] #already in wannier gauge
+    hamis    ::Vector{Matrix{Complex{T}}} = Matrix{Complex{T}}[] #Hamiltonian element between the block-like states in wannier gauge
+    uHu      ::Matrix{Matrix{Complex{T}}} = Matrix{Matrix{Complex{T}}}(undef, Matrix{Complex{T}}(undef, 0,0), Matrix{Complex{T}}(undef, 0,0))
+end
+
+k_cryst(k::AbInitioKPoint) = k.k_cryst
+
+struct AbInitioKGrid{T, SA} <: AbstractKGrid{T}
+    kpoints::SA
+    neighbor_weights::Vector{T} #ordered in the same way as neighbors in kpoints
+end
+
+function AbInitioKGrid(::Type{T}, eig_filename::AbstractString, chk_filename::AbstractString, mmn_filename::AbstractString) where {T}
+    eigenvalues = read_eig(eig_filename) 
+    wannier_chk_params = read_chk(chk_filename)
+    kpoints = [AbInitioKPoint{T}(k_cryst = k,
+                                  k_cart  = wannier_chk_params.recip_cell * k,
+                                  eigvals = eigenvalues[:, i]) for (i, k) in enumerate(wannier_chk_params.kpoints)]
+    fill_overlaps!(kpoints, mmn_filename, wannier_chk_params)
+
+    
+    return AbInitioKGrid(StructArray(kpoints), wannier_chk_params.neighbor_weights)
+end
+
+AbInitioKGrid(eig_filename::AbstractString, chk_filename::AbstractString, mmn_filename::AbstractString) =
+    AbInitioKGrid(Float64, eig_filename, chk_filename, mmn_filename)
+
+n_wannier_functions(grid::AbInitioKGrid) = size(grid.kpoints.neighbors[1][1].overlap, 1)
+n_nearest_neighbors(grid::AbInitioKGrid) = length(grid.kpoints.neighbors[1])
+
+Base.length(grid::AbInitioKGrid) = length(grid.kpoints)
+

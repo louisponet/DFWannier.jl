@@ -48,7 +48,7 @@ end
 
 # Is this code actually correct?
 # "Calculates the dipoles from the supplied wannier dipole output."
-# function calc_k_dips(dip_raw::Array{Tuple{Int, Int, Int, Int, Int, Point3{T}}}, k_points::AbstractArray) where T<:AbstractFloat
+# function calc_k_dips(dip_raw::Array{Tuple{Int, Int, Int, Int, Int, Point3{T}}}, kpoints::AbstractArray) where T<:AbstractFloat
 # 	dim = 0
 # 	for i=1:length(dip_raw)
 # 		d = dip_raw[i][4]
@@ -62,7 +62,7 @@ end
 # 	tmp = [[zeros(Complex{T}, 3)] for i=1:dim, i1=1:dim]
 # 	for i=1:size(dip_raw)[1]
 # 		d = dip_raw[i]
-# 		complex_part = 2π*(k_points[1]*d[1]+k_points[2]*d[2]+k_points[3]*d[3])
+# 		complex_part = 2π*(kpoints[1]*d[1]+kpoints[2]*d[2]+kpoints[3]*d[3])
 # 		factor = exp(-1im * complex_part)
 # 		tmp[d[4],d[5]][1] += d[6][1] * factor
 # 		tmp[d[4],d[5]][2] += d[6][2] * factor

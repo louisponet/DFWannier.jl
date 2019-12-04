@@ -16,6 +16,7 @@ module DFWannier
 	using StructArrays
 	using FortranFiles
 	using DelimitedFiles
+	using Unitful
 
 	include("linalg.jl")
 	include("types.jl")
@@ -29,5 +30,5 @@ module DFWannier
 	include("berry.jl")
 	# include("orbital_angular_momentum.jl")
 
-	export wannierbands, readhami, calc_exchanges, read_colin_hami
+	export wannierbands, readhami, calc_exchanges, read_colin_hami, character_contributions
 end

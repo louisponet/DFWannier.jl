@@ -301,7 +301,7 @@ end
 
 "Holds all the calculated values from a wannier model."
 @with_kw mutable struct WannierBand{T<:AbstractFloat} <: Band
-    k_points_cryst ::Vector{Vec3{T}}
+    kpoints_cryst ::Vector{Vec3{T}}
     eigvals        ::Vector{T}
     eigvec         ::Vector{Vector{Complex{T}}}
     cms      ::Vector{Point3{T}} = Point3{T}[]
@@ -311,7 +311,7 @@ end
 
 function WannierBand(kpoints::Vector{Vec3{T}}, dim::Int) where T
     klen = length(kpoints)
-    WannierBand{T}(k_points_cryst=kpoints, eigvals=zeros(T, klen), eigvec=[zeros(Complex{T}, dim) for k=1:klen])
+    WannierBand{T}(kpoints_cryst=kpoints, eigvals=zeros(T, klen), eigvec=[zeros(Complex{T}, dim) for k=1:klen])
 end
 
 wannierbands(kpoints::Vector{<:Vec3}, dim::Int) =
@@ -330,7 +330,7 @@ function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
         for e=1:length(eigvals)
             outbands[e].eigvals[i] = eigvals[e]
             outbands[e].eigvec[i] = eigvecs[:,e]
-            outbands[e].k_points_cryst[i] = k
+            outbands[e].kpoints_cryst[i] = k
         end
     end
     return outbands
@@ -338,6 +338,15 @@ end
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) =
 	wannierbands(tbhamis, dfbands[1].k_points_cryst)
 
+function character_contribution(wband::WannierBand, atoms::Vector{<:AbstractAtom})
+    contributions = zeros(length(wband.kpoints_cryst))
+    for (i, v) in enumerate(wband.eigvec)
+        for a in atoms
+            contributions[i] += real(sum(conj.(v[a]) .* v[a]))
+        end
+    end
+    return contributions
+end
 
 struct ThreadCache{T}
 	caches::Vector{T}

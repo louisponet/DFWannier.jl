@@ -39,3 +39,71 @@ function BerryKGrid(tb_hami::TbHami, kpoints::Vector{<:Vec3}, fermi::AbstractFlo
     end
     return BerryKGrid(hamiltonian_kgrid, J_plus, J_minus)
 end
+
+function fourier_q_to_R(f::Function, q_vectors, R_vectors)
+    for iR in 1:length(R_vectors)
+        for ik in 1:length(q_vectors)
+            phase = exp(-2im * π * (k_cryst(q_vectors[ik]) ⋅ R_vectors[iR]))
+            f(iR, ik, phase)
+        end
+    end
+end
+
+
+#A_a(R) = <0|r_a|R> is the Fourier transform of the Berrry connection A_a(k) = i<u|del_a u> (a=x,y,z)the berry connection
+#B_a(R)=<0n|H(r-R)|Rm> is the Fourier transform of B_a(k) = i<u|H|del_a u> (a=x,y,z)
+function berry_matrices(ab_initio_grid::AbInitioKGrid{T}, irvec) where {T}
+    n_wann = n_wannier_functions(ab_initio_grid)
+
+    berry_vec = () -> Vec3([zeros(Complex{T}, n_wann, n_wann) for i = 1:3]...)
+    berry_mat = () -> Mat3([zeros(Complex{T}, n_wann, n_wann) for i = 1:9]...)
+
+    n_kpoints = length(ab_initio_grid)
+
+    A_q = [berry_vec() for k=1:n_kpoints]
+    B_q = [berry_vec() for k=1:n_kpoints]
+    C_q = [berry_mat() for k=1:n_kpoints]
+
+    n_nearest = n_nearest_neighbors(ab_initio_grid)
+    neighbor_weights = ab_initio_grid.neighbor_weights 
+    for i in 1:n_kpoints
+        kpoint = ab_initio_grid.kpoints[i]
+        for n in 1:n_nearest
+            neighbor_bond = kpoint.neighbors[n]
+            weight        = neighbor_weights[n]
+            vr            = ustrip.(neighbor_bond.vr)
+            overlap = kpoint.overlaps[n]
+            hami    = kpoint.hamis[b]
+            for v in 1:3
+                t_fac = 1im * vr * weight
+                A_q[i][v] .+= t_fac .* overlap
+                B_q[i][v] .+= t_fac .* hami
+            end
+        end
+        for v in 1:3
+            A_q[i][v] .= (A_q[i][v] + A_q[i][v]')/2
+        end
+    end
+
+    A_R = [berry_vec() for k=1:length(irvec)]
+    B_R = [berry_vec() for k=1:length(irvec)]
+    f_to_fourier = (iR, ik, phase) -> begin
+        for v in 1:3
+            A_R[iR][v] .+= phase .* A_q[ik][v] 
+            B_R[iR][v] .+= phase .* B_q[ik][v] 
+        end
+    end
+    fourier_q_to_R(f_to_fourier, ab_initio_grid.kpoints, irvec)
+    for i in 1:length(A_R)
+        for v=1:3
+            A_R[i][v] ./= n_kpoints
+            B_R[i][v] ./= n_kpoints
+        end
+    end
+    return A_R, B_R
+ end
+
+
+
+
+
