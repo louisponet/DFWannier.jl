@@ -473,9 +473,10 @@ struct WannierParameters
     omega_invariant::Float64
     lwindow::Matrix{Bool}
     ndimwin::Vector{Int}
-    U_matrix_opt::Array{Float64, 3}
-    U_matrix::Array{Float64, 3}
-    m_matrix::Array{Float64, 4}
+    U_matrix_opt::Array{Complex{Float64}, 3}
+    U_matrix::Array{Complex{Float64}, 3}
+    V_matrix::Array{Complex{Float64}, 3} # Combined effect of disentanglement and localization
+    m_matrix::Array{Complex{Float64}, 4}
     wannier_centers::Vector{Point3{Float64}}
     wannier_spreads::Vector{Float64}
 end
@@ -504,18 +505,30 @@ function read_chk(filename)
         omega_invariant = read(f, Float64)
         lwindow = map(x-> x==1 ? true : false, read(f, (Int32, n_bands, n_kpoints)))
         ndimwin = read(f, (Int32, n_kpoints))
-        U_matrix_opt = read(f, (Float64, n_bands, n_wann, n_kpoints))
+        U_matrix_opt = read(f, (Complex{Float64}, n_bands, n_wann, n_kpoints))
     else
         omega_invariant = 0.0
-        lwindow = Matrix{Int}()
-        ndimwin = Vector{Int}()
-        U_matrix_opt= Array{Float64, 3}()
+        lwindow = fill(true, 1, n_kpoints)
+        ndimwin = fill(n_wann, n_kpoints)
+        U_matrix_opt= Array{Complex{Float64}, 3}()
     end
-    U_matrix = read(f, (Float64, n_wann, n_wann, n_kpoints))
-    m_matrix = read(f, (Float64, n_wann, n_wann, k_nearest_neighbors, n_kpoints))
+    U_matrix = read(f, (Complex{Float64}, n_wann, n_wann, n_kpoints))
+
+    # Combined effect of disentanglement and localization
+    V_matrix = Array{Complex{Float64},3}(undef, n_bands, n_wann, n_kpoints)
+    if have_disentangled
+        for ik in 1:n_kpoints
+            V_matrix[:, :, ik] = U_matrix_opt[:, :, ik] * U_matrix[:, :, ik]
+        end
+    else
+        V_matrix = U_matrix
+    end
+
+    m_matrix = read(f, (Complex{Float64}, n_wann, n_wann, k_nearest_neighbors, n_kpoints))
     wannier_centers_t = read(f, (Float64, 3, n_wann))
     wannier_centers = [Point3(wannier_centers_t[:, i]...) for i = 1:size(wannier_centers_t)[2]]
     wannier_spreads = read(f, (Float64, n_wann))
+
     return WannierParameters(
         n_bands,
         n_excluded_bands,
@@ -532,6 +545,7 @@ function read_chk(filename)
         ndimwin,
         U_matrix_opt,
         U_matrix,
+        V_matrix,
         m_matrix,
         wannier_centers,
         wannier_spreads
@@ -570,17 +584,35 @@ struct ReciprocalOverlap{T}
     S::Matrix{Complex{T}}
 end
 
-function read_mmn(::Type{T}, file::AbstractString) where {T<:AbstractFloat}
+function read_mmn(::Type{T}, file::AbstractStringi, param::WannierParameters) where {T<:AbstractFloat}
     open(file, "r") do f
         readline(f) #header
         nbands, nkpoints, n_nearest_neighbors = parse.(Int, strip_split(readline(f)))
+        S_matrix = Matrix{Complex{T}}(undef, param.n_wann, param.n_wann, nkpoints, n_nearest_neighbors)
+        counter = 1
+        for i in nkpoints*n_nearest_neighbors
+            counter = mod1(counter, n_nearest_neighbors)
+            sline = strip_split(readline(f))
 
-        overlap_ab_initio_gauge = Matrix{Complex{T}}(undef, nbands, nbands)
-        for i in eachindex(overlap_ab_initio_gauge)
-            overlap_ab_initio_gauge[i] = complex(parse.(T, strip_split(readline(f))))
-        end
+            ik, ik2 = parse.(Int, sline[1:2])
+            b = parse(Vec3{Int}, sline[3:5])
 
-        overlap_wannier_gauge = nothing
+            overlap_ab_initio_gauge = Matrix{Complex{T}}(undef, nbands, nbands)
+            for n in eachindex(overlap_ab_initio_gauge)
+                overlap_ab_initio_gauge[n] = complex(parse.(T, strip_split(readline(f))))
+            end
+
+            vmat_ik = param.V_matrix[:, :, ik]
+            vmat_ik2 = param.V_matrix[:, :, ik2]
+
+            first_band_id_ik = findfirst(param.lwindow[ik])
+            first_band_id_ik2 = findfirst(param.lwindow[ik2])
+
+            num_states_ik = param.ndimwin[ik]
+            num_states_ik2 = param.ndimwin[ik2]
+
+
+        overlap_wannier_gauge = overlap_ab_initio_gauge * 
       
 
     end
