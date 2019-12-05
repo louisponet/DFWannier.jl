@@ -1,58 +1,16 @@
-struct BerryKGrid{T, MT} <: AbstractKGrid{T}
-    hamiltonian_kgrid::HamiltonianKGrid{T, MT}
-    J_plus ::Vector{Vec3{MT}}    
-    J_minus::Vector{Vec3{MT}}    
-end
 
-function BerryKGrid(tb_hami::TbHami, kpoints::Vector{<:Vec3}, fermi::AbstractFloat)
-    hamiltonian_kgrid = HamiltonianKGrid(tb_hami, kpoints)
-    nk = length(kpoints)
-    J_plus  = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
-    J_minus = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
-    for i=1:nk
-        Uk = hamiltonian_kgrid.eigvecs[i]
-        Ek = hamiltonian_kgrid.eigvals[i]
-        ∇Hk = Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami))
-        fourier_transform(tb_hami, kpoints[i]) do i, b, fac
-            for v=1:3
-                ∇Hk[v][i] += ustrip(b.R_cart[v]) * 1im * fac * block(b)[i]
-            end
-        end
-        J_plus_k  = J_plus[i]
-        J_minus_k = J_minus[i]
-        for v = 1:3
-            Hbar = Uk' * ∇Hk[v] * Uk
-            for m = 1:length(Ek)
-                Ek_m = Ek[m]
-                for n = 1:length(Ek)
-                    Ek_n = Ek[n]
-                    if Ek_n > fermi && Ek_m < fermi
-                        J_plus_k[v][n, m]  =  1im * Hbar[n, m]/(Ek[m] - Ek[n])
-                        J_minus_k[v][m, n] =  1im * Hbar[m, n]/(Ek[m] - Ek[n])
-                        #else is already taken care of by initializing with zeros
-                    end
-                end
-            end
-            J_plus_k[v]  .= Uk * J_plus_k[v] * Uk'
-            J_minus_k[v] .= Uk * J_plus_k[v] * Uk'
-        end
-    end
-    return BerryKGrid(hamiltonian_kgrid, J_plus, J_minus)
+struct BerryRGrid{T, MT, MT1}
+    hami::TbHami{T, MT}
+    A ::Vector{Vec3{MT}} #A_a(R) = <0|r_a|R> is the Fourier transform of the Berrry connection A_a(k) = i<u|del_a u> (a=x,y,z)the berry connection 
+    B ::Vector{Vec3{MT}} #B_a(R)=<0n|H(r-R)|Rm> is the Fourier transform of B_a(k) = i<u|H|del_a u> (a=x,y,z)
+    C ::Vector{MT1} #CC_ab(R) = <0|r_a.H.(r-R)_b|R> is the Fourier transform of CC_ab(k) = <del_a u|H|del_b u> (a,b=x,y,z)}
 end
-
-function fourier_q_to_R(f::Function, q_vectors, R_vectors)
-    for iR in 1:length(R_vectors)
-        for ik in 1:length(q_vectors)
-            phase = exp(-2im * π * (k_cryst(q_vectors[ik]) ⋅ R_vectors[iR]))
-            f(iR, ik, phase)
-        end
-    end
-end
-
 
 #A_a(R) = <0|r_a|R> is the Fourier transform of the Berrry connection A_a(k) = i<u|del_a u> (a=x,y,z)the berry connection
 #B_a(R)=<0n|H(r-R)|Rm> is the Fourier transform of B_a(k) = i<u|H|del_a u> (a=x,y,z)
-function berry_matrices(ab_initio_grid::AbInitioKGrid{T}, irvec) where {T}
+function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami) where {T}
+    irvec = map(x->x.R_cryst, hami)
+
     n_wann = n_wannier_functions(ab_initio_grid)
 
     berry_vec = () -> Vec3([zeros(Complex{T}, n_wann, n_wann) for i = 1:3]...)
@@ -73,11 +31,11 @@ function berry_matrices(ab_initio_grid::AbInitioKGrid{T}, irvec) where {T}
             weight        = neighbor_weights[n]
             vr            = ustrip.(neighbor_bond.vr)
             overlap = kpoint.overlaps[n]
-            hami    = kpoint.hamis[n]
+            h    = kpoint.hamis[n]
             for v in 1:3
                 t_fac = 1im * vr[v] * weight
                 A_q[i][v] .+= t_fac .* overlap
-                B_q[i][v] .+= t_fac .* hami
+                B_q[i][v] .+= t_fac .* h
                 for n2 in 1:n_nearest
                     weight2 = neighbor_weights[n2]
                     neighbor_bond2 = kpoint.neighbors[n2]
@@ -119,10 +77,101 @@ function berry_matrices(ab_initio_grid::AbInitioKGrid{T}, irvec) where {T}
             end
         end
     end
-    return A_R, B_R, C_R
+    return BerryRGrid(hami, A_R, B_R, C_R)
+end
+
+
+struct BerryKGrid{T, MT, MT1} <: AbstractKGrid{T}
+    hamiltonian_kgrid::HamiltonianKGrid{T, MT}
+    J_plus ::Vector{Vec3{MT}}    
+    J_minus::Vector{Vec3{MT}}
+    A::Vector{Vec3{MT}}
+    Ω::Vector{Vec3{MT}} #pseudo form of berry connection A
+    B::Vector{Vec3{MT}}
+    C::Vector{MT1}
+    f::Vector{MT}
+    g::Vector{MT}
+end
+function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::AbstractFloat)
+    tb_hami = berry_R_grid.hami
+    hamiltonian_kgrid = HamiltonianKGrid(tb_hami, kpoints)
+    nk = length(kpoints)
+    J_plus  = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
+    J_minus = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
+    A_k = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
+    Ω_k = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
+    B_k = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
+    C_k = [Mat3([zeros_block(tb_hami) for j = 1:9]...) for i=1:nk]
+    f = [zeros_block(tb_hami) for i=1:nk]
+    g = [zeros_block(tb_hami) for i=1:nk]
+    for i=1:nk
+        Uk = hamiltonian_kgrid.eigvecs[i]
+        Ek = hamiltonian_kgrid.eigvals[i]
+        ∇Hk = Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami))
+        A = A_k[i]
+        B = B_k[i]
+        Ω = Ω_k[i]
+        C = C_k[i]
+        fourier_transform(tb_hami, kpoints[i]) do im, iR, b, fac
+            Rcart = ustrip.(b.R_cart)
+            for v=1:3
+                ∇Hk[v][im] += Rcart[v] * 1im * fac * block(b)[im]
+                A[v][im]   += fac * berry_R_grid.A[iR][v][im]
+
+                B[v][im]   += fac * berry_R_grid.B[iR][v][im]
+                for v2 = 1:3
+                    C[v, v2][im] += fac * berry_R_grid.C[iR][v, v2][im]
+                end
+            end
+            Ω[1][im] += 1im * fac * (Rcart[2] * berry_R_grid.A[iR][3][im] - Rcart[3] * berry_R_grid.A[iR][2][im])
+            Ω[2][im] += 1im * fac * (Rcart[3] * berry_R_grid.A[iR][1][im] - Rcart[1] * berry_R_grid.A[iR][3][im])
+            Ω[3][im] += 1im * fac * (Rcart[1] * berry_R_grid.A[iR][2][im] - Rcart[2] * berry_R_grid.A[iR][1][im])
+        end
+        J_plus_k  = J_plus[i]
+        J_minus_k = J_minus[i]
+        occupations_H_gauge = map(x -> x < fermi ? 1 : 0, Ek) #acting like it's only an insulator for now
+        n_wann = length(Ek)
+
+        for n in 1:n_wann, m in 1:n_wann, j in n_wann
+            f[i][m, n] += Uk[m, j] * occupations_H_gauge[j] * conj(Uk[j, n])
+        end
+
+        g[i] = map(x-> -x, f[i])
+        for j = 1:n_wann
+            g[i][j, j] += 1
+        end
+
+        for v = 1:3
+            Hbar = Uk' * ∇Hk[v] * Uk
+            for m = 1:n_wann
+                Ek_m = Ek[m]
+                for n = 1:n_wann
+                    Ek_n = Ek[n]
+                    if Ek_n > fermi && Ek_m < fermi
+                        J_plus_k[v][n, m]  =  1im * Hbar[n, m]/(Ek[m] - Ek[n])
+                        J_minus_k[v][m, n] =  1im * Hbar[m, n]/(Ek[m] - Ek[n])
+                        #else is already taken care of by initializing with zeros
+                    end
+                end
+            end
+            J_plus_k[v]  .= Uk * J_plus_k[v] * Uk'
+            J_minus_k[v] .= Uk * J_plus_k[v] * Uk'
+        end
+    end
+    return BerryKGrid(hamiltonian_kgrid, J_plus, J_minus, A_k, Ω_k, B_k, C_k, f, g)
+end
+
+function fourier_q_to_R(f::Function, q_vectors, R_vectors)
+    for iR in 1:length(R_vectors)
+        for ik in 1:length(q_vectors)
+            phase = exp(-2im * π * (k_cryst(q_vectors[ik]) ⋅ R_vectors[iR]))
+            f(iR, ik, phase)
+        end
+    end
 end
 
 
 
-
+function orbital_angular_momentum()
+end
 

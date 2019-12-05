@@ -2,6 +2,14 @@ const K_CART_TYPE{T} = Quantity{T,Unitful.𝐋^-1,Unitful.FreeUnits{(Ang^-1,),Un
 
 phases(kpoints::Vector{<:Vec3}, R::Vec3) = exp.(2im * π .* dot.(kpoints, (R,)))
 
+uniform_shifted_kgrid(::Type{T}, nkx::Integer, nky::Integer, nkz::Integer) where {T} =
+	reshape([Vec3{T}(kx, ky, kz) for kx = 0.5/nkx:1/nkx:1, ky = 0.5/nky:1/nky:1, kz = 0.5/nkz:1/nkz:1], nkx*nky*nkz)
+
+uniform_shifted_kgrid(nkx::Integer, nky::Integer, nkz::Integer) = uniform_shifted_kgrid(Float64, nkx, nky, nkz)
+
+uniform_kgrid(nkx::Integer, nky::Integer, nkz::Integer) =
+    reshape([Vec3{Float64}(kx, ky, kz) for kx in range(0, 1-1/nkx, length=nkx), ky in range(0, 1-1/nky, length=nky), kz in range(0, 1-1/nkz, length=nkz)], nkx*nky*nkz)
+
 abstract type AbstractKGrid{T} end
 
 core_kgrid(x::AbstractKGrid) = x.core
