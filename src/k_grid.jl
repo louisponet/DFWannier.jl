@@ -78,7 +78,7 @@ end
     neighbors::Vector{KBond{T}} = KBond{T}[]
     overlaps ::Vector{Matrix{Complex{T}}} = Matrix{Complex{T}}[] #already in wannier gauge
     hamis    ::Vector{Matrix{Complex{T}}} = Matrix{Complex{T}}[] #Hamiltonian element between the block-like states in wannier gauge
-    uHu      ::Matrix{Matrix{Complex{T}}} = Matrix{Matrix{Complex{T}}}(undef, Matrix{Complex{T}}(undef, 0,0), Matrix{Complex{T}}(undef, 0,0))
+    uHu      ::Matrix{Matrix{Complex{T}}} = Matrix{Matrix{Complex{T}}}(undef, 0, 0)
 end
 
 k_cryst(k::AbInitioKPoint) = k.k_cryst
@@ -88,22 +88,27 @@ struct AbInitioKGrid{T, SA} <: AbstractKGrid{T}
     neighbor_weights::Vector{T} #ordered in the same way as neighbors in kpoints
 end
 
-function AbInitioKGrid(::Type{T}, eig_filename::AbstractString, chk_filename::AbstractString, mmn_filename::AbstractString) where {T}
+function AbInitioKGrid(::Type{T},
+                       eig_filename::AbstractString,
+                       chk_filename::AbstractString,
+                       nnkp_filename::AbstractString,
+                       mmn_filename::AbstractString,
+                       uHu_filename::AbstractString) where {T}
     eigenvalues = read_eig(eig_filename) 
     wannier_chk_params = read_chk(chk_filename)
     kpoints = [AbInitioKPoint{T}(k_cryst = k,
                                   k_cart  = wannier_chk_params.recip_cell * k,
                                   eigvals = eigenvalues[:, i]) for (i, k) in enumerate(wannier_chk_params.kpoints)]
-    fill_overlaps!(kpoints, mmn_filename, wannier_chk_params)
-
+    fill_k_neighbors!(kpoints, nnkp_filename, wannier_chk_params.recip_cell)
+    fill_overlaps!(kpoints, mmn_filename, uHu_filename, wannier_chk_params)
     
     return AbInitioKGrid(StructArray(kpoints), wannier_chk_params.neighbor_weights)
 end
 
-AbInitioKGrid(eig_filename::AbstractString, chk_filename::AbstractString, mmn_filename::AbstractString) =
-    AbInitioKGrid(Float64, eig_filename, chk_filename, mmn_filename)
+AbInitioKGrid(eig_filename::AbstractString, chk_filename::AbstractString, nnkp_filename::AbstractString, mmn_filename::AbstractString, uHu_filename::AbstractString) =
+    AbInitioKGrid(Float64, eig_filename, chk_filename, nnkp_filename, mmn_filename, uHu_filename)
 
-n_wannier_functions(grid::AbInitioKGrid) = size(grid.kpoints.neighbors[1][1].overlap, 1)
+n_wannier_functions(grid::AbInitioKGrid) = size(grid.kpoints.overlaps[1], 1)
 n_nearest_neighbors(grid::AbInitioKGrid) = length(grid.kpoints.neighbors[1])
 
 Base.length(grid::AbInitioKGrid) = length(grid.kpoints)

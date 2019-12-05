@@ -73,24 +73,40 @@ function berry_matrices(ab_initio_grid::AbInitioKGrid{T}, irvec) where {T}
             weight        = neighbor_weights[n]
             vr            = ustrip.(neighbor_bond.vr)
             overlap = kpoint.overlaps[n]
-            hami    = kpoint.hamis[b]
+            hami    = kpoint.hamis[n]
             for v in 1:3
-                t_fac = 1im * vr * weight
+                t_fac = 1im * vr[v] * weight
                 A_q[i][v] .+= t_fac .* overlap
                 B_q[i][v] .+= t_fac .* hami
+                for n2 in 1:n_nearest
+                    weight2 = neighbor_weights[n2]
+                    neighbor_bond2 = kpoint.neighbors[n2]
+                    vr2 = ustrip.(neighbor_bond2.vr)
+                    uHu = kpoint.uHu[n2, n]
+                    for v2 in 1:3
+                        t_fac2 = t_fac * -1im * weight2 * vr2[v2]
+                        C_q[i][v, v2] .+= t_fac2 .* uHu
+                    end
+                end
             end
         end
         for v in 1:3
             A_q[i][v] .= (A_q[i][v] + A_q[i][v]')/2
+            for v2 in 1:v
+                C_q[i][v, v2] .= C_q[i][v2, v]'
+            end
         end
     end
-
     A_R = [berry_vec() for k=1:length(irvec)]
     B_R = [berry_vec() for k=1:length(irvec)]
+    C_R = [berry_mat() for k=1:length(irvec)]
     f_to_fourier = (iR, ik, phase) -> begin
         for v in 1:3
             A_R[iR][v] .+= phase .* A_q[ik][v] 
-            B_R[iR][v] .+= phase .* B_q[ik][v] 
+            B_R[iR][v] .+= phase .* B_q[ik][v]
+            for v2 in 1:3
+                C_R[iR][v2, v] .+= phase .* C_q[ik][v2, v]
+            end
         end
     end
     fourier_q_to_R(f_to_fourier, ab_initio_grid.kpoints, irvec)
@@ -98,10 +114,13 @@ function berry_matrices(ab_initio_grid::AbInitioKGrid{T}, irvec) where {T}
         for v=1:3
             A_R[i][v] ./= n_kpoints
             B_R[i][v] ./= n_kpoints
+            for v2 in 1:3
+                C_R[i][v, v2] ./= n_kpoints
+            end
         end
     end
-    return A_R, B_R
- end
+    return A_R, B_R, C_R
+end
 
 
 

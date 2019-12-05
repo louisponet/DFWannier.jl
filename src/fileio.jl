@@ -583,8 +583,10 @@ function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractS
         for k in grid
             k.uHu = [Matrix{Complex{T}}(undef, num_wann, num_wann) for m=1:n_nearest_neighbors, n=1:n_nearest_neighbors]
         end
+        neighbor_counter = 1
         for i in 1:nkpoints*n_nearest_neighbors
             sline = strip_split(readline(f))
+            cur_neighbor = mod1(neighbor_counter, n_nearest_neighbors) 
 
             ik, ik2 = parse.(Int, sline[1:2])
 
@@ -615,32 +617,41 @@ function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractS
 
             V1_T = V1'
             S12_V2 = S12 * V2
-            push!(kpoint.neighbors, KBond(ik, ik2, vr))
-            push!(kpoint.overlaps,  V1_T * S12_V2)
-            push!(kpoint.hamis,     V1_T * diagm(kpoint.eigvals[disentanglement_range_k1]) * S12_V2)
+            kpoint.overlaps[cur_neighbor] =  V1_T * S12_V2
+            k_eigvals_mat = diagm(kpoint.eigvals[disentanglement_range_k1])
+            kpoint.hamis[cur_neighbor] = V1_T * k_eigvals_mat * S12_V2
+            neighbor_counter += 1
+            for nearest_neighbor2 in 1:n_nearest_neighbors
+                ik3 = kpoint.neighbors[nearest_neighbor2].k_id2
+                first_band_id_ik3 = findfirst(wannier_chk_params.lwindow[:, ik3])
+                num_states_ik3    = wannier_chk_params.ndimwin[ik3]
 
-            #setup uHu
+                V3 = wannier_chk_params.V_matrix[1:num_states_ik3, 1:num_wann, ik3]
+                
 
-            m = length(kpoint.neighbors)
-            
+                uHu_k2_k3 = transpose(read(uHu_file, (ComplexF64, nbands, nbands)))
+                disentanglement_range_k3 = first_band_id_ik3:first_band_id_ik3+num_states_ik3-1
+                kpoint.uHu[nearest_neighbor2, cur_neighbor] =  V3' * uHu_k2_k3[disentanglement_range_k3, disentanglement_range_k2] * V2
+            end
         end
         return grid
     end
 end
 
-function read_nnkp(file::AbstractString)
+function fill_k_neighbors!(kpoints::Vector{AbInitioKPoint{T}}, file::AbstractString, recip_cell::Mat3) where {T}
     open(file, "r") do f
         line = readline(f)
         while line != "begin kpoints"
             line = readline(f)
         end
         nkpoints = parse(Int, strip(readline(f)))
+        @assert nkpoints == length(kpoints) "Number kpoints in seedname.nnkp doesn't match with the number of kpoints in seedname.chk."
+
         while line != "begin nnkpts"
             line = readline(f)
         end
         n_nearest_neighbors = parse(Int, strip(readline(f)))
 
-        kpoints_neighbor_list = [Vector{Tuple{Int, Vec3{Int}}}(undef, n_nearest_neighbors) for i=1:nkpoints]
 
         counter = 1
         line = readline(f)
@@ -648,11 +659,16 @@ function read_nnkp(file::AbstractString)
             counter = mod1(counter, n_nearest_neighbors)
             sline = strip_split(line)
             ik, ik2 = parse.(Int, sline[1:2])
-            kpoints_neighbor_list[ik][counter] = (ik2, parse(Vec3{Int}, sline[3:5]))
+
+            vr = (recip_cell * parse(Vec3{Int}, sline[3:5]) + kpoints[ik2].k_cart) - kpoints[ik].k_cart
+            push!(kpoints[ik].neighbors, KBond(ik, ik2, vr))
+            push!(kpoints[ik].overlaps, Matrix{Complex{T}}(undef, 0, 0))
+            push!(kpoints[ik].hamis, Matrix{Complex{T}}(undef, 0, 0))
+            kpoints[ik].uHu = Matrix{Matrix{Complex{T}}}(undef, n_nearest_neighbors, n_nearest_neighbors)
             counter += 1
             line = readline(f)
         end
-        return kpoints_neighbor_list
+        return kpoints
     end
 end
 
