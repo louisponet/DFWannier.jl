@@ -116,6 +116,24 @@ end
 AbInitioKGrid(eig_filename::AbstractString, chk_filename::AbstractString, nnkp_filename::AbstractString, mmn_filename::AbstractString, uHu_filename::AbstractString) =
     AbInitioKGrid(Float64, eig_filename, chk_filename, nnkp_filename, mmn_filename, uHu_filename)
 
+function AbInitioKGrid(job::DFJob)
+    wancalc = getfirst(x->x isa DFInput{Wannier90}, DFControl.inputs(job))
+    if wancalc === nothing
+        error("Coulnd't find a wannier calculation in job $job.")
+    end
+    wname = name(wancalc)
+
+    wan_file = ext -> begin
+        files = DFControl.find_files(job, "$wname.$ext")
+        if isempty(files)
+            error("Couldn't find $wname.$ext in job directory $(job.local_dir).")
+        end
+        return files[1]
+    end
+
+    return AbInitioKGrid(wan_file("eig"), wan_file("chk"), wan_file("nnkp"), wan_file("mmn"), wan_file("uHu"))
+end
+
 n_wannier_functions(grid::AbInitioKGrid) = size(grid.kpoints.overlaps[1], 1)
 n_nearest_neighbors(grid::AbInitioKGrid) = length(grid.kpoints.neighbors[1])
 

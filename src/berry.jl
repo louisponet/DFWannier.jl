@@ -112,35 +112,41 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
         B = B_k[i]
         Ω = Ω_k[i]
         C = C_k[i]
-        fourier_transform(tb_hami, kpoints[i]) do im, iR, b, fac
-            Rcart = ustrip.(b.R_cart)
+        fourier_transform(tb_hami, kpoints[i]) do n, iR, R_cart, b, fac
+            Rcart = ustrip.(R_cart)
+            @show Rcart
             for v=1:3
-                ∇Hk[v][im] += Rcart[v] * 1im * fac * block(b)[im]
-                A[v][im]   += fac * berry_R_grid.A[iR][v][im]
+                ∇Hk[v][n] += Rcart[v] * 1im * fac * block(b)[n]
+                A[v][n]   += fac * berry_R_grid.A[iR][v][n]
 
-                B[v][im]   += fac * berry_R_grid.B[iR][v][im]
+                B[v][n]   += fac * berry_R_grid.B[iR][v][n]
                 for v2 = 1:3
-                    C[v, v2][im] += fac * berry_R_grid.C[iR][v, v2][im]
+                    C[v, v2][n] += fac * berry_R_grid.C[iR][v, v2][n]
                 end
             end
-            Ω[1][im] += 1im * fac * (Rcart[2] * berry_R_grid.A[iR][3][im] - Rcart[3] * berry_R_grid.A[iR][2][im])
-            Ω[2][im] += 1im * fac * (Rcart[3] * berry_R_grid.A[iR][1][im] - Rcart[1] * berry_R_grid.A[iR][3][im])
-            Ω[3][im] += 1im * fac * (Rcart[1] * berry_R_grid.A[iR][2][im] - Rcart[2] * berry_R_grid.A[iR][1][im])
+            Ω[1][n] += 1im * fac * (Rcart[2] * berry_R_grid.A[iR][3][n] - Rcart[3] * berry_R_grid.A[iR][2][n])
+            Ω[2][n] += 1im * fac * (Rcart[3] * berry_R_grid.A[iR][1][n] - Rcart[1] * berry_R_grid.A[iR][3][n])
+            Ω[3][n] += 1im * fac * (Rcart[1] * berry_R_grid.A[iR][2][n] - Rcart[2] * berry_R_grid.A[iR][1][n])
+        end
+        if i == 1
+            @show kpoints[i]
+            @show ∇Hk[1][:, 1]
         end
         J_plus_k  = J_plus[i]
         J_minus_k = J_minus[i]
         occupations_H_gauge = map(x -> x < fermi ? 1 : 0, Ek) #acting like it's only an insulator for now
         n_wann = length(Ek)
+        
+        f[i] .= Uk * diagm(0=>occupations_H_gauge) * Uk'
+        # for n in 1:n_wann, m in 1:n_wann, j in 1:n_wann
+        #     f[i][m, n] += Uk[m, j] * occupations_H_gauge[j] * conj(Uk[j, n])
+        # end
 
-        for n in 1:n_wann, m in 1:n_wann, j in n_wann
-            f[i][m, n] += Uk[m, j] * occupations_H_gauge[j] * conj(Uk[j, n])
-        end
-
-        g[i] = map(x-> -x, f[i])
+        g[i] .= map(x -> -x, f[i])
         for j = 1:n_wann
             g[i][j, j] += 1
         end
-
+        # @show g
         for v = 1:3
             Hbar = Uk' * ∇Hk[v] * Uk
             for m = 1:n_wann
@@ -149,7 +155,7 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
                     Ek_n = Ek[n]
                     if Ek_n > fermi && Ek_m < fermi
                         J_plus_k[v][n, m]  =  1im * Hbar[n, m]/(Ek[m] - Ek[n])
-                        J_minus_k[v][m, n] =  1im * Hbar[m, n]/(Ek[m] - Ek[n])
+                        J_minus_k[v][m, n] =  1im * Hbar[m, n]/(Ek[n] - Ek[m])
                         #else is already taken care of by initializing with zeros
                     end
                 end
