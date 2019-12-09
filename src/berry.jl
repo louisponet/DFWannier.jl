@@ -156,11 +156,14 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
                 end
             end
             J_plus_k[v]  .= Uk * J_plus_k[v] * Uk'
-            J_minus_k[v] .= Uk * J_plus_k[v] * Uk'
+            J_minus_k[v] .= Uk * J_minus_k[v] * Uk'
         end
     end
     return BerryKGrid(hamiltonian_kgrid, J_plus, J_minus, A_k, Ω_k, B_k, C_k, f, g)
 end
+
+n_wannier_functions(bgrid::BerryKGrid) = size(bgrid.f[1], 1)
+n_kpoints(bgrid::BerryKGrid) = length(bgrid.f)
 
 function fourier_q_to_R(f::Function, q_vectors, R_vectors)
     for iR in 1:length(R_vectors)
@@ -171,8 +174,33 @@ function fourier_q_to_R(f::Function, q_vectors, R_vectors)
     end
 end
 
+const pseudo_α = Vec3(2,3,1)
+const pseudo_β = Vec3(3,1,2)
 
 
-function orbital_angular_momentum()
+function orbital_angular_momentum(berry_K_grid::BerryKGrid{T}) where {T}
+    nwann = n_wannier_functions(berry_K_grid)
+    nk = n_kpoints(berry_K_grid)
+
+    non_traced_Fαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
+    non_traced_Hαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
+    for ik in 1:nk
+        f = berry_K_grid.f[ik]
+        g = berry_K_grid.g[ik]
+        A  = berry_K_grid.A[ik] 
+        H   = berry_K_grid.hamiltonian_kgrid.Hk[ik]
+        J_plus = berry_K_grid.J_plus[ik]
+        J_minus = berry_K_grid.J_minus[ik]
+        Ω = berry_K_grid.Ω[ik]
+        for iv in 1:3
+            α = pseudo_α[iv]
+            β = pseudo_β[iv]
+            non_traced_Fαβ[ik][iv] .+= real.(f * Ω[iv]) .- 2 .* imag.(A[α] * J_plus[β] .+ J_minus[α] * A[β] .+ J_minus[α] * J_plus[β])
+
+            fHf = f * H * f
+            non_traced_Hαβ[ik][iv] .+= real.(fHf * Ω[iv]) .+
+                                       2 .* imag.(fHf * A[α] * f * A[β] .- H * f * A[α] * J_plus[β] .+ f * H * J_minus[α] * A[β] .+ H * J_minus[α] * J_plus[β]) 
+        end
+    end
+    return non_traced_Fαβ, non_traced_Hαβ
 end
-

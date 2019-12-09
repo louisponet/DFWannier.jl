@@ -33,7 +33,7 @@ Base.length(x::CoreKGrid) = length(x.k_cryst)
 
 struct HamiltonianKGrid{T,MT<:AbstractMatrix{Complex{T}}} <: AbstractKGrid{T}
     core::CoreKGrid{T}
-    # Hk::Vector{MT}
+    Hk::Vector{MT}
     eigvals::Vector{Vector{T}}
     eigvecs::Vector{MT}
 end
@@ -49,19 +49,14 @@ the H_function_k function is called on the intermediate Hk.
 function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3}, Hk_function::Function = x -> nothing) where {T}
 	# kpoints = [KPoint(k, blocksize(hami), R, zeros_block(hami)) for k in k_grid]
 	n_eigvals = max(blocksize(hami)...)
-	kgrid = HamiltonianKGrid(kpoints, [zeros(T, n_eigvals) for k in kpoints],  [zeros_block(hami) for k in kpoints])
+	kgrid = HamiltonianKGrid(kpoints, [zeros_block(hami) for k in kpoints], [zeros(T, n_eigvals) for k in kpoints], [zeros_block(hami) for k in kpoints])
 	nk    = length(kpoints)
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
     @threads for i=1:nk
 	    tid = threadid()
-	    kp = kgrid.eigvecs[i]
-	    cache = calc_caches[tid]
-	    #= kp.eigvecs is used as a temporary cache to store H(k) in. Since we
-	    don't need H(k) but only Hvecs etc, this is ok.
-	    =#
-	    Hk!(kp, hami, k_cryst(kgrid)[i])
+	    Hk!(kgrid.eigvecs[i], hami, k_cryst(kgrid)[i])
 	    Hk_function(kp)
-	    eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], cache)
+	    kgrid.Hk[i] = Matrix(eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[Threads.threadid()]))
     end
     return kgrid
 end
