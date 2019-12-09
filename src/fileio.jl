@@ -121,7 +121,7 @@ function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structu
     readline(wsvec_f)
 
     open(hami_file) do f
-        out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Vector{Vec3{Int}}, LT}[]
+        out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT}[]
         degen = Int64[]
         linenr = 0
         readline(f)
@@ -140,8 +140,10 @@ function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structu
                 # TODO Performance: It's probably a better idea to have a nwanfun * nwanfun dimensional matrix with the number of degeneracies,
                 #                   and a vector with all the actual shifts serialized into it.
 
-                wigner_seitz_shifts_cryst = Vec3{Int}[]
-                wigner_seitz_shifts_cart = Vec3{LT}[]
+                # wigner_seitz_shifts_cryst = Vec3{Int}[]
+                wigner_seitz_shifts_cryst = Matrix{Vector{Vec3{Int}}}(undef, nwanfun, nwanfun)
+                # wigner_seitz_shifts_cart = Vec3{LT}[]
+                wigner_seitz_shifts_cart = Matrix{Vector{Vec3{LT}}}(undef, nwanfun, nwanfun)
                 wigner_seitz_nshift_matrix = Matrix{Int}(undef, nwanfun, nwanfun)
                 n_wsvecs_read = 0
                 while n_wsvecs_read < nwanfun^2
@@ -152,8 +154,10 @@ function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structu
                     for i in 1:n_ws_degeneracies
                         t_shifts[i] = Vec3(parse.(Int, strip_split(readline(wsvec_f)))...)
                     end
-                    prepend!(wigner_seitz_shifts_cryst, t_shifts)
-                    prepend!(wigner_seitz_shifts_cart, (cell(structure),).*t_shifts)
+                    wigner_seitz_shifts_cryst[wanid1, wanid2] = t_shifts
+                    wigner_seitz_shifts_cart[wanid1, wanid2] = (cell(structure),).*t_shifts
+                    # prepend!(wigner_seitz_shifts_cryst, t_shifts)
+                    # prepend!(wigner_seitz_shifts_cart, (cell(structure),).*t_shifts)
                     n_wsvecs_read += 1
                     # wigner_seitz_shift_matrix[wanid1, wanid2] = t_shifts
                 end

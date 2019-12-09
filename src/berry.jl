@@ -114,7 +114,6 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
         C = C_k[i]
         fourier_transform(tb_hami, kpoints[i]) do n, iR, R_cart, b, fac
             Rcart = ustrip.(R_cart)
-            @show Rcart
             for v=1:3
                 ∇Hk[v][n] += Rcart[v] * 1im * fac * block(b)[n]
                 A[v][n]   += fac * berry_R_grid.A[iR][v][n]
@@ -127,10 +126,6 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
             Ω[1][n] += 1im * fac * (Rcart[2] * berry_R_grid.A[iR][3][n] - Rcart[3] * berry_R_grid.A[iR][2][n])
             Ω[2][n] += 1im * fac * (Rcart[3] * berry_R_grid.A[iR][1][n] - Rcart[1] * berry_R_grid.A[iR][3][n])
             Ω[3][n] += 1im * fac * (Rcart[1] * berry_R_grid.A[iR][2][n] - Rcart[2] * berry_R_grid.A[iR][1][n])
-        end
-        if i == 1
-            @show kpoints[i]
-            @show ∇Hk[1][:, 1]
         end
         J_plus_k  = J_plus[i]
         J_minus_k = J_minus[i]

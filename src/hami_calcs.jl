@@ -2,11 +2,11 @@ div1(x, y) = div(x - 1, y) + 1
 
 w_eachindex(m::Matrix) = eachindex(m)
 
-struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:AbstractMatrix{Int}, VS <: Vector{Vec3{Int}}, LT<:Length{T}}
+struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:AbstractMatrix{Int}, VS <: Matrix{Vector{Vec3{Int}}}, LT<:Length{T}}
     R_cart  ::Vec3{LT}
     R_cryst ::Vec3{Int}
     wigner_seitz_shifts_cryst::VS
-    wigner_seitz_shifts_cart::Vector{Vec3{LT}}
+    wigner_seitz_shifts_cart::Matrix{Vector{Vec3{LT}}}
     # Like w90 irdist_ws: The integer number of unit cells to shift the Wannier function j to put its center inside the wigner-seitz of wannier function i. Can have multiple equivalent shifts (maximum of 8), they are all stored. 
     wigner_seitz_nshifts::MI
     wigner_seitz_degeneracy::Int #not sure if we need to keep this
@@ -68,12 +68,24 @@ function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec
         degen = b.wigner_seitz_degeneracy
         shifts_used = 0
         for i in eachindex(block(b))
-            n_shifts = b.wigner_seitz_nshifts[i]
+            # n_shifts = b.wigner_seitz_nshifts[i]
+            # for is in 1:n_shifts
+            #     shift = b.wigner_seitz_shifts_cryst[shifts_used + is]
+            #     R_cryst = b.R_cryst + shift
+            #     fac = ℯ^(2im*π*(R_cryst ⋅ kpoint))/(degen * n_shifts)
+            #     R_function(i, iR, b.R_cart + b.wigner_seitz_shifts_cart[shifts_used+is],  b, fac)
+            # end
+            # shifts_used += n_shifts
+
+            cart_shifts  = b.wigner_seitz_shifts_cart[i]
+            cryst_shifts = b.wigner_seitz_shifts_cryst[i]
+            # n_shifts     = b.wigner_seitz_nshifts[i]
+            n_shifts     = length(cart_shifts)
             for is in 1:n_shifts
-                shift = b.wigner_seitz_shifts_cryst[shifts_used + is]
+                shift = cryst_shifts[is]
                 R_cryst = b.R_cryst + shift
                 fac = ℯ^(2im*π*(R_cryst ⋅ kpoint))/(degen * n_shifts)
-                R_function(i, iR, b.R_cart + b.wigner_seitz_shifts_cart[shifts_used+is],  b, fac)
+                R_function(i, iR, b.R_cart + cart_shifts[is],  b, fac)
             end
             shifts_used += n_shifts
         end
