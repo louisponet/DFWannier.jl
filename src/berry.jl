@@ -184,23 +184,56 @@ function orbital_angular_momentum(berry_K_grid::BerryKGrid{T}) where {T}
 
     non_traced_Fαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
     non_traced_Hαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
+    non_traced_Gαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
     for ik in 1:nk
         f = berry_K_grid.f[ik]
         g = berry_K_grid.g[ik]
-        A  = berry_K_grid.A[ik] 
-        H   = berry_K_grid.hamiltonian_kgrid.Hk[ik]
+        A = berry_K_grid.A[ik] 
+        B = berry_K_grid.B[ik] 
+        H = berry_K_grid.hamiltonian_kgrid.Hk[ik]
+        C = berry_K_grid.C[ik]
         J_plus = berry_K_grid.J_plus[ik]
         J_minus = berry_K_grid.J_minus[ik]
         Ω = berry_K_grid.Ω[ik]
         for iv in 1:3
             α = pseudo_α[iv]
             β = pseudo_β[iv]
+
             non_traced_Fαβ[ik][iv] .+= real.(f * Ω[iv]) .- 2 .* imag.(A[α] * J_plus[β] .+ J_minus[α] * A[β] .+ J_minus[α] * J_plus[β])
 
-            fHf = f * H * f
-            non_traced_Hαβ[ik][iv] .+= real.(fHf * Ω[iv]) .+
-                                       2 .* imag.(fHf * A[α] * f * A[β] .- H * f * A[α] * J_plus[β] .+ f * H * J_minus[α] * A[β] .+ H * J_minus[α] * J_plus[β]) 
+
+            t_1 = H * A[α]
+            if berry_K_grid.hamiltonian_kgrid.core.k_cryst[ik] == Vec3(0, 0, 0.75)
+                @show t_1[:,3]
+                # @show tr(non_traced_Hαβ[ik][iv])
+                # @show tr(non_traced_Gαβ[ik][iv])
+            end
+            t_3 = H * Ω[iv]
+
+            t_2 = -1im*(C[α, β] - C[α, β]')
+
+            t_4 = t_1 * f
+
+            t_5 = t_4 * A[β]
+
+            s = 2 .* imag.(f * t_5)
+
+            non_traced_Gαβ[ik][iv] .+= real.(f * t_2) .- s
+            non_traced_Hαβ[ik][iv] .+= real.(f * t_3) .+ s
+
+            t_4 = H * J_minus[α]
+
+            non_traced_Gαβ[ik][iv] .-= 2 .* imag.(J_minus[α] * B[β] .- J_minus[β] * B[α])
+
+            non_traced_Hαβ[ik][iv] .-= 2 .* imag.(t_1 * J_plus[β] .+ t_4 * A[β])
+            t_4 = J_minus[α] * H
+            t_5 = H * J_minus[α]
+            
+            non_traced_Gαβ[ik][iv] .-= 2 .* imag.(t_4 * J_plus[β])
+            
+            non_traced_Hαβ[ik][iv] .-= 2 .* imag.(t_5 * J_plus[β])
+
         end
     end
-    return non_traced_Fαβ, non_traced_Hαβ
+    return non_traced_Fαβ, non_traced_Hαβ, non_traced_Gαβ
 end

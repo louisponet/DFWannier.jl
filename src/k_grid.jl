@@ -8,7 +8,7 @@ uniform_shifted_kgrid(::Type{T}, nkx::Integer, nky::Integer, nkz::Integer) where
 uniform_shifted_kgrid(nkx::Integer, nky::Integer, nkz::Integer) = uniform_shifted_kgrid(Float64, nkx, nky, nkz)
 
 uniform_kgrid(nkx::Integer, nky::Integer, nkz::Integer) =
-    reshape([Vec3{Float64}(kx, ky, kz) for kx in range(0, 1-1/nkx, length=nkx), ky in range(0, 1-1/nky, length=nky), kz in range(0, 1-1/nkz, length=nkz)], nkx*nky*nkz)
+    reshape([Vec3{Float64}(kx, ky, kz) for kz in range(0, 1-1/nkz, length=nkz), ky in range(0, 1-1/nky, length=nky), kx in range(0, 1-1/nkx, length=nkx)], nkx*nky*nkz)
 
 abstract type AbstractKGrid{T} end
 
@@ -55,8 +55,9 @@ function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3}, Hk_function:
     @threads for i=1:nk
 	    tid = threadid()
 	    Hk!(kgrid.eigvecs[i], hami, k_cryst(kgrid)[i])
+        kgrid.Hk[i] = copy(kgrid.eigvecs[i])
 	    Hk_function(kp)
-	    kgrid.Hk[i] = Matrix(eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[Threads.threadid()]))
+	    eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[Threads.threadid()])
     end
     return kgrid
 end
