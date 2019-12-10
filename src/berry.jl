@@ -85,6 +85,7 @@ struct BerryKGrid{T, MT, MT1} <: AbstractKGrid{T}
     hamiltonian_kgrid::HamiltonianKGrid{T, MT}
     J_plus ::Vector{Vec3{MT}}    
     J_minus::Vector{Vec3{MT}}
+    J::Vector{Vec3{MT}}
     A::Vector{Vec3{MT}}
     Ω::Vector{Vec3{MT}} #pseudo form of berry connection A
     B::Vector{Vec3{MT}}
@@ -98,6 +99,7 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
     nk = length(kpoints)
     J_plus  = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
     J_minus = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
+    J = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
     A_k = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
     Ω_k = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
     B_k = [Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami)) for i=1:nk]
@@ -129,6 +131,7 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
         end
         J_plus_k  = J_plus[i]
         J_minus_k = J_minus[i]
+        J_k = J[i]
         occupations_H_gauge = map(x -> x < fermi ? 1 : 0, Ek) #acting like it's only an insulator for now
         n_wann = length(Ek)
         
@@ -149,13 +152,15 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
                         J_minus_k[v][m, n] =  1im * Hbar[m, n]/(Ek[n] - Ek[m])
                         #else is already taken care of by initializing with zeros
                     end
+                    J_k[v][m, n] =  n==m ? 0.0 : 1im * Hbar[m, n]/(Ek[n] - Ek[m]) 
                 end
             end
             J_plus_k[v]  .= Uk * J_plus_k[v] * Uk'
             J_minus_k[v] .= Uk * J_minus_k[v] * Uk'
+            J_k[v] .= Uk * J_k[v] * Uk'
         end
     end
-    return BerryKGrid(hamiltonian_kgrid, J_plus, J_minus, A_k, Ω_k, B_k, C_k, f, g)
+    return BerryKGrid(hamiltonian_kgrid, J_plus, J_minus, J, A_k, Ω_k, B_k, C_k, f, g)
 end
 
 n_wannier_functions(bgrid::BerryKGrid) = size(bgrid.f[1], 1)
@@ -174,13 +179,54 @@ const pseudo_α = Vec3(2,3,1)
 const pseudo_β = Vec3(3,1,2)
 
 
-function orbital_angular_momentum(berry_K_grid::BerryKGrid{T}) where {T}
+function orbital_angular_momentum(berry_K_grid::BerryKGrid{T}, fermi) where {T}
+    nwann = n_wannier_functions(berry_K_grid)
+    nk = n_kpoints(berry_K_grid)
+
+    new_Fαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
+    new_Hαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
+    new_Gαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
+    M_local     = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
+    M_itinerant = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
+
+    Threads.@threads for ik in 1:nk
+        f = berry_K_grid.f[ik]
+        g = berry_K_grid.g[ik]
+        A = berry_K_grid.A[ik] 
+        B = berry_K_grid.B[ik] 
+        H = berry_K_grid.hamiltonian_kgrid.Hk[ik]
+        C = berry_K_grid.C[ik]
+        J = berry_K_grid.J[ik]
+        Ω = berry_K_grid.Ω[ik]
+        for iv in 1:3
+            α = pseudo_α[iv]
+            β = pseudo_β[iv]
+
+            new_Fαβ[ik][iv] .+= real.(f * Ω[iv]) .- 2 .* imag.(f * A[α] * g * J[β] .+ f * J[α] * g * A[β] .+ f * J[α] * g * J[β])
+
+            new_Hαβ[ik][iv] .+= real.(f * H * f * Ω[iv]) .+ 2 .* imag.(f * H * f * A[α] * f * A[β] .- f * H * f * (A[α] * g * J[β] + J[α] * g * A[β] + J[α] * g * J[β]))
+
+            J0 = real.(f * -1im*(C[α, β] - C[α, β]')) .- 2 .* imag.(f * H * A[α] * f * A[β])
+            J1 = - 2 .* imag.(f * J[α] * g * B[β] .- f * J[β] * g * B[α])
+            J2 = - 2 .* imag.(f * J[α] * g * H * g * J[β])
+
+            new_Gαβ[ik][iv] .+= J0 + J1 + J2
+
+            M_local[ik][iv] .+= new_Gαβ[ik][iv] .- fermi * new_Fαβ[ik][iv]
+            M_itinerant[ik][iv] .+= new_Hαβ[ik][iv] .- fermi * new_Fαβ[ik][iv]
+        end
+    end
+    return new_Fαβ, new_Hαβ, new_Gαβ, M_local, M_itinerant
+end
+
+function orbital_angular_momentum_w90(berry_K_grid::BerryKGrid{T}) where {T}
     nwann = n_wannier_functions(berry_K_grid)
     nk = n_kpoints(berry_K_grid)
 
     non_traced_Fαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
     non_traced_Hαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
     non_traced_Gαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
+
     Threads.@threads for ik in 1:nk
         f = berry_K_grid.f[ik]
         g = berry_K_grid.g[ik]
