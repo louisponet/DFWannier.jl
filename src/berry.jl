@@ -183,9 +183,6 @@ function orbital_angular_momentum(berry_K_grid::BerryKGrid{T}, fermi) where {T}
     nwann = n_wannier_functions(berry_K_grid)
     nk = n_kpoints(berry_K_grid)
 
-    new_Fαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
-    new_Hαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
-    new_Gαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
     M_local     = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
     M_itinerant = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
 
@@ -202,21 +199,21 @@ function orbital_angular_momentum(berry_K_grid::BerryKGrid{T}, fermi) where {T}
             α = pseudo_α[iv]
             β = pseudo_β[iv]
 
-            new_Fαβ[ik][iv] .+= real.(f * Ω[iv]) .- 2 .* imag.(f * A[α] * g * J[β] .+ f * J[α] * g * A[β] .+ f * J[α] * g * J[β])
+            Fαβ = real.(f * Ω[iv]) .- 2 .* imag.(f * A[α] * g * J[β] .+ f * J[α] * g * A[β] .+ f * J[α] * g * J[β])
 
-            new_Hαβ[ik][iv] .+= real.(f * H * f * Ω[iv]) .+ 2 .* imag.(f * H * f * A[α] * f * A[β] .- f * H * f * (A[α] * g * J[β] + J[α] * g * A[β] + J[α] * g * J[β]))
+            Hαβ = real.(f * H * f * Ω[iv]) .+ 2 .* imag.(f * H * f * A[α] * f * A[β] .- f * H * f * (A[α] * g * J[β] + J[α] * g * A[β] + J[α] * g * J[β]))
 
             J0 = real.(f * -1im*(C[α, β] - C[α, β]')) .- 2 .* imag.(f * H * A[α] * f * A[β])
             J1 = - 2 .* imag.(f * J[α] * g * B[β] .- f * J[β] * g * B[α])
             J2 = - 2 .* imag.(f * J[α] * g * H * g * J[β])
 
-            new_Gαβ[ik][iv] .+= J0 + J1 + J2
+            Gαβ = J0 + J1 + J2
 
-            M_local[ik][iv] .+= new_Gαβ[ik][iv] .- fermi * new_Fαβ[ik][iv]
-            M_itinerant[ik][iv] .+= new_Hαβ[ik][iv] .- fermi * new_Fαβ[ik][iv]
+            M_local[ik][iv] .= Gαβ .- fermi .* Fαβ
+            M_itinerant[ik][iv] .= Hαβ .- fermi .* Fαβ
         end
     end
-    return new_Fαβ, new_Hαβ, new_Gαβ, M_local, M_itinerant
+    return M_local, M_itinerant
 end
 
 function orbital_angular_momentum_w90(berry_K_grid::BerryKGrid{T}) where {T}
