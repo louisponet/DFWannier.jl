@@ -104,7 +104,7 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
     C_k = [Mat3([zeros_block(tb_hami) for j = 1:9]...) for i=1:nk]
     f = [zeros_block(tb_hami) for i=1:nk]
     g = [zeros_block(tb_hami) for i=1:nk]
-    for i=1:nk
+    Threads.@threads for i=1:nk
         Uk = hamiltonian_kgrid.eigvecs[i]
         Ek = hamiltonian_kgrid.eigvals[i]
         ∇Hk = Vec3(zeros_block(tb_hami), zeros_block(tb_hami), zeros_block(tb_hami))
@@ -133,15 +133,11 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
         n_wann = length(Ek)
         
         f[i] .= Uk * diagm(0=>occupations_H_gauge) * Uk'
-        # for n in 1:n_wann, m in 1:n_wann, j in 1:n_wann
-        #     f[i][m, n] += Uk[m, j] * occupations_H_gauge[j] * conj(Uk[j, n])
-        # end
 
         g[i] .= map(x -> -x, f[i])
         for j = 1:n_wann
             g[i][j, j] += 1
         end
-        # @show g
         for v = 1:3
             Hbar = Uk' * ∇Hk[v] * Uk
             for m = 1:n_wann
@@ -185,7 +181,7 @@ function orbital_angular_momentum(berry_K_grid::BerryKGrid{T}) where {T}
     non_traced_Fαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
     non_traced_Hαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
     non_traced_Gαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
-    for ik in 1:nk
+    Threads.@threads for ik in 1:nk
         f = berry_K_grid.f[ik]
         g = berry_K_grid.g[ik]
         A = berry_K_grid.A[ik] 
@@ -201,13 +197,7 @@ function orbital_angular_momentum(berry_K_grid::BerryKGrid{T}) where {T}
 
             non_traced_Fαβ[ik][iv] .+= real.(f * Ω[iv]) .- 2 .* imag.(A[α] * J_plus[β] .+ J_minus[α] * A[β] .+ J_minus[α] * J_plus[β])
 
-
             t_1 = H * A[α]
-            if berry_K_grid.hamiltonian_kgrid.core.k_cryst[ik] == Vec3(0, 0, 0.75)
-                @show t_1[:,3]
-                # @show tr(non_traced_Hαβ[ik][iv])
-                # @show tr(non_traced_Gαβ[ik][iv])
-            end
             t_3 = H * Ω[iv]
 
             t_2 = -1im*(C[α, β] - C[α, β]')
