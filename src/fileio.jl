@@ -1,4 +1,4 @@
-import DFControl: searchdir
+import DFControl: searchdir, strip_split
 #does this really need the checking for corruption stuff?
 function read_xsf_header(::Type{T}, filename::String) where T
     open(filename) do f
@@ -106,14 +106,22 @@ function write_xsf_file(filename::String, wfc)
     end
 end
 
-@doc raw"""
-	readhami(filename::String,structure::AbstractStructure{T})
+#This comes from w90; it's basically a cube
+const MAX_WIGNER_SEITZ_DEGENERACIES = 8 
 
-Returns a vector of TbBlocks with the hopping parameters of the Wannier Tight Binding Hamiltonian.
+@doc raw"""
+	readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T})
+
+Reads `seedname_hr.dat` and `seedname_wsvec.dat` and returns a vector of TbBlocks with the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
-function readhami(filename::String, structure::AbstractStructure{T, LT}) where  {T<:AbstractFloat,LT<:Length{T}}
-    open(filename) do f
-        out = TbBlock{T, Matrix{Complex{T}}, LT}[]
+function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T, LT}) where  {T<:AbstractFloat,LT<:Length{T}}
+    @assert ispath(hami_file) && ispath(wsvec_file) "Please provide valid hamiltonian and wsvec files."
+
+    wsvec_f = open(wsvec_file, "r")
+    readline(wsvec_f)
+
+    open(hami_file) do f
+        out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT}[]
         degen = Int64[]
         linenr = 0
         readline(f)
@@ -128,12 +136,38 @@ function readhami(filename::String, structure::AbstractStructure{T, LT}) where  
             rpt = div(linenr - 1, nwanfun^2) + 1
             R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
             if length(out) < rpt
-                block = TbBlock(cell(structure)' * R_cryst, R_cryst, Matrix{Complex{T}}(I, nwanfun, nwanfun))
+                # Reading all the wigner seitz shifts etc from the wsvec.dat file
+                # TODO Performance: It's probably a better idea to have a nwanfun * nwanfun dimensional matrix with the number of degeneracies,
+                #                   and a vector with all the actual shifts serialized into it.
+
+                # wigner_seitz_shifts_cryst = Vec3{Int}[]
+                wigner_seitz_shifts_cryst = Matrix{Vector{Vec3{Int}}}(undef, nwanfun, nwanfun)
+                # wigner_seitz_shifts_cart = Vec3{LT}[]
+                wigner_seitz_shifts_cart = Matrix{Vector{Vec3{LT}}}(undef, nwanfun, nwanfun)
+                wigner_seitz_nshift_matrix = Matrix{Int}(undef, nwanfun, nwanfun)
+                n_wsvecs_read = 0
+                while n_wsvecs_read < nwanfun^2
+                    wanid1, wanid2 = parse.(Int, strip_split(readline(wsvec_f))[end-1:end]) #R line that should be the same as already read
+                    n_ws_degeneracies = parse(Int, strip(readline(wsvec_f)))
+                    t_shifts = zeros(Vec3{Int}, n_ws_degeneracies)
+                    wigner_seitz_nshift_matrix[wanid1, wanid2] = n_ws_degeneracies
+                    for i in 1:n_ws_degeneracies
+                        t_shifts[i] = Vec3(parse.(Int, strip_split(readline(wsvec_f)))...)
+                    end
+                    wigner_seitz_shifts_cryst[wanid1, wanid2] = t_shifts
+                    wigner_seitz_shifts_cart[wanid1, wanid2] = (cell(structure),).*t_shifts
+                    # prepend!(wigner_seitz_shifts_cryst, t_shifts)
+                    # prepend!(wigner_seitz_shifts_cart, (cell(structure),).*t_shifts)
+                    n_wsvecs_read += 1
+                    # wigner_seitz_shift_matrix[wanid1, wanid2] = t_shifts
+                end
+
+                block = TbBlock(cell(structure) * R_cryst, R_cryst, wigner_seitz_shifts_cryst, wigner_seitz_shifts_cart, wigner_seitz_nshift_matrix, degen[rpt], Matrix{Complex{T}}(I, nwanfun, nwanfun))
                 push!(out, block)
             else
                 block = out[rpt]
             end
-            complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) / degen[rpt]
+            complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) 
             block.block[parse(Int, l[4]), parse(Int, l[5])] = complex
         end
         return out
@@ -141,25 +175,29 @@ function readhami(filename::String, structure::AbstractStructure{T, LT}) where  
 end
 
 #super not optimized
+#TODO Test: new wigner seitz shift stuff
 @doc raw"""
-	read_colin_hami(upfile::String, downfile::String, structure::AbstractStructure{T})
+	read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws_file::AbstractString, down_ws_file::AbstractString structure::AbstractStructure{T})
 
 Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
-function read_colin_hami(upfile::String, downfile::String, structure::AbstractStructure{T}) where  T
-	uphami   = readhami(upfile, structure)
-	downhami = readhami(downfile, structure)
+function read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws_file::AbstractString, down_ws_file::AbstractString, structure::AbstractStructure{T}) where  T
+	uphami   = readhami(upfile, up_ws_file, structure)
+	downhami = readhami(downfile, down_ws_file, structure)
 	dim = blocksize(uphami)
 	CT = Complex{T}
 	@assert dim == blocksize(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
 
 	u1 = uphami[1]
 	d1 = downhami[1]
-	first = TbBlock(u1.R_cart, u1.R_cryst, ColinMatrix(block(u1), block(d1)))
+	
+	first = TbBlock(u1.R_cart, u1.R_cryst, ColinMatrix(u1.wigner_seitz_shifts, u2.wigner_seitz_shifts), u1.wigner_seitz_degeneracy, ColinMatrix(block(u1), block(d1)))
 	outhami  = [first]
 	for (u, d) in zip(uphami[2:end], downhami[2:end])
 		tmat = ColinMatrix(block(u), block(d))
-		push!(outhami, TbBlock(u.R_cart, u.R_cryst, tmat))
+		t_shifts = ColinMatrix(u1.wigner_seitz_shifts, u2.wigner_seitz_shifts)
+		degen = u.wigner_seitz_degeneracy
+		push!(outhami, TbBlock(u.R_cart, u.R_cryst, t_shifts, degen, tmat))
 	end
 	return outhami
 end
@@ -173,10 +211,19 @@ If it finds a colinear calculation in the job it will read the up and down hamil
 if the job was either nonmagnetic or noncolinear it will read only one hamiltonian file (there should be only one).
 """
 function readhami(job::DFJob)
+
+    @assert any(x -> x isa DFInput{Wannier90}, job.inputs) "No wannier90 calculations found in the job."
+
+    seedname = getfirst(x -> x isa DFInput{Wannier90}, job.inputs).name
+
+	hami_files  = searchdir(job.local_dir, "hr.dat")
+	wsvec_files = searchdir(job.local_dir, "wsvec.dat")
+	@assert !isempty(hami_files) "No hamiltonian files ($seedname_hr.dat) found."
+	@assert !isempty(wsvec_files) "No wsvec files ($seedname_wsvec.dat) found."
 	if !any(DFC.iscolincalc.(job.inputs))
-		return readhami(joinpath(job.local_dir, searchdir(job.local_dir, "hr.dat")[1]), job.structure)
+		return readhami(joinpath(job, hami_files[1]), joinpath(job, wsvec_files[1]), job.structure)
 	else
-		return read_colin_hami(joinpath.((job,), searchdir(job.local_dir, "hr.dat"))..., job.structure)
+		return read_colin_hami(joinpath.((job,), hami_files)..., joinpath.((job,), wsvec_files)..., job.structure)
 	end
 end
 
@@ -418,26 +465,6 @@ function read_exchanges(filename::String, T=Float64)
     end
 end
 
-struct WannierParameters
-    n_bands::Int
-    n_excluded_bands::Int
-    real_lattice::Mat3{Float64}
-    recip_lattice::Mat3{Float64}
-    n_kpoints::Int
-    mp_grid::Vec3{Int}
-    kpt_lattice::Vector{Vec3{Float64}}
-    k_nearest_neighbors::Int
-    n_wann::Int
-    have_disentangled::Bool
-    omega_invariant::Float64
-    lwindow::Matrix{Bool}
-    ndimwin::Vector{Int}
-    U_matrix_opt::Array{Float64, 3}
-    U_matrix::Array{Float64, 3}
-    m_matrix::Array{Float64, 4}
-    wannier_centers::Vector{Point3{Float64}}
-    wannier_spreads::Vector{Float64}
-end
 function read_chk(filename)
     f = FortranFile(filename)
     header = String(read(f, FString{33}))
@@ -448,7 +475,7 @@ function read_chk(filename)
     # exclude_bands= convert.(Int, exclude_bands_t)
     read(f)
     real_lattice = Mat3(read(f, (Float64, 3, 3))...)
-    recip_lattice = Mat3(read(f, (Float64, 3, 3))...)
+    recip_lattice = K_CART_TYPE{Float64}.(Mat3(read(f, (Float64, 3, 3))...)')
     n_kpoints = read(f, Int32)
     mp_grid = Vec3(Int.(read(f, (Int32, 3)))...)
     kpt_lattice_t = read(f, (Float64, 3, n_kpoints))
@@ -462,37 +489,53 @@ function read_chk(filename)
         omega_invariant = read(f, Float64)
         lwindow = map(x-> x==1 ? true : false, read(f, (Int32, n_bands, n_kpoints)))
         ndimwin = read(f, (Int32, n_kpoints))
-        U_matrix_opt = read(f, (Float64, n_bands, n_wann, n_kpoints))
+        U_matrix_opt = read(f, (Complex{Float64}, n_bands, n_wann, n_kpoints))
     else
         omega_invariant = 0.0
-        lwindow = Matrix{Int}()
-        ndimwin = Vector{Int}()
-        U_matrix_opt= Array{Float64, 3}()
+        lwindow = fill(true, 1, n_kpoints)
+        ndimwin = fill(n_wann, n_kpoints)
+        U_matrix_opt= Array{Complex{Float64}, 3}()
     end
-    U_matrix = read(f, (Float64, n_wann, n_wann, n_kpoints))
-    m_matrix = read(f, (Float64, n_wann, n_wann, k_nearest_neighbors, n_kpoints))
+    U_matrix = read(f, (Complex{Float64}, n_wann, n_wann, n_kpoints))
+
+    # Combined effect of disentanglement and localization
+    V_matrix = Array{Complex{Float64},3}(undef, n_bands, n_wann, n_kpoints)
+    if have_disentangled
+        for ik in 1:n_kpoints
+            V_matrix[:, :, ik] = U_matrix_opt[:, :, ik] * U_matrix[:, :, ik]
+        end
+    else
+        V_matrix = U_matrix
+    end
+
+    m_matrix = read(f, (Complex{Float64}, n_wann, n_wann, k_nearest_neighbors, n_kpoints))
     wannier_centers_t = read(f, (Float64, 3, n_wann))
     wannier_centers = [Point3(wannier_centers_t[:, i]...) for i = 1:size(wannier_centers_t)[2]]
     wannier_spreads = read(f, (Float64, n_wann))
-    return WannierParameters(
-        n_bands,
-        n_excluded_bands,
-        real_lattice,
-        recip_lattice,
-        n_kpoints,
-        mp_grid,
-        kpt_lattice,
-        k_nearest_neighbors,
-        n_wann,
-        have_disentangled,
-        omega_invariant,
-        lwindow,
-        ndimwin,
-        U_matrix_opt,
-        U_matrix,
-        m_matrix,
-        wannier_centers,
-        wannier_spreads
+
+    wb = read(f, (Float64, k_nearest_neighbors)) #this requires patched w90
+
+    return (
+        n_bands=n_bands,
+        n_excluded_bands=n_excluded_bands,
+        cell=real_lattice,
+        recip_cell=recip_lattice,
+        n_kpoints=n_kpoints,
+        mp_grid=mp_grid,
+        kpoints=kpt_lattice,
+        n_nearest_neighbors=k_nearest_neighbors,
+        neighbor_weights=wb,
+        n_wann=n_wann,
+        have_disentangled=have_disentangled,
+        Ω_invariant = omega_invariant,
+        lwindow=lwindow,
+        ndimwin =ndimwin,
+        U_matrix_opt=U_matrix_opt,
+        U_matrix=U_matrix,
+        V_matrix=V_matrix,
+        m_matrix=m_matrix,
+        wannier_centers=wannier_centers,
+        wannier_spreads=wannier_spreads
     )
 end
 
@@ -520,5 +563,130 @@ function read_unk_nc(file)
     end
     return Uk
 end
+
+mutable struct ReciprocalOverlaps{T}
+    k_id           ::Int
+    neighbor_ids   ::Vector{Int}
+    b_vectors_cryst::Vector{Vec3{Int}} #connecting vector in crystalline coordinates
+    overlaps       ::Vector{Matrix{Complex{T}}}
+end
+
+function ReciprocalOverlaps{T}(k_id::Int, n_nearest_neighbors::Int, nbands::Int) where {T}
+    overlap_matrices = [Matrix{Complex{T}}(undef, nbands, nbands) for i=1:n_nearest_neighbors]
+    ReciprocalOverlaps{T}(k_id, zeros(Int, n_nearest_neighbors), zeros(Vec3{Int}, n_nearest_neighbors), overlap_matrices)
+end
+
+function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractString, uHu_filename::AbstractString, wannier_chk_params) where {T}
+    num_wann = wannier_chk_params.n_wann
+    uHu_file = FortranFile(uHu_filename)
+    read(uHu_file, FString{20})
+    read(uHu_file, (Int32, 3))
+
+    open(mmn_filename, "r") do f
+        readline(f) #header
+        nbands, nkpoints, n_nearest_neighbors = parse.(Int, strip_split(readline(f)))
+        #pre setup uHu
+        for k in grid
+            k.uHu = [Matrix{Complex{T}}(undef, num_wann, num_wann) for m=1:n_nearest_neighbors, n=1:n_nearest_neighbors]
+        end
+        neighbor_counter = 1
+        for i in 1:nkpoints*n_nearest_neighbors
+            sline = strip_split(readline(f))
+            cur_neighbor = mod1(neighbor_counter, n_nearest_neighbors) 
+
+            ik, ik2 = parse.(Int, sline[1:2])
+
+            overlap_ab_initio_gauge = Matrix{Complex{T}}(undef, nbands, nbands)
+            for n in eachindex(overlap_ab_initio_gauge)
+                overlap_ab_initio_gauge[n] = complex(parse.(T, strip_split(readline(f)))...)
+            end
+
+            vmat_ik = wannier_chk_params.V_matrix[:, :, ik]
+            vmat_ik2 = wannier_chk_params.V_matrix[:, :, ik2]
+            first_band_id_ik = findfirst(wannier_chk_params.lwindow[:, ik])
+            first_band_id_ik2 = findfirst(wannier_chk_params.lwindow[:, ik2])
+
+            num_states_ik = wannier_chk_params.ndimwin[ik]
+            num_states_ik2 = wannier_chk_params.ndimwin[ik2]
+
+            V1 = vmat_ik[1:num_states_ik, 1:num_wann]
+            V2 = vmat_ik2[1:num_states_ik2, 1:num_wann]
+
+
+            disentanglement_range_k1 = first_band_id_ik:first_band_id_ik+num_states_ik-1
+            disentanglement_range_k2 = first_band_id_ik2:first_band_id_ik2+num_states_ik2-1
+            S12 = overlap_ab_initio_gauge[disentanglement_range_k1, disentanglement_range_k2]
+
+            kpoint = grid[ik]
+
+            vr = (wannier_chk_params.recip_cell * parse(Vec3{Int}, sline[3:5]) + grid[ik2].k_cart) - kpoint.k_cart
+
+            V1_T = V1'
+            S12_V2 = S12 * V2
+            kpoint.overlaps[cur_neighbor] =  V1_T * S12_V2
+            k_eigvals_mat = diagm(kpoint.eigvals[disentanglement_range_k1])
+            kpoint.hamis[cur_neighbor] = V1_T * k_eigvals_mat * S12_V2
+            neighbor_counter += 1
+            for nearest_neighbor2 in 1:n_nearest_neighbors
+                ik3 = kpoint.neighbors[nearest_neighbor2].k_id2
+                first_band_id_ik3 = findfirst(wannier_chk_params.lwindow[:, ik3])
+                num_states_ik3    = wannier_chk_params.ndimwin[ik3]
+
+                V3 = wannier_chk_params.V_matrix[1:num_states_ik3, 1:num_wann, ik3]
+                
+
+                uHu_k2_k3 = transpose(read(uHu_file, (ComplexF64, nbands, nbands)))
+                disentanglement_range_k3 = first_band_id_ik3:first_band_id_ik3+num_states_ik3-1
+                kpoint.uHu[nearest_neighbor2, cur_neighbor] =  V3' * uHu_k2_k3[disentanglement_range_k3, disentanglement_range_k2] * V2
+            end
+        end
+        return grid
+    end
+end
+
+function fill_k_neighbors!(kpoints::Vector{AbInitioKPoint{T}}, file::AbstractString, recip_cell::Mat3) where {T}
+    open(file, "r") do f
+        line = readline(f)
+        while line != "begin kpoints"
+            line = readline(f)
+        end
+        nkpoints = parse(Int, strip(readline(f)))
+        @assert nkpoints == length(kpoints) "Number kpoints in seedname.nnkp doesn't match with the number of kpoints in seedname.chk."
+
+        while line != "begin nnkpts"
+            line = readline(f)
+        end
+        n_nearest_neighbors = parse(Int, strip(readline(f)))
+
+
+        counter = 1
+        line = readline(f)
+        while line != "end nnkpts"
+            counter = mod1(counter, n_nearest_neighbors)
+            sline = strip_split(line)
+            ik, ik2 = parse.(Int, sline[1:2])
+
+            vr = (recip_cell * parse(Vec3{Int}, sline[3:5]) + kpoints[ik2].k_cart) - kpoints[ik].k_cart
+            push!(kpoints[ik].neighbors, KBond(ik, ik2, vr))
+            push!(kpoints[ik].overlaps, Matrix{Complex{T}}(undef, 0, 0))
+            push!(kpoints[ik].hamis, Matrix{Complex{T}}(undef, 0, 0))
+            kpoints[ik].uHu = Matrix{Matrix{Complex{T}}}(undef, n_nearest_neighbors, n_nearest_neighbors)
+            counter += 1
+            line = readline(f)
+        end
+        return kpoints
+    end
+end
+
+# function read_eig(file::AbstractString, n_bands::Int, n_kpoints::Int)
+#     eigvals = Matrix{Float64}(undef, n_bands, n_kpoints)
+#     open(f, "r") do f
+#         while !eof(f)
+#             ik, val = parse.((Int, Float64), strip_split(readline(f)))
+#             eigvals[ib, ik] = val
+#         end
+#     end
+#     return eigvals
+# end
 
 

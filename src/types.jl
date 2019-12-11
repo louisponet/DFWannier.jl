@@ -116,49 +116,6 @@ view(A::Vector, a::Union{AbstractAtom, Projection}) =
 	view(A, range(a))
 
 import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, wan_read_input
-
-struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, LT<:Length{T}}
-    R_cart  ::Vec3{LT}
-    R_cryst ::Vec3{Int}
-    block   ::M
-end
-
-block(x::TbBlock) = x.block
-
-for f in (:getindex, :size, :similar)
-	@eval Base.$f(h::TbBlock, args...) = $f(block(h), args...)
-end
-
-LinearAlgebra.eigen(h::TbBlock) =
-	eigen(block(h))
-
-const TbHami{T, M, LT}  = Vector{TbBlock{T, M, LT}}
-
-getindex(h::TbHami, R::Vec3{Int}) =
-	getfirst(x -> x.R_cryst == R, h)
-
-#some small type piracy?
-Base.zeros(m::AbstractArray{T}) where {T} =
-	fill!(similar(m), zero(T))
-
-zeros_block(h::TbHami) =
-	zeros(block(h[1]))
-
-similar_block(h::TbHami) =
-	similar(block(h[1]))
-
-blocksize(h::TbHami, args...) =
-	size(block(h[1]), args...)
-
-for op in (:+, :-, :*, :/)
-	@eval $op(t::TbBlock{T}, v::T) where {T} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), v))
-	@eval $op(v::T, t::TbBlock{T}) where {T} = TbBlock(t.R_cart, t.R_cryst, $op(v, block(t)))
-	@eval $op(t::TbBlock{T,M}, v::M) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), v))
-	@eval $op(v::M, t::TbBlock{T,M}) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(v, block(t)))
-	@eval $op(t::TbBlock{T,M}, v::TbBlock{T,M}) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), block(v)))
-end
-
-
 struct RmnBlock{T<:AbstractFloat}
     R_cart  ::Vec3{T}
     R_cryst ::Vec3{Int}
@@ -176,11 +133,11 @@ end
 # 	()
 
 
-mutable struct WanStructure{T<:AbstractFloat, LT<:Length{T}} <: AbstractStructure{T, LT}
-    structure ::Structure{T, LT}
-    tbhamis   ::Vector{TbHami{T}}
-    tbRmns    ::Vector{TbRmn{T}}
-end
+# mutable struct WanStructure{T<:AbstractFloat, LT<:Length{T}} <: AbstractStructure{T, LT}
+#     structure ::Structure{T, LT}
+#     tbhamis   ::Vector{TbHami{T}}
+#     tbRmns    ::Vector{TbRmn{T}}
+# end
 
 # WanStructure(structure::Structure, wan_atoms::Vector{<:WanAtom}, tbhamis, tbrmns) =
 #     WanStructure(Structure(structure, wan_atoms), tbhamis, tbrmns)
@@ -292,46 +249,6 @@ end
 #     end
 #     return dim
 # end
-
-"Holds all the calculated values from a wannier model."
-@with_kw mutable struct WannierBand{T<:AbstractFloat} <: Band
-    k_points_cryst ::Vector{Vec3{T}}
-    eigvals        ::Vector{T}
-    eigvec         ::Vector{Vector{Complex{T}}}
-    cms      ::Vector{Point3{T}} = Point3{T}[]
-    angmoms  ::Vector{Vector{Point3{T}}} = Vector{Point3{T}}[]
-    spins    ::Vector{Vector{Point3{T}}} = Vector{Point3{T}}[]
-end
-
-function WannierBand(kpoints::Vector{Vec3{T}}, dim::Int) where T
-    klen = length(kpoints)
-    WannierBand{T}(k_points_cryst=kpoints, eigvals=zeros(T, klen), eigvec=[zeros(Complex{T}, dim) for k=1:klen])
-end
-
-wannierbands(kpoints::Vector{<:Vec3}, dim::Int) =
-	[WannierBand(kpoints, dim) for i=1:dim]
-
-function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
-    matdim = blocksize(tbhamis, 2)
-    outbands = wannierbands(kpoints, matdim)
-	calc_caches = [EigCache(block(tbhamis[1])) for i = 1:nthreads()]
-    for i = 1:length(kpoints)
-	    tid  = threadid()
-	    k    = kpoints[i]
-	    c    = calc_caches[tid]
-        hami = Hk(tbhamis, k)
-        eigvals, eigvecs = eigen(hami, c)
-        for e=1:length(eigvals)
-            outbands[e].eigvals[i] = eigvals[e]
-            outbands[e].eigvec[i] = eigvecs[:,e]
-            outbands[e].k_points_cryst[i] = k
-        end
-    end
-    return outbands
-end
-wannierbands(tbhamis, dfbands::Vector{<:DFBand}) =
-	wannierbands(tbhamis, dfbands[1].k_points_cryst)
-
 
 struct ThreadCache{T}
 	caches::Vector{T}

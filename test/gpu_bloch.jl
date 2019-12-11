@@ -8,18 +8,18 @@ using Plots
 @time test1 = calculate_eig_angmom_soc_bloch(x2,90:0.1:110.);
 plot(plot(test1[8],:angmom2_x),plot(test[8],:angmom2_x))
 
-@time benchmark = construct_bloch_sum(x.wfcs[1],x.k_points[1]);
+@time benchmark = construct_bloch_sum(x.wfcs[1],x.kpoints[1]);
 
 begin
-test1 = construct_bloch_sum(x.wfcs[1],x.k_points[1])
+test1 = construct_bloch_sum(x.wfcs[1],x.kpoints[1])
 assert(Array(test1.values)==Array(benchmark.values))
 end
 
 test2 = calculate_eig_angmom_soc_bloch(x2,90:110.);
 using Plots
-test = construct_bloch_sum(x.wfcs[1],x.k_points[1])
+test = construct_bloch_sum(x.wfcs[1],x.kpoints[1])
 Array(test.values)
-test = construct_bloch_sum(x2.wfcs[1],x2.k_points[1])
+test = construct_bloch_sum(x2.wfcs[1],x2.kpoints[1])
 T=Float64
 test_wfc1 =  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00003.xsf",Atom{T}(0.0,0.0,0.1,0.1),T))
 test_wfc2=  DFWannier.host2gpu(read_xsf_file("/home/ponet/Documents/PhD/GeTe/NSOC/paperxsf/wan_00004.xsf",Atom{T}(0.0,0.0,0.1,0.1),T))

@@ -29,17 +29,17 @@ function calc_observables(structure::WanStructure{T}, kpoints::Vector{Vec3{T}}, 
     return outbands
 end
 
-function calc_observables(structure::WanStructure{T}, k_points, k_range::StepRangeLen, args...) where T
-    mid = div(size(k_points)[1],2)+1
+function calc_observables(structure::WanStructure{T}, kpoints, k_range::StepRangeLen, args...) where T
+    mid = div(size(kpoints)[1],2)+1
     beg = Int64(k_range[1])
     steps= div(size(k_range)[1],2)
     last = Int64(k_range[end])
-    kxs = [range(k_points[beg][1], stop = k_points[mid][1], length = steps)..., k_points[mid][1], range(k_points[mid][1], stop = k_points[last][1], length = steps)[2:end]...]
-    kys = [range(k_points[beg][2],stop = k_points[mid][2], length = steps)...,k_points[mid][2] ,range(k_points[mid][2], stop = k_points[last][2], length = steps)[2:end]...]
-    kzs = [range(k_points[beg][3],stop = k_points[mid][3], length = steps)...,k_points[mid][3] ,range(k_points[mid][3],stop = k_points[last][3],length = steps)[2:end]...]
-    kxs_t = [range(k_points[beg][1],stop = k_points[mid][1],length = steps*100)... ,range(k_points[mid][1],stop = k_points[last][1],length = steps*100)[2:end]...]
-    kys_t = [range(k_points[beg][2],stop = k_points[mid][2],length = steps*100)... ,range(k_points[mid][2],stop = k_points[last][2],length = steps*100)[2:end]...]
-    kzs_t = [range(k_points[beg][3],stop = k_points[mid][3],length = steps*100)... ,range(k_points[mid][3],stop = k_points[last][3],length = steps*100)[2:end]...]
+    kxs = [range(kpoints[beg][1], stop = kpoints[mid][1], length = steps)..., kpoints[mid][1], range(kpoints[mid][1], stop = kpoints[last][1], length = steps)[2:end]...]
+    kys = [range(kpoints[beg][2],stop = kpoints[mid][2], length = steps)...,kpoints[mid][2] ,range(kpoints[mid][2], stop = kpoints[last][2], length = steps)[2:end]...]
+    kzs = [range(kpoints[beg][3],stop = kpoints[mid][3], length = steps)...,kpoints[mid][3] ,range(kpoints[mid][3],stop = kpoints[last][3],length = steps)[2:end]...]
+    kxs_t = [range(kpoints[beg][1],stop = kpoints[mid][1],length = steps*100)... ,range(kpoints[mid][1],stop = kpoints[last][1],length = steps*100)[2:end]...]
+    kys_t = [range(kpoints[beg][2],stop = kpoints[mid][2],length = steps*100)... ,range(kpoints[mid][2],stop = kpoints[last][2],length = steps*100)[2:end]...]
+    kzs_t = [range(kpoints[beg][3],stop = kpoints[mid][3],length = steps*100)... ,range(kpoints[mid][3],stop = kpoints[last][3],length = steps*100)[2:end]...]
     # kxs[div(length(kxs),2)]+=0.00001
 
     kxs[div(length(kxs),2)] = kxs_t[div(length(kxs_t),2)]
@@ -48,8 +48,8 @@ function calc_observables(structure::WanStructure{T}, k_points, k_range::StepRan
     kys[div(length(kxs),2)+1] = kys_t[div(length(kxs_t),2)+2]
     kzs[div(length(kxs),2)] = kzs_t[div(length(kxs_t),2)]
     kzs[div(length(kxs),2)+1] = kzs_t[div(length(kxs_t),2)+2]
-    k_points = [[kxs[i],kys[i],kzs[i]] for i=1:length(kxs)]
-    return calc_observables(structure, Vec3{T}.(k_points), args...)
+    kpoints = [[kxs[i],kys[i],kzs[i]] for i=1:length(kxs)]
+    return calc_observables(structure, Vec3{T}.(kpoints), args...)
 end
 
 function hami_dip_from_k(tbhami, tbdip, k::Vec3{T}) where T

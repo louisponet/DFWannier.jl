@@ -2,13 +2,13 @@
 @recipe function f(band::WannierBand, data=:eigvals; ks=nothing, fermi=0, linewidth=2)
     if ks == :relative
         ks = []
-        k_m = band.k_points_cryst[div(size(band.k_points)[1] + 1, 2)]
-        for k in band.k_points_cryst
+        k_m = band.kpoints_cryst[div(size(band.kpoints)[1] + 1, 2)]
+        for k in band.kpoints_cryst
             push!(ks, norm(k - k_m))
         end
         ks[1:div(length(ks), 2)] = -ks[1:div(length(ks), 2)]
     else
-        ks = collect(1:length(band.k_points_cryst))
+        ks = collect(1:length(band.kpoints_cryst))
     end
     if fermi != 0
         band = DFControl.apply_fermi_level(band,fermi)
