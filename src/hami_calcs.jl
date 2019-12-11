@@ -49,6 +49,43 @@ for op in (:+, :-, :*, :/)
 	@eval $op(t::TbBlock{T,M}, v::TbBlock{T,M}) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), block(v)))
 end
 
+struct HamiltonianKGrid{T,MT<:AbstractMatrix{Complex{T}}} <: AbstractKGrid{T}
+    core::CoreKGrid{T}
+    Hk::Vector{MT}
+    eigvals::Vector{Vector{T}}
+    eigvecs::Vector{MT}
+end
+HamiltonianKGrid(kpoints::Vector{<:Vec3}, args...) = HamiltonianKGrid(CoreKGrid(kpoints), args...)
+
+@doc raw"""
+	HamiltonianKGrid(hami::TbHami{T}, nk, H_function_k::Function = x -> nothing) where T
+	HamiltonianKGrid(hami::TbHami{T}, k_grid, H_function_k::Function = x -> nothing) where T
+
+Takes a k grid, calculates Hk for each of them and diagonalizes. Only the eigenvectors and eigenvalues of Hk are stored,
+the H_function_k function is called on the intermediate Hk. 
+"""
+function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3}, Hk_function::Function = x -> nothing) where {T}
+	# kpoints = [KPoint(k, blocksize(hami), R, zeros_block(hami)) for k in k_grid]
+	n_eigvals = max(blocksize(hami)...)
+	kgrid = HamiltonianKGrid(kpoints, [zeros_block(hami) for k in kpoints], [zeros(T, n_eigvals) for k in kpoints], [zeros_block(hami) for k in kpoints])
+	nk    = length(kpoints)
+	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
+    @threads for i=1:nk
+	    tid = threadid()
+	    Hk!(kgrid.eigvecs[i], hami, k_cryst(kgrid)[i])
+        kgrid.Hk[i] = copy(kgrid.eigvecs[i])
+	    Hk_function(kp)
+	    eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[Threads.threadid()])
+    end
+    return kgrid
+end
+
+function HamiltonianKGrid(hami::TbHami{T}, nk::NTuple{3, Int}, H_function_k::Function = x -> nothing) where {T}
+    k_grid  = uniform_shifted_kgrid(nk...)
+    return fill_kgrid(hami, k_grid, Hfunc)
+end
+
+
 function Hk!(out::AbstractMatrix, tbhami::TbHami, kpoint::Vec3)
     fill!(out, zero(eltype(out)))
     fourier_transform(tbhami, kpoint) do i, iR, R_cart, b, fac
@@ -61,6 +98,10 @@ function Hk(tbhami::TbHami, kpoint::Vec3)
     Hk!(out, tbhami, kpoint)
     return out
 end
+
+Hk(g::HamiltonianKGrid) = g.Hk
+eigvecs(g::HamiltonianKGrid) = g.eigvecs
+eigvals(g::HamiltonianKGrid) = g.eigvals
 
 "Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
 function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}

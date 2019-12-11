@@ -164,7 +164,14 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
 end
 
 n_wannier_functions(bgrid::BerryKGrid) = size(bgrid.f[1], 1)
-n_kpoints(bgrid::BerryKGrid) = length(bgrid.f)
+n_kpoints(bgrid::BerryKGrid)           = length(bgrid.f)
+
+core_kgrid(bgrid::BerryKGrid) = core_kgrid(bgrid.hamiltonian_kgrid)
+
+for f in (:Hk, :eigvecs, :eigvals)
+    @eval $f(bgrid::BerryKGrid) = $f(bgrid.hamiltonian_kgrid)
+end
+
 
 function fourier_q_to_R(f::Function, q_vectors, R_vectors)
     for iR in 1:length(R_vectors)
