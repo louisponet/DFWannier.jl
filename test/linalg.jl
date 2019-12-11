@@ -1,4 +1,3 @@
-
 for F in (Float32, Float64)
 	orig_up = Hermitian(rand(Complex{F}, 25, 25))
 	orig_dn = Hermitian(rand(Complex{F}, 25, 25))

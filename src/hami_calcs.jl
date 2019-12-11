@@ -2,11 +2,11 @@ div1(x, y) = div(x - 1, y) + 1
 
 w_eachindex(m::Matrix) = eachindex(m)
 
-struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:AbstractMatrix{Int}, VS <: Matrix{Vector{Vec3{Int}}}, LT<:Length{T}}
+struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:AbstractMatrix{Int}, VS <: AbstractMatrix{Vector{Vec3{Int}}}, LT<:Length{T}, VL<:AbstractMatrix{Vector{Vec3{LT}}}}
     R_cart  ::Vec3{LT}
     R_cryst ::Vec3{Int}
     wigner_seitz_shifts_cryst::VS
-    wigner_seitz_shifts_cart::Matrix{Vector{Vec3{LT}}}
+    wigner_seitz_shifts_cart::VL
     # Like w90 irdist_ws: The integer number of unit cells to shift the Wannier function j to put its center inside the wigner-seitz of wannier function i. Can have multiple equivalent shifts (maximum of 8), they are all stored. 
     wigner_seitz_nshifts::MI
     wigner_seitz_degeneracy::Int #not sure if we need to keep this
@@ -23,7 +23,7 @@ end
 LinearAlgebra.eigen(h::TbBlock) =
 	eigen(block(h))
 
-const TbHami{T, M, MI, VS, LT}  = Vector{TbBlock{T, M, MI, VS, LT}}
+const TbHami{T, M, MI, VS, LT, VL}  = Vector{TbBlock{T, M, MI, VS, LT, VL}}
 
 getindex(h::TbHami, R::Vec3{Int}) =
 	getfirst(x -> x.R_cryst == R, h)
@@ -74,7 +74,7 @@ function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3}, Hk_function:
 	    tid = threadid()
 	    Hk!(kgrid.eigvecs[i], hami, k_cryst(kgrid)[i])
         kgrid.Hk[i] = copy(kgrid.eigvecs[i])
-	    Hk_function(kp)
+	    Hk_function(kgrid.Hk[i])
 	    eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[Threads.threadid()])
     end
     return kgrid

@@ -121,7 +121,7 @@ function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structu
     readline(wsvec_f)
 
     open(hami_file) do f
-        out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT}[]
+        out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}[]
         degen = Int64[]
         linenr = 0
         readline(f)
@@ -191,13 +191,22 @@ function read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws
 	u1 = uphami[1]
 	d1 = downhami[1]
 	
-	first = TbBlock(u1.R_cart, u1.R_cryst, ColinMatrix(u1.wigner_seitz_shifts, u2.wigner_seitz_shifts), u1.wigner_seitz_degeneracy, ColinMatrix(block(u1), block(d1)))
+	first = TbBlock(u1.R_cart,
+	                u1.R_cryst,
+	                ColinMatrix(u1.wigner_seitz_shifts_cryst, d1.wigner_seitz_shifts_cryst),
+	                ColinMatrix(u1.wigner_seitz_shifts_cart, d1.wigner_seitz_shifts_cart),
+	                ColinMatrix(u1.wigner_seitz_nshifts, d1.wigner_seitz_nshifts),
+	                u1.wigner_seitz_degeneracy,
+	                ColinMatrix(block(u1), block(d1)))
+
 	outhami  = [first]
 	for (u, d) in zip(uphami[2:end], downhami[2:end])
 		tmat = ColinMatrix(block(u), block(d))
-		t_shifts = ColinMatrix(u1.wigner_seitz_shifts, u2.wigner_seitz_shifts)
+		t_shifts_cryst = ColinMatrix(u.wigner_seitz_shifts_cryst, d.wigner_seitz_shifts_cryst)
+		t_shifts_cart = ColinMatrix(u.wigner_seitz_shifts_cart, d.wigner_seitz_shifts_cart)
+		t_nshifts = ColinMatrix(u.wigner_seitz_nshifts, d.wigner_seitz_nshifts)
 		degen = u.wigner_seitz_degeneracy
-		push!(outhami, TbBlock(u.R_cart, u.R_cryst, t_shifts, degen, tmat))
+		push!(outhami, TbBlock(u.R_cart, u.R_cryst, t_shifts_cryst,t_shifts_cart,t_nshifts, degen, tmat))
 	end
 	return outhami
 end
