@@ -186,15 +186,11 @@ wannierbands(kpoints::Vector{<:Vec3}, dim::Int) =
 	[WannierBand(kpoints, dim) for i=1:dim]
 
 function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
-    matdim = blocksize(tbhamis, 2)
+    matdim   = blocksize(tbhamis, 2)
+    kgrid    = HamiltonianKGrid(tbhamis, kpoints) 
     outbands = wannierbands(kpoints, matdim)
-	calc_caches = [EigCache(block(tbhamis[1])) for i = 1:nthreads()]
-    for i = 1:length(kpoints)
-	    tid  = threadid()
-	    k    = kpoints[i]
-	    c    = calc_caches[tid]
-        hami = Hk(tbhamis, k)
-        eigvals, eigvecs = eigen(hami, c)
+    @threads for i = 1:length(kpoints)
+        eigvals, eigvecs = kgrid.eigvals[i], kgrid.eigvecs[i]
         for e=1:length(eigvals)
             outbands[e].eigvals[i] = eigvals[e]
             outbands[e].eigvec[i] = eigvecs[:,e]
