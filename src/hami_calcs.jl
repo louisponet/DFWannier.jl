@@ -194,7 +194,7 @@ function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
         for e=1:length(eigvals)
             outbands[e].eigvals[i] = eigvals[e]
             outbands[e].eigvec[i] = eigvecs[:,e]
-            outbands[e].kpoints_cryst[i] = k
+            outbands[e].kpoints_cryst[i] = kpoints[i]
         end
     end
     return outbands
