@@ -90,19 +90,19 @@ Writes the real part of the Wfc3D to a .xsf file that is readable by XCrysden or
 """
 function write_xsf_file(filename::String, wfc)
     open(filename,"w") do f
-        origin = wfc[1,1,1].p
-        write(f,["# Generated from PhD calculations\n", "", "BEGIN_BLOCK_DATAGRID_3D\n", "3D_FIELD\n",
+        origin = wfc.points[1,1,1]
+        write.((f,),["# Generated from PhD calculations\n", "", "BEGIN_BLOCK_DATAGRID_3D\n", "3D_FIELD\n",
         "BEGIN_DATAGRID_3D_UNKNOWN\n"])
         write(f,"$(size(wfc)[1])    $(size(wfc)[2])     $(size(wfc)[3])\n")
         write(f,"$(origin[1])   $(origin[2])   $(origin[3])\n")
-        write(f,"$(wfc[end,1,1].p[1]-origin[1])   $(wfc[end,1,1].p[2]-origin[2])   $(wfc[end,1,1].p[3]-origin[3])\n")
-        write(f,"$(wfc[1,end,1].p[1]-origin[1])   $(wfc[1,end,1].p[2]-origin[2])   $(wfc[1,end,1].p[3]-origin[3])\n")
-        write(f,"$(wfc[1,1,end].p[1]-origin[1])   $(wfc[1,1,end].p[2]-origin[2])   $(wfc[1,1,end].p[3]-origin[3])\n")
-        for wfp in wfc
-            write(f,"$(real(wfp.w)) ")
+        write(f,"$(wfc.points[end,1,1][1]-origin[1])   $(wfc.points[end,1,1][2]-origin[2])   $(wfc.points[end,1,1][3]-origin[3])\n")
+        write(f,"$(wfc.points[1,end,1][1]-origin[1])   $(wfc.points[1,end,1][2]-origin[2])   $(wfc.points[1,end,1][3]-origin[3])\n")
+        write(f,"$(wfc.points[1,1,end][1]-origin[1])   $(wfc.points[1,1,end][2]-origin[2])   $(wfc.points[1,1,end][3]-origin[3])\n")
+        for wfp in wfc.values
+            write(f,"$(real(wfp[1])) ")
         end
         write(f,"\n")
-        write(f,["END_DATAGRID_3D\n", "END_BLOCK_DATAGRID_3D\n"])
+        write.((f,), ["END_DATAGRID_3D\n", "END_BLOCK_DATAGRID_3D\n"])
     end
 end
 
