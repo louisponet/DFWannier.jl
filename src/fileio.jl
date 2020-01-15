@@ -88,18 +88,35 @@ write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
 
 Writes the real part of the Wfc3D to a .xsf file that is readable by XCrysden or VESTA.
 """
-function write_xsf_file(filename::String, wfc)
+function write_xsf_file(filename::String, wfc, structure)
     open(filename,"w") do f
         origin = wfc.points[1,1,1]
-        write.((f,),["# Generated from PhD calculations\n", "", "BEGIN_BLOCK_DATAGRID_3D\n", "3D_FIELD\n",
-        "BEGIN_DATAGRID_3D_UNKNOWN\n"])
+        write(f,"# Generated from PhD calculations\n")
+        write(f, "CRYSTAL\n")
+        c = ustrip.(cell(structure)')
+        write(f, "PRIMVEC\n")
+        write(f, "$(c[1,1]) $(c[1,2]) $(c[1,3])\n")
+        write(f, "$(c[2,1]) $(c[2,2]) $(c[2,3])\n")
+        write(f, "$(c[3,1]) $(c[3,2]) $(c[3,3])\n")
+        write(f, "CONVVEC\n")
+        write(f, "$(c[1,1]) $(c[1,2]) $(c[1,3])\n")
+        write(f, "$(c[2,1]) $(c[2,2]) $(c[2,3])\n")
+        write(f, "$(c[3,1]) $(c[3,2]) $(c[3,3])\n")
+        write(f, "PRIMCOORD\n")
+        write(f, "$(length(atoms(structure))) 1\n")
+        for at in atoms(structure)
+            n = element(at).name
+            p = ustrip.(position_cart(at))
+            write(f, "$n $(p[1]) $(p[2]) $(p[3])\n")
+        end
+        write.((f,),["", "BEGIN_BLOCK_DATAGRID_3D\n", "3D_FIELD\n", "BEGIN_DATAGRID_3D_UNKNOWN\n"])
         write(f,"$(size(wfc)[1])    $(size(wfc)[2])     $(size(wfc)[3])\n")
         write(f,"$(origin[1])   $(origin[2])   $(origin[3])\n")
         write(f,"$(wfc.points[end,1,1][1]-origin[1])   $(wfc.points[end,1,1][2]-origin[2])   $(wfc.points[end,1,1][3]-origin[3])\n")
         write(f,"$(wfc.points[1,end,1][1]-origin[1])   $(wfc.points[1,end,1][2]-origin[2])   $(wfc.points[1,end,1][3]-origin[3])\n")
         write(f,"$(wfc.points[1,1,end][1]-origin[1])   $(wfc.points[1,1,end][2]-origin[2])   $(wfc.points[1,1,end][3]-origin[3])\n")
         for wfp in wfc.values
-            write(f,"$(real(wfp[1])) ")
+            write(f,"$(norm(wfp[1])) ")
         end
         write(f,"\n")
         write.((f,), ["END_DATAGRID_3D\n", "END_BLOCK_DATAGRID_3D\n"])
