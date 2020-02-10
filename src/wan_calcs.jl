@@ -24,31 +24,41 @@ function calc_angmom(wfc1::WannierFunction{N, T}, wfc2::WannierFunction{N, T}, c
 	return -1im * L
 end
 
-function calc_angmom_squared(wfc1::WannierFunction{N, T}, wfc2::WannierFunction{N, T}, center::Point3{T}) where {N, T <: AbstractFloat}
-	points = wfc1.points
-    origin = points[1, 1, 1]
-    da     = points[2, 1, 1] - origin
-    db     = points[1, 2, 1] - origin
-    dc     = points[1, 1, 2] - origin
-    V      = SMatrix{3,3}(inv([convert(Array, da) convert(Array, db) convert(Array, dc)])')
-    Lsq      = zero(Complex{T})
+#this doesn't work I think
+# function calc_angmom_squared(wfc1::WannierFunction{N, T}, wfc2::WannierFunction{N, T}, center::Point3{T}) where {N, T <: AbstractFloat}
+# 	points = wfc1.points
+#     origin = points[1, 1, 1]
+#     da     = points[2, 1, 1] - origin
+#     db     = points[1, 2, 1] - origin
+#     dc     = points[1, 1, 2] - origin
+#     V      = SMatrix{3,3}(inv([convert(Array, da) convert(Array, db) convert(Array, dc)])')
+#     Lsq      = zero(Complex{T})
 
-    @inbounds for i2 = 2:size(wfc1)[3]
-        for i1 = 2:size(wfc1)[2]
-            for i = 2:size(wfc1)[1]
-                dw_cryst = Point3(wfc2.values[i, i1, i2] - wfc2.values[i-1, i1,   i2],
-                                  wfc2.values[i, i1, i2] - wfc2.values[i,   i1-1, i2],
-  	  	  	  		              wfc2.values[i, i1, i2] - wfc2.values[i,   i1,   i2-1])
+#     @inbounds for i2 = 2:size(wfc1)[3]
+#         for i1 = 2:size(wfc1)[2]
+#             for i = 2:size(wfc1)[1]
+#                 dw_cryst = Point3(wfc2.values[i, i1, i2] - wfc2.values[i-1, i1,   i2],
+#                                   wfc2.values[i, i1, i2] - wfc2.values[i,   i1-1, i2],
+#   	  	  	  		              wfc2.values[i, i1, i2] - wfc2.values[i,   i1,   i2-1])
+# 	            dw_cryst_sq = map(x->x .^2,dw_cryst)
 
-                r       = points[i, i1, i2] - center
-                dw_cart = V * dw_cryst
-                L       = (wfc1.values[i, i1, i2]',) .* cross(r, dw_cart)
-                Lsq += L' * L
-	        end
-	    end
-	end
-	return Lsq
-end
+#                 r       = points[i, i1, i2] - center
+#                 dw_cart = V * dw_cryst
+#                 Lsq    += wfc1.values[i, i1, i2] ⋅ (r[2]^2 * (dw_cryst_sq[1] + dw_cryst_sq[3]) +
+#                                                     r[1]^2 * (dw_cryst_sq[2] + dw_cryst_sq[3]) +
+#                                                     r[3]^2 * (dw_cryst_sq[1] + dw_cryst_sq[2]) -
+#                                                     2 * (r ⋅ dw_cryst +
+#                                                          r[2] * r[3] * dw_cryst[2] .* dw_cryst[3] +
+#                                                          r[1] * r[3] * dw_cryst[1] .* dw_cryst[3] +
+#                                                          r[1] * r[2] * dw_cryst[1] .* dw_cryst[2])) 
+
+
+
+# 	        end
+# 	    end
+# 	end
+# 	return Lsq
+# end
 
 function calc_spin(wfc1::WannierFunction{2, T}, wfc2::WannierFunction{2, T}) where T <: AbstractFloat
 	S = Point3(SMatrix{2, 2}(0, 1, 1, 0)/2, 

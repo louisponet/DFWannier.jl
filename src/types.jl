@@ -30,8 +30,6 @@ function WannierFunction(filename_up_re::String, filename_up_im::String, filenam
 	return normalize(WannierFunction(points, values))
 end
 
-
-
 values(w::WannierFunction) =
 	w.values
 
