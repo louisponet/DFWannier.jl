@@ -17,6 +17,7 @@ module DFWannier
 	using FortranFiles
 	using DelimitedFiles
 	using Unitful
+	using ProgressMeter
 
 	include("linalg.jl")
 	include("types.jl")

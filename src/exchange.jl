@@ -16,6 +16,8 @@ struct ExchangeKGrid{T, MT} <: AbstractKGrid{T}
 end
 
 core_kgrid(x::ExchangeKGrid) = core_kgrid(x.hamiltonian_kgrid)
+eigvecs(x::ExchangeKGrid) = eigvecs(x.hamiltonian_kgrid)
+eigvals(x::ExchangeKGrid) = eigvals(x.hamiltonian_kgrid)
 
 function ExchangeKGrid(hami::TbHami, kpoints::Vector{Vec3{T}}, R=zero(Vec3{T})) where {T}
     D       = ThreadCache(zeros_block(hami))
@@ -31,15 +33,16 @@ struct ColinGreensFunction{T<:AbstractFloat}
 end
 
 function calc_greens_functions(ω_grid, kpoints, μ::T) where T
-    g_caches = [ThreadCache(fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(Complex{T}))) for i=1:3]
-    Gs = [fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(Complex{T})) for i = 1:length(ω_grid)]
+    g_caches = [ThreadCache(fill!(similar(eigvecs(kpoints)[1]), zero(Complex{T}))) for i=1:3]
+    Gs = [fill!(similar(eigvecs(kpoints)[1]), zero(Complex{T})) for i = 1:length(ω_grid)]
     function iGk!(G, ω)
 	    fill!(G, zero(Complex{T}))
         integrate_Gk!(G, ω, μ, kpoints, cache.(g_caches))
     end
-
+    p = Progress(length(ω_grid), 1, "Calculating contour G(ω)...")
     @threads for j=1:length(ω_grid)
         iGk!(Gs[j], ω_grid[j])
+        next!(p)
     end
     return Gs
 end
@@ -53,17 +56,16 @@ function integrate_Gk!(G::AbstractMatrix, ω, μ, kpoints, caches)
 	    # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(eltype(cache1)))
         for x=1:dim
-            cache1[x, x] = 1.0 /(μ + ω - kpoints.hamiltonian_kgrid.eigvals[ik][x])
+            cache1[x, x] = 1.0 /(μ + ω - eigvals(kpoints)[ik][x])
         end
      	# Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
 
-        mul!(cache2, kpoints.hamiltonian_kgrid.eigvecs[ik], cache1)
-        adjoint!(cache3, kpoints.hamiltonian_kgrid.eigvecs[ik])
+        mul!(cache2, eigvecs(kpoints)[ik], cache1)
+        adjoint!(cache3, eigvecs(kpoints)[ik])
         mul!(cache1, cache2, cache3)
 		t = kpoints.phases[ik]
-		tp = t'
         for i in 1:dim, j in 1:dim
-            G[i, j]     += cache1[i, j] * t
+            G[i, j] += cache1[i, j] * t
         end
     end
     G  ./= length(kpoints)

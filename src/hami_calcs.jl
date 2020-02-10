@@ -70,21 +70,17 @@ function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3}, Hk_function:
 	kgrid = HamiltonianKGrid(kpoints, [zeros_block(hami) for k in kpoints], [zeros(T, n_eigvals) for k in kpoints], [zeros_block(hami) for k in kpoints])
 	nk    = length(kpoints)
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
+	p = Progress(length(nk), 1, "Calculating H(k)...")
     @threads for i=1:nk
 	    tid = threadid()
 	    Hk!(kgrid.eigvecs[i], hami, k_cryst(kgrid)[i])
         kgrid.Hk[i] = copy(kgrid.eigvecs[i])
 	    Hk_function(kgrid.Hk[i])
 	    eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[Threads.threadid()])
+	    next!(p)
     end
     return kgrid
 end
-
-function HamiltonianKGrid(hami::TbHami{T}, nk::NTuple{3, Int}, H_function_k::Function = x -> nothing) where {T}
-    k_grid  = uniform_shifted_kgrid(nk...)
-    return fill_kgrid(hami, k_grid, Hfunc)
-end
-
 
 function Hk!(out::AbstractMatrix, tbhami::TbHami, kpoint::Vec3)
     fill!(out, zero(eltype(out)))
@@ -109,18 +105,8 @@ function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec
         degen = b.wigner_seitz_degeneracy
         shifts_used = 0
         for i in eachindex(block(b))
-            # n_shifts = b.wigner_seitz_nshifts[i]
-            # for is in 1:n_shifts
-            #     shift = b.wigner_seitz_shifts_cryst[shifts_used + is]
-            #     R_cryst = b.R_cryst + shift
-            #     fac = ℯ^(2im*π*(R_cryst ⋅ kpoint))/(degen * n_shifts)
-            #     R_function(i, iR, b.R_cart + b.wigner_seitz_shifts_cart[shifts_used+is],  b, fac)
-            # end
-            # shifts_used += n_shifts
-
             cart_shifts  = b.wigner_seitz_shifts_cart[i]
             cryst_shifts = b.wigner_seitz_shifts_cryst[i]
-            # n_shifts     = b.wigner_seitz_nshifts[i]
             n_shifts     = length(cart_shifts)
             for is in 1:n_shifts
                 shift = cryst_shifts[is]

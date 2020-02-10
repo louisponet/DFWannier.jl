@@ -715,4 +715,36 @@ end
 #     return eigvals
 # end
 
+function read_wannier_functions(job)
+    wancalc_ids = findall(x -> DFC.package(x) == Wannier90, DFC.inputs(job))
+    wanfuncs = Vector{WannierFunction}[]
+    for wancalc in DFC.inputs(job)[wancalc_ids]
+        t_funcs = WannierFunction[]
+        # here we assume that if it's a spinor calculation, and all the upre, upim, downre, downim are there
+        if DFC.hasflag(wancalc, :spinors) && wancalc[:spinors]
+            upre_files   = filter(x -> occursin(name(wancalc), x), DFC.find_files(job, "upre"))
+            upim_files   = filter(x -> occursin(name(wancalc), x), DFC.find_files(job, "upim"))
+            downre_files = filter(x -> occursin(name(wancalc), x), DFC.find_files(job, "downre"))
+            downim_files = filter(x -> occursin(name(wancalc), x), DFC.find_files(job, "downim"))
+            any(isempty.((upre_files, upim_files, downre_files, downim_files))) && continue
+            points = read_points_from_xsf(upre_files[1])
+
+            for (ur, ui, dr, di) in zip(upre_files, upim_files, downre_files, downim_files)
+                push!(t_funcs, WannierFunction(ur, ui, dr, di, points))
+            end
+                
+        else
+            xsf_files = filter(x -> occursin(".xsf", x), DFC.find_files(job, name(wancalc)))
+            isempty(xsf_files) && continue
+           
+            points = read_points_from_xsf(xsf_files[1])
+            for f in xsf_files
+                push!(t_funcs, WannierFunction(f, points))
+            end
+        end
+        push!(wanfuncs, t_funcs)
+    end
+    return wanfuncs
+end
+
 
