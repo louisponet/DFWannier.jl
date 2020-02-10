@@ -88,7 +88,7 @@ write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
 
 Writes the real part of the Wfc3D to a .xsf file that is readable by XCrysden or VESTA.
 """
-function write_xsf_file(filename::String, wfc, structure)
+function write_xsf_file(filename::String, wfc, structure; value_func=x -> norm(x))
     open(filename,"w") do f
         origin = wfc.points[1,1,1]
         write(f,"# Generated from PhD calculations\n")
@@ -116,7 +116,7 @@ function write_xsf_file(filename::String, wfc, structure)
         write(f,"$(wfc.points[1,end,1][1]-origin[1])   $(wfc.points[1,end,1][2]-origin[2])   $(wfc.points[1,end,1][3]-origin[3])\n")
         write(f,"$(wfc.points[1,1,end][1]-origin[1])   $(wfc.points[1,1,end][2]-origin[2])   $(wfc.points[1,1,end][3]-origin[3])\n")
         for wfp in wfc.values
-            write(f,"$(norm(wfp[1])) ")
+            write(f,"$(value_func(wfp)) ")
         end
         write(f,"\n")
         write.((f,), ["END_DATAGRID_3D\n", "END_BLOCK_DATAGRID_3D\n"])
@@ -244,8 +244,8 @@ function readhami(job::DFJob)
 
 	hami_files  = searchdir(job.local_dir, "hr.dat")
 	wsvec_files = searchdir(job.local_dir, "wsvec.dat")
-	@assert !isempty(hami_files) "No hamiltonian files ($seedname_hr.dat) found."
-	@assert !isempty(wsvec_files) "No wsvec files ($seedname_wsvec.dat) found."
+	@assert !isempty(hami_files) "No hamiltonian files ($(seedname)_hr.dat) found."
+	@assert !isempty(wsvec_files) "No wsvec files ($(seedname)_wsvec.dat) found."
 	if !any(DFC.iscolincalc.(job.inputs))
 		return readhami(joinpath(job, hami_files[1]), joinpath(job, wsvec_files[1]), job.structure)
 	else
