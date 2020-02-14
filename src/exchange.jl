@@ -375,15 +375,15 @@ end
 
 "Generates a Pauli σx matrix with the dimension that is passed through `n`."
 σx(::Type{T}, n::Int) where {T} =
-	kron(Mat2([0 1; 1 0]), diagm(0 => ones(T, div(n, 2))))
+	kron(diagm(0 => ones(T, div(n, 2))), SMatrix{2,2}(0,1,1,0))/2
 
 "Generates a Pauli σy matrix with the dimension that is passed through `n`."
 σy(::Type{T}, n::Int) where {T} =
-	kron(Mat2([0 -1im; 1im 0]), diagm(0 => ones(T, div(n, 2))))
+	kron(diagm(0 => ones(T, div(n, 2))), SMatrix{2,2}(0,-1im, 1im,0))/2
 
 "Generates a Pauli σz matrix with the dimension that is passed through `n`."
 σz(::Type{T}, n::Int) where {T} =
-	kron(Mat2([1 0; 0 -1]), diagm(0 => ones(T, div(n, 2))))
+	kron(diagm(0 => ones(T, div(n, 2))) ,SMatrix{2,2}(1, 0, 0, -1))/2
 
 for s in (:σx, :σy, :σz)
 	@eval @inline $s(m::AbstractArray{T}) where {T} =

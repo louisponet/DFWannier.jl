@@ -70,7 +70,7 @@ function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3}, Hk_function:
 	kgrid = HamiltonianKGrid(kpoints, [zeros_block(hami) for k in kpoints], [zeros(T, n_eigvals) for k in kpoints], [zeros_block(hami) for k in kpoints])
 	nk    = length(kpoints)
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
-	p = Progress(length(nk), 1, "Calculating H(k)...")
+	p = Progress(nk, 1, "Calculating H(k)...")
     @threads for i=1:nk
 	    tid = threadid()
 	    Hk!(kgrid.eigvecs[i], hami, k_cryst(kgrid)[i])
