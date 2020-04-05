@@ -198,3 +198,24 @@ function character_contribution(wband::WannierBand, atoms::Vector{<:AbstractAtom
     return contributions
 end
 
+function DFControl.pdos(bands::Vector{<:WannierBand}, atoms::Vector{<:AbstractAtom}, dE = 0.02)
+    all_contributions = [character_contribution(b, atoms) for b in bands]
+    E_bins = range(minimum(map(x->minimum(x.eigvals), bands)), maximum(map(x->maximum(x.eigvals), bands)), step=dE)
+    dos_bins = zeros(length(E_bins))
+
+    for (b, pdos) in zip(bands, all_contributions)
+        for (v, c) in zip(b.eigvals, pdos)
+            for i=1:length(E_bins)
+                if E_bins[i]-dE/2 <= v <= E_bins[i] + dE/2
+                    dos_bins[i] += c
+                end
+            end
+        end
+    end
+    return (E=E_bins, pdos=dos_bins./length(bands[1].eigvals))
+end
+
+
+
+
+

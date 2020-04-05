@@ -105,7 +105,7 @@ function write_xsf_file(filename::String, wfc, structure; value_func=x -> norm(x
         write(f, "PRIMCOORD\n")
         write(f, "$(length(atoms(structure))) 1\n")
         for at in atoms(structure)
-            n = element(at).name
+            n = element(at).symbol
             p = ustrip.(position_cart(at))
             write(f, "$n $(p[1]) $(p[2]) $(p[3])\n")
         end
@@ -522,7 +522,7 @@ function read_chk(filename)
         ndimwin = fill(n_wann, n_kpoints)
         U_matrix_opt= Array{Complex{Float64}, 3}()
     end
-    U_matrix = read(f, (Complex{Float64}, n_wann, n_wann, n_kpoints))
+    U_matrix = permutedims(read(f, (Complex{Float64}, n_wann, n_wann, n_kpoints)),(2,1,3))
 
     # Combined effect of disentanglement and localization
     V_matrix = Array{Complex{Float64},3}(undef, n_bands, n_wann, n_kpoints)
@@ -579,10 +579,21 @@ function read_eig(filename)
     return Hk
 end
 
+#TODO: speedup, we don't need all of them if things were disentangled
+function read_unk(file)
+    f = FortranFile(file)
+    ngx, ngy, ngz, nk, nbnd = read(f, (Int32, 5))
+    Uk = [zeros(ComplexF64, ngx, ngy, ngz) for i = 1:nbnd]
+    for i in 1:nbnd
+        read(f, Uk[i])
+    end
+    return Uk
+end
+
 function read_unk_nc(file)
     f = FortranFile(file)
     ngx, ngy, ngz, nk, nbnd = read(f, (Int32, 5))
-    Uk = zeros(ComplexF64, ngx, ngy, ngz,142, 2)
+    Uk = zeros(ComplexF64, ngx, ngy, ngz, nbnd, 2)
     for i in 1:nbnd
         Uk[:,:,:, i, 1] .= read(f, (ComplexF64, 45,45, 36))
         Uk[:,:,:,i, 2]  .= read(f, (ComplexF64, 45,45, 36))
@@ -745,6 +756,80 @@ function read_wannier_functions(job)
         push!(wanfuncs, t_funcs)
     end
     return wanfuncs
+end
+
+using UnsafeArrays
+
+function fill_abinitio_r(k_filenames, chk_info, wannier_plot_supercell::NTuple{3,Int},wan_plot_list=1:chk_info.n_wann)
+    num_kpts = length(k_filenames)
+    p = Progress(length(chk_info.kpoints))
+    U = chk_info.U_matrix
+    U_opt = chk_info.U_matrix_opt
+    nrx, nry, nrz = size(read_unk(k_filenames[1])[1])
+    supercell_xrange = -div(wannier_plot_supercell[1],2)*nrx : div(wannier_plot_supercell[1] + 1, 2)*nrx - 1
+    supercell_yrange = -div(wannier_plot_supercell[2],2)*nry : div(wannier_plot_supercell[2] + 1, 2)*nry - 1
+    supercell_zrange = -div(wannier_plot_supercell[3],2)*nrz : div(wannier_plot_supercell[3] + 1, 2)*nrz - 1
+
+
+
+    nx, ny, nz = length.((supercell_xrange, supercell_yrange, supercell_zrange))
+    wfuncs = zeros(ComplexF64, length(wan_plot_list), (wannier_plot_supercell .* (nrx, nry, nrz))...)
+    r_wan = zeros(ComplexF64, chk_info.n_wann, nrx, nry, nrz)
+    # Threads.@threads for ik = 1:num_kpts
+    for ik = 1:num_kpts
+        k = chk_info.kpoints[ik]
+        unk = read_unk(k_filenames[ik])
+
+        u = U[wan_plot_list, :, ik]
+        inc_ids = findall(!iszero, chk_info.lwindow[:, ik])
+        fill!(r_wan, 0.0)
+        Threads.@threads for iw in 1:chk_info.n_wann
+            for ib in 1:chk_info.ndimwin[ik]
+                @views r_wan[iw, :, :, :] .+= U_opt[ib, iw, ik] .* unk[inc_ids[ib]]
+            end
+        end
+        @inbounds @uviews r_wan wfuncs begin
+            Threads.@threads for iisx in 1:nx
+            # for iisx in 1:nx
+                isx = supercell_xrange[iisx]
+                ix = mod1(isx, nrx)
+                for iisy in 1:ny
+                    isy = supercell_yrange[iisy]
+                    iy = mod1(isy, nry)
+                    for iisz in 1:nz
+                        isz = supercell_zrange[iisz]
+                        iz = mod1(isz, nrz)
+                        # scalfac = dot(k, dotfacs[iisz, iisy, iisx])
+                        scalfac = exp(2im*π*dot(k, Vec3((isx-1)/nrx, (isy-1)/nry, (isz-1)/nrz)))
+
+                        mul!(view(wfuncs,:, iisx, iisy, iisz), u, view(r_wan,:, ix, iy, iz), scalfac, 1.0)
+                    end
+                end
+            end
+            next!(p)
+        end
+    end
+    wfuncs ./= num_kpts
+    Threads.@threads for iw = 1:size(wfuncs, 1)
+        tmaxx = 0.0
+        cmod  = 1.0+0.0im
+        for iisx in 1:nx
+            for iisy in 1:ny
+                for iisz in 1:nz
+                    w = wfuncs[iw, iisx, iisy, iisz]
+                    t = abs2(w)
+                    if t > tmaxx
+                        tmaxx = t
+                        cmod = w
+                    end
+                end
+            end
+        end
+        cmod /= abs(cmod)
+        @views wfuncs[:, :, :, iw] ./= cmod
+    end
+       
+    return wfuncs
 end
 
 

@@ -275,7 +275,6 @@ function calc_anisotropic_exchanges(hami,  atoms, fermi::T;
     exchanges       = setup_anisotropic_exchanges(atoms)
 
     Hvecs, Hvals, D = DHvecvals(hami, k_grid, atoms)
-    # @show D
 
     calc_anisotropic_exchanges!(exchanges, μ, R, k_grid, ω_grid, Hvecs, Hvals, D)
     return exchanges
@@ -376,14 +375,17 @@ end
 "Generates a Pauli σx matrix with the dimension that is passed through `n`."
 σx(::Type{T}, n::Int) where {T} =
 	kron(diagm(0 => ones(T, div(n, 2))), SMatrix{2,2}(0,1,1,0))/2
+σx(n::Int) = σx(Float64, n)
 
 "Generates a Pauli σy matrix with the dimension that is passed through `n`."
 σy(::Type{T}, n::Int) where {T} =
 	kron(diagm(0 => ones(T, div(n, 2))), SMatrix{2,2}(0,-1im, 1im,0))/2
+σy(n::Int) = σy(Float64, n)
 
 "Generates a Pauli σz matrix with the dimension that is passed through `n`."
 σz(::Type{T}, n::Int) where {T} =
 	kron(diagm(0 => ones(T, div(n, 2))) ,SMatrix{2,2}(1, 0, 0, -1))/2
+σz(n::Int) = σz(Float64, n)
 
 for s in (:σx, :σy, :σz)
 	@eval @inline $s(m::AbstractArray{T}) where {T} =

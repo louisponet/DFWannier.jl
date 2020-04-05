@@ -22,13 +22,15 @@ function WannierFunction(filename_re::String, filename_im::String, points::Array
 end
 
 function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
-
 	up_re, up_im, down_re, down_im =
 		read_values_from_xsf.(T, (filename_up_re, filename_up_im, filename_down_re, filename_down_im))
-
 	values = [SVector(Complex(a, b), Complex(c, d)) for (a, b, c, d) in zip(up_re, up_im, down_re, down_im)]
 	return normalize(WannierFunction(points, values))
 end
+
+WannierFunction(point_func::Function,  points::Array) =
+    normalize(WannierFunction(points, point_func.(points)))
+
 
 values(w::WannierFunction) =
 	w.values
@@ -76,14 +78,22 @@ LinearAlgebra.normalize(wfc::WannierFunction) =
 	wfc ./= sqrt(norm(wfc))
 
 ####
-
 same_grid(w1::WannierFunction, w2::WannierFunction) =
 	w1.points === w2.points 
 
 function wan_op(op::Function, w1::W, w2::W) where {W <: WannierFunction}
 	@assert same_grid(w1, w2) "Wannier functions are not defined on the same grid"
-	op(w1, w2)
+	return WannierFunction(w1.points, op(w1.values, w2.values))
 end
+
++(w1::WannierFunction, w2::WannierFunction) = wan_op(+, w1, w2)
+*(w1::WannierFunction, w2::WannierFunction) = wan_op(*, w1, w2)
+-(w1::WannierFunction, w2::WannierFunction) = wan_op(-, w1, w2)
+
+*(w1::WannierFunction, n::Number) = WannierFunction(w1.points, w1.values .* n)
+*(n::Number, w1::WannierFunction) = WannierFunction(w1.points, n .* w1.values)
+/(w1::WannierFunction, n::Number) = WannierFunction(w1.points, n ./ w1.values)
+/(n::Number, w1::WannierFunction) = WannierFunction(w1.points, w1.values ./ n)
 
 struct OperatorBlock{T <: AbstractFloat}
 	L::Vector{Matrix{Complex{T}}}
