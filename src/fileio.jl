@@ -738,152 +738,81 @@ function read_wannier_functions(job)
     return wanfuncs
 end
 
-# function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NTuple{3,Int}, wan_plot_list=1:chk_info.n_wann)
-#     num_kpts = length(k_filenames)
-#     p = Progress(length(chk_info.kpoints))
-#     U = chk_info.U_matrix
-#     U_opt = chk_info.U_matrix_opt
-#     tu = read_unk(k_filenames[1])
-#     nrx, nry, nrz = size(tu,1), size(tu,2), size(tu,3)
-#     supercell_xrange = -div(wannier_plot_supercell[1],2)*nrx : div(wannier_plot_supercell[1] + 1, 2)*nrx - 1
-#     supercell_yrange = -div(wannier_plot_supercell[2],2)*nry : div(wannier_plot_supercell[2] + 1, 2)*nry - 1
-#     supercell_zrange = -div(wannier_plot_supercell[3],2)*nrz : div(wannier_plot_supercell[3] + 1, 2)*nrz - 1
-
-#     nx, ny, nz = length.((supercell_xrange, supercell_yrange, supercell_zrange))
-
-#     wfuncs_all = zeros(eltype(tu), length(wan_plot_list), (wannier_plot_supercell .* (nrx, nry, nrz))...,size(tu, 5))
-#     r_wan      = zeros(eltype(tu), chk_info.n_wann, nrx, nry, nrz)
-#     for ik = 1:num_kpts
-#         k = chk_info.kpoints[ik]
-#         unk_all = read_unk(k_filenames[ik])
-#         for is = 1:size(tu, 5)
-#             wfuncs = wfuncs_all[:,:,:,:,is]
-#             unk = view(unk_all, :, :, :, :, is)
-#             u = U[wan_plot_list, :, ik]
-#             inc_ids = findall(!iszero, chk_info.lwindow[:, ik])
-#             fill!(r_wan, 0.0)
-#             Threads.@threads for iw in 1:chk_info.n_wann
-#                 for ib in 1:chk_info.ndimwin[ik]
-#                     @views r_wan[iw, :, :, :] .+= U_opt[ib, iw, ik] .* unk[:,:,:,inc_ids[ib]]
-#                 end
-#             end
-#             @inbounds @uviews r_wan wfuncs begin
-#                 Threads.@threads for iisx in 1:nx
-#                     isx = supercell_xrange[iisx]
-#                     ix = mod1(isx, nrx)
-#                     for iisy in 1:ny
-#                         isy = supercell_yrange[iisy]
-#                         iy = mod1(isy, nry)
-#                         for iisz in 1:nz
-#                             isz = supercell_zrange[iisz]
-#                             iz = mod1(isz, nrz)
-#                             scalfac = exp(2im*π*dot(k, Vec3((isx-1)/nrx, (isy-1)/nry, (isz-1)/nrz)))
-#                             mul!(view(wfuncs,:, iisx, iisy, iisz), u, view(r_wan,:, ix, iy, iz), scalfac, 1.0)
-#                         end
-#                     end
-#                 end
-#                 next!(p)
-#             end
-#         end
-#     end
-#     for is = 1:size(tu, 5)
-#         wfuncs = wfuncs_all[is]
-#         wfuncs ./= num_kpts
-#         Threads.@threads for iw = 1:size(wfuncs, 1)
-#             tmaxx = 0.0
-#             cmod  = 1.0+0.0im
-#             for iisx in 1:nx
-#                 for iisy in 1:ny
-#                     for iisz in 1:nz
-#                         w = wfuncs[iw, iisx, iisy, iisz]
-#                         t = abs2(w)
-#                         if t > tmaxx
-#                             tmaxx = t
-#                             cmod = w
-#                         end
-#                     end
-#                 end
-#             end
-#             cmod /= abs(cmod)
-#             @views wfuncs[:, :, :, iw] ./= cmod
-#         end
-#     end
-#     points = [chk_info.cell * Vec3((x-1)/nrx, (y-1)/nry, (z-1)/nrz) for x in supercell_xrange, y in supercell_yrange, z in supercell_zrange]
-#     if size(tu,2) == 1
-#         return map(iw -> WannierFunction(points, map(x -> SVector(x), view(wfuncs_all[1],iw, :, :, :))), 1:size(wfuncs_all[1],1))
-#     else
-#         return map(iw -> WannierFunction(points, map(x -> SVector(x), zip(view(wfuncs_all[1], iw, :, :, :), view(wfuncs_all[2], iw, :, :, :)))), 1:size(wfuncs_all[1],1))
-#     end
-# end
 function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NTuple{3,Int}, wan_plot_list=1:chk_info.n_wann)
     num_kpts = length(k_filenames)
     p = Progress(length(chk_info.kpoints))
     U = chk_info.U_matrix
     U_opt = chk_info.U_matrix_opt
-    tu = read_unk_collinear(k_filenames[1])
-    nrx, nry, nrz = size(tu[1])
+    tu = read_unk(k_filenames[1])
+    nrx, nry, nrz = size(tu,1), size(tu,2), size(tu,3)
     supercell_xrange = -div(wannier_plot_supercell[1],2)*nrx : div(wannier_plot_supercell[1] + 1, 2)*nrx - 1
     supercell_yrange = -div(wannier_plot_supercell[2],2)*nry : div(wannier_plot_supercell[2] + 1, 2)*nry - 1
     supercell_zrange = -div(wannier_plot_supercell[3],2)*nrz : div(wannier_plot_supercell[3] + 1, 2)*nrz - 1
 
     nx, ny, nz = length.((supercell_xrange, supercell_yrange, supercell_zrange))
 
-    wfuncs = zeros(eltype(tu[1]), length(wan_plot_list), (wannier_plot_supercell .* (nrx, nry, nrz))...)
-    r_wan      = zeros(eltype(tu[1]), chk_info.n_wann, nrx, nry, nrz)
+    wfuncs_all = zeros(eltype(tu), length(wan_plot_list), (wannier_plot_supercell .* (nrx, nry, nrz))...,size(tu, 5))
+    r_wan      = zeros(eltype(tu), chk_info.n_wann, nrx, nry, nrz)
     for ik = 1:num_kpts
         k = chk_info.kpoints[ik]
-        unk = read_unk(k_filenames[ik])
-        u = U[wan_plot_list, :, ik]
-        inc_ids = findall(!iszero, chk_info.lwindow[:, ik])
-        fill!(r_wan, 0.0)
-        Threads.@threads for iw in 1:chk_info.n_wann
-            for ib in 1:chk_info.ndimwin[ik]
-                @views r_wan[iw, :, :, :] .+= U_opt[ib, iw, ik] .* unk[inc_ids[ib]]
-            end
-        end
-        @inbounds @uviews r_wan wfuncs begin
-            Threads.@threads for iisx in 1:nx
-                isx = supercell_xrange[iisx]
-                ix = mod1(isx, nrx)
-                for iisy in 1:ny
-                    isy = supercell_yrange[iisy]
-                    iy = mod1(isy, nry)
-                    for iisz in 1:nz
-                        isz = supercell_zrange[iisz]
-                        iz = mod1(isz, nrz)
-                        scalfac = exp(2im*π*dot(k, Vec3((isx-1)/nrx, (isy-1)/nry, (isz-1)/nrz)))
-                        mul!(view(wfuncs,:, iisx, iisy, iisz), u, view(r_wan,:, ix, iy, iz), scalfac, 1.0)
-                    end
+        unk_all = read_unk(k_filenames[ik])
+        for is = 1:size(tu, 5)
+            unk = view(unk_all, :, :, :, :, is)
+            u = U[wan_plot_list, :, ik]
+            inc_ids = findall(!iszero, chk_info.lwindow[:, ik])
+            fill!(r_wan, 0.0)
+            Threads.@threads for iw in 1:chk_info.n_wann
+                for ib in 1:chk_info.ndimwin[ik]
+                    @views r_wan[iw, :, :, :] .+= U_opt[ib, iw, ik] .* unk[:,:,:,inc_ids[ib]]
                 end
             end
-            next!(p)
+            @inbounds @uviews r_wan wfuncs_all begin
+                Threads.@threads for iisx in 1:nx
+                    isx = supercell_xrange[iisx]
+                    ix = mod1(isx, nrx)
+                    for iisy in 1:ny
+                        isy = supercell_yrange[iisy]
+                        iy = mod1(isy, nry)
+                        for iisz in 1:nz
+                            isz = supercell_zrange[iisz]
+                            iz = mod1(isz, nrz)
+                            scalfac = exp(2im*π*dot(k, Vec3((isx-1)/nrx, (isy-1)/nry, (isz-1)/nrz)))
+                            mul!(view(wfuncs_all,:, iisx, iisy, iisz, is), u, view(r_wan,:, ix, iy, iz), scalfac, 1.0)
+                        end
+                    end
+                end
+                next!(p)
+            end
         end
     end
-    wfuncs ./= num_kpts
-    Threads.@threads for iw = 1:size(wfuncs, 1)
-        tmaxx = 0.0
-        cmod  = 1.0+0.0im
-        for iisx in 1:nx
-            for iisy in 1:ny
-                for iisz in 1:nz
-                    w = wfuncs[iw, iisx, iisy, iisz]
-                    t = abs2(w)
-                    if t > tmaxx
-                        tmaxx = t
-                        cmod = w
+    wfuncs_all ./= num_kpts
+    if size(tu, 5) == 1
+        Threads.@threads for iw = 1:size(wfuncs_all, 1)
+            tmaxx = 0.0
+            cmod  = 1.0+0.0im
+            for iisx in 1:nx
+                for iisy in 1:ny
+                    for iisz in 1:nz
+                        w = wfuncs_all[iw, iisx, iisy, iisz, 1]
+                        t = abs2(w)
+                        if t > tmaxx
+                            tmaxx = t
+                            cmod = w
+                        end
                     end
                 end
             end
+            cmod /= abs(cmod)
+            @views wfuncs_all[:, :, :, iw, 1] ./= cmod
         end
-        cmod /= abs(cmod)
-        @views wfuncs[:, :, :, iw] ./= cmod
     end
     points = [chk_info.cell * Vec3((x-1)/nrx, (y-1)/nry, (z-1)/nrz) for x in supercell_xrange, y in supercell_yrange, z in supercell_zrange]
-    return map(iw -> WannierFunction(points, map(x -> SVector(x), view(wfuncs_all[1],iw, :, :, :))), 1:size(wfuncs_all[1],1))
+    if size(tu,5) == 1
+        return map(iw -> WannierFunction(points, map(x -> SVector(x), view(wfuncs_all,iw, :, :, :, 1))), 1:size(wfuncs_all,1))
+    else
+        return map(iw -> WannierFunction(points, map(x -> SVector(x), zip(view(wfuncs_all, iw, :, :, :, 1), view(wfuncs_all, iw, :, :, :, 2)))), 1:size(wfuncs_all,1))
+    end
 end
-
-using InteractiveUtils
-
 function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int})
     unk_files = DFC.searchdir(job, "UNK")
     wan_calc  = getfirst(x -> DFC.package(x)==Wannier90, DFC.inputs(job))
@@ -893,21 +822,14 @@ end
 
 read_unk(file) = occursin("NC", file) ? read_unk_noncollinear(file) : read_unk_collinear(file)
 
-# function read_unk_collinear(file)
-#     f = FortranFile(file)
-#     ngx, ngy, ngz, nk, nbnd = read(f, (Int32, 5))
-#     Uk = zeros(ComplexF64, ngx, ngy, ngz, nbnd, 1)
-#     for i in 1:nbnd
-#         read(f, Uk[:,:,:,i, 1])
-#     end
-#     return Uk
-# end
 function read_unk_collinear(file)
     f = FortranFile(file)
     ngx, ngy, ngz, nk, nbnd = read(f, (Int32, 5))
-    Uk = [zeros(ComplexF64, ngx, ngy, ngz) for i=1:nbnd]
+    Uk = zeros(ComplexF64, ngx, ngy, ngz, nbnd, 1)
     for i in 1:nbnd
-        read(f, Uk[i])
+        record = FortranFiles.Record(f)
+        read!(record, view(Uk,:,:,:,i,1))
+        close(record)
     end
     return Uk
 end
@@ -917,8 +839,12 @@ function read_unk_noncollinear(file)
     ngx, ngy, ngz, nk, nbnd = read(f, (Int32, 5))
     Uk = zeros(ComplexF64, ngx, ngy, ngz, nbnd, 2)
     for i in 1:nbnd
-        read(f, Uk[:,:,:,i,1])
-        read(f, Uk[:,:,:,i,2])
+        record = FortranFiles.Record(f)
+        read!(record, view(Uk,:,:,:,i,1))
+        close(record)
+        record = FortranFiles.Record(f)
+        read!(record, view(Uk,:,:,:,i,2))
+        close(record)
     end
     return Uk
 end
