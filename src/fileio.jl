@@ -813,11 +813,11 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
         return map(iw -> WannierFunction(points, map(x -> SVector(x), zip(view(wfuncs_all, iw, :, :, :, 1), view(wfuncs_all, iw, :, :, :, 2)))), 1:size(wfuncs_all,1))
     end
 end
-function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int})
+function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int}, args...)
     unk_files = DFC.searchdir(job, "UNK")
     wan_calc  = getfirst(x -> DFC.package(x)==Wannier90, DFC.inputs(job))
     chk_info  = read_chk(joinpath(job, "$(name(wan_calc)).chk"))
-    return plot_wannierfunctions(unk_files, chk_info, supercell)
+    return plot_wannierfunctions(unk_files, chk_info, supercell, args...)
 end
 
 read_unk(file) = occursin("NC", file) ? read_unk_noncollinear(file) : read_unk_collinear(file)
