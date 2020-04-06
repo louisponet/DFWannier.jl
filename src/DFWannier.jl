@@ -18,6 +18,7 @@ module DFWannier
 	using DelimitedFiles
 	using Unitful
 	using ProgressMeter
+	using UnsafeArrays
 
 	include("linalg.jl")
 	include("types.jl")

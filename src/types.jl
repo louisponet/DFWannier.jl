@@ -9,19 +9,19 @@ struct WannierFunction{N, T<:AbstractFloat} <: AbstractArray{SVector{N, Complex{
 	values::Array{SVector{N, Complex{T}}, 3}
 end
 
-function WannierFunction(filename::AbstractString, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
+function WannierFunction(filename::AbstractString, points::Array{Point3{T}, 3}=read_points_from_xsf(filename)) where {T <: AbstractFloat}
 	re = read_values_from_xsf(T, filename)
 	values = [SVector(complex(a)) for a in re]
 	return normalize(WannierFunction(points, values))
 end
 
-function WannierFunction(filename_re::String, filename_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
+function WannierFunction(filename_re::String, filename_im::String, points::Array{Point3{T}, 3} = read_points_from_xsf(filename_re)) where {T <: AbstractFloat}
 	re, im = read_values_from_xsf.(T, (filename_re, filename_im))
 	values = [SVector(Complex(a, b)) for (a, b) in zip(re, im)]
 	return normalize(WannierFunction(points, values))
 end
 
-function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3}) where {T <: AbstractFloat}
+function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3} = read_points_from_xsf(filename_re)) where {T <: AbstractFloat}
 	up_re, up_im, down_re, down_im =
 		read_values_from_xsf.(T, (filename_up_re, filename_up_im, filename_down_re, filename_down_im))
 	values = [SVector(Complex(a, b), Complex(c, d)) for (a, b, c, d) in zip(up_re, up_im, down_re, down_im)]
