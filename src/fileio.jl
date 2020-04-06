@@ -823,7 +823,9 @@ function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int})
     return plot_wannierfunctions(unk_files, chk_info, supercell)
 end
 
-function read_unk(file)
+read_unk(file) = occursin("NC", file) ? read_unk_noncollinear(file) : read_unk_collinear(file)
+
+function read_unk_collinear(file)
     f = FortranFile(file)
     ngx, ngy, ngz, nk, nbnd = read(f, (Int32, 5))
     Uk = [zeros(ComplexF64, ngx, ngy, ngz) for i = 1:nbnd]
@@ -833,7 +835,7 @@ function read_unk(file)
     return Uk
 end
 
-function read_unk_nc(file)
+function read_unk_noncollinear(file)
     f = FortranFile(file)
     ngx, ngy, ngz, nk, nbnd = read(f, (Int32, 5))
     Uk = [zeros(ComplexF64, ngx, ngy, ngz) for i=1:nbnd, j=1:2]
