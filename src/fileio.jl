@@ -742,7 +742,7 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
     num_kpts = length(k_filenames)
     p = Progress(length(chk_info.kpoints))
     U = chk_info.U_matrix
-    U_opt = chk_info.U_matrix_opt
+    U_opt = permutedims(chk_info.U_matrix_opt,(2,1,3))
     tu = read_unk(k_filenames[1])
     nrx, nry, nrz = size(tu,1), size(tu,2), size(tu,3)
     supercell_xrange = -div(wannier_plot_supercell[1],2)*nrx : div(wannier_plot_supercell[1] + 1, 2)*nrx - 1
@@ -751,38 +751,50 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
 
     nx, ny, nz = length.((supercell_xrange, supercell_yrange, supercell_zrange))
 
-    wfuncs_all = zeros(eltype(tu), length(wan_plot_list), (wannier_plot_supercell .* (nrx, nry, nrz))...,size(tu, 5))
+    nwfun = length(wan_plot_list)
+    wfuncs_all = zeros(eltype(tu), nwfun, (wannier_plot_supercell .* (nrx, nry, nrz))...,size(tu, 5))
+    n_wann = chk_info.n_wann
     r_wan      = zeros(eltype(tu), chk_info.n_wann, nrx, nry, nrz)
-    for ik = 1:num_kpts
+    @inbounds for ik = 1:num_kpts
         k = chk_info.kpoints[ik]
         unk_all = read_unk(k_filenames[ik])
         for is = 1:size(tu, 5)
-            unk = view(unk_all, :, :, :, :, is)
             u = U[wan_plot_list, :, ik]
+            u_opt = U_opt[:, :, ik]
             inc_ids = findall(!iszero, chk_info.lwindow[:, ik])
             fill!(r_wan, 0.0)
-            Threads.@threads for iw in 1:chk_info.n_wann
-                for ib in 1:chk_info.ndimwin[ik]
-                    @views r_wan[iw, :, :, :] .+= U_opt[ib, iw, ik] .* unk[:,:,:,inc_ids[ib]]
-                end
-            end
-            @inbounds @uviews r_wan wfuncs_all begin
-                Threads.@threads for iisx in 1:nx
-                    isx = supercell_xrange[iisx]
-                    ix = mod1(isx, nrx)
-                    for iisy in 1:ny
-                        isy = supercell_yrange[iisy]
-                        iy = mod1(isy, nry)
-                        for iisz in 1:nz
-                            isz = supercell_zrange[iisz]
-                            iz = mod1(isz, nrz)
-                            scalfac = exp(2im*π*dot(k, Vec3((isx-1)/nrx, (isy-1)/nry, (isz-1)/nrz)))
-                            mul!(view(wfuncs_all,:, iisx, iisy, iisz, is), u, view(r_wan,:, ix, iy, iz), scalfac, 1.0)
+            for ib in 1:chk_info.ndimwin[ik]
+                iib = inc_ids[ib]
+                Threads.@threads for nz in 1:nrz
+                    for ny in 1:nry
+                        for nx in 1:nrx
+                            for iw in 1:n_wann
+                                r_wan[iw, nx, ny, nz] += u_opt[iw, ib] * unk_all[nx,ny,nz,iib,is]
+                            end
                         end
                     end
                 end
-                next!(p)
             end
+            Threads.@threads for iisz in 1:nz
+                isz = supercell_zrange[iisz]
+                iz = mod1(isz, nrz)
+                for iisy in 1:ny
+                    isy = supercell_yrange[iisy]
+                    iy = mod1(isy, nry)
+                    for iisx in 1:nx
+                        isx = supercell_xrange[iisx]
+                        ix = mod1(isx, nrx)
+                        scalfac = exp(2im*π*dot(k, Vec3((isx-1)/nrx, (isy-1)/nry, (isz-1)/nrz)))
+                        for ib in 1:n_wann
+                            rt = r_wan[ib, ix, iy, iz] * scalfac
+                            for iw in 1:nwfun
+                                wfuncs_all[iw, iisx, iisy, iisz, is] += u[iw, ib] * rt
+                            end
+                        end
+                    end
+                end
+            end
+            next!(p)
         end
     end
     wfuncs_all ./= num_kpts
