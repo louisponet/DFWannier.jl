@@ -738,8 +738,6 @@ function read_wannier_functions(job)
     return wanfuncs
 end
 
-using SIMD
-
 function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NTuple{3,Int}, wan_plot_list=1:chk_info.n_wann)
     num_kpts = length(k_filenames)
     U = chk_info.U_matrix
