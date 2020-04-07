@@ -755,8 +755,8 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
     n_wann = chk_info.n_wann
     r_wan      = zeros(eltype(tu), chk_info.n_wann, nrx, nry, nrz)
 
+    p = Progress(length(chk_info.kpoints))
     @inbounds for ik = 1:num_kpts
-        p = Progress(length(chk_info.kpoints))
         k = chk_info.kpoints[ik]
         unk_all = read_unk(k_filenames[ik])
         for is = 1:size(tu, 5)
@@ -795,8 +795,8 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
                     end
                 end
             end
-            next!(p)
         end
+        next!(p)
     end
     wfuncs_all ./= num_kpts
     if size(tu, 5) == 1
