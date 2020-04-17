@@ -215,7 +215,8 @@ function DFControl.pdos(bands::Vector{<:WannierBand}, atoms::Vector{<:AbstractAt
     return (E=E_bins, pdos=dos_bins./length(bands[1].eigvals))
 end
 
-
+kpdos(bands::Vector{<:WannierBand}, atoms::Vector{<:AbstractAtom}) = map(x -> character_contribution(x, atoms), bands)
+    
 
 
 

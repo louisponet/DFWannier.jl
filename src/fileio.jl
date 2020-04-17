@@ -137,9 +137,11 @@ function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structu
     wsvec_f = open(wsvec_file, "r")
     readline(wsvec_f)
 
+    out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}[]
+    degen = Int64[]
+    nwanfun = 0
+    ndegen  = 0
     open(hami_file) do f
-        out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}[]
-        degen = Int64[]
         linenr = 0
         readline(f)
         nwanfun = parse(Int64, readline(f))

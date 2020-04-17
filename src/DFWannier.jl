@@ -32,6 +32,6 @@ module DFWannier
 	include("berry.jl")
 	# include("orbital_angular_momentum.jl")
     export HamiltonianKGrid
-	export wannierbands, readhami, calc_exchanges, read_colin_hami, character_contributions
+	export wannierbands, readhami, calc_exchanges, read_colin_hami, character_contributions, kpdos
 	export uniform_kgrid
 end
