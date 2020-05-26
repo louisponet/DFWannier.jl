@@ -163,6 +163,8 @@ end
     spins    ::Vector{Vector{Point3{T}}} = Vector{Point3{T}}[]
 end
 
+DFControl.eigvals(b::WannierBand) = b.eigvals
+
 function WannierBand(kpoints::Vector{Vec3{T}}, dim::Int) where T
     klen = length(kpoints)
     WannierBand{T}(kpoints_cryst=kpoints, eigvals=zeros(T, klen), eigvec=[zeros(Complex{T}, dim) for k=1:klen])
@@ -188,35 +190,54 @@ end
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) =
 	wannierbands(tbhamis, dfbands[1].k_points_cryst)
 
+function energy_bins(binfunc::Function, wbands::Vector{<:WannierBand}, E_range, normalize_bins=false)
+    nbins   = length(E_range)-1
+    bins    = zeros(typeof(binfunc(wbands[1].eigvec[1])), nbins)
+    # sum = zero(typeof(binfunc(bands[1].eigvec[1])))
+    nperbin = zeros(Int, nbins)
+    for b in wbands
+        for (e, v) in zip(b.eigvals, b.eigvec)
+            ie = findfirst(i -> E_range[i] <= e <= E_range[i+1], 1:nbins)
+            if ie === nothing
+                continue
+            end
+            bins[ie] += binfunc(v)
+            nperbin[ie] += 1
+        end
+    end
+    if normalize_bins #like taking the mean
+        for i=1:nbins
+            if nperbin[i] > 0
+                bins[i] /= nperbin[i]
+            end
+        end
+    end
+    return bins
+end
+
 function character_contribution(wband::WannierBand, atoms::Vector{<:AbstractAtom})
     contributions = zeros(length(wband.kpoints_cryst))
     for (i, v) in enumerate(wband.eigvec)
         for a in atoms
-            contributions[i] += real(sum(conj.(v[a]) .* v[a]))
+            contributions[i] += norm(v[a])^2
         end
     end
     return contributions
 end
 
-function DFControl.pdos(bands::Vector{<:WannierBand}, atoms::Vector{<:AbstractAtom}, dE = 0.02)
-    all_contributions = [character_contribution(b, atoms) for b in bands]
-    E_bins = range(minimum(map(x->minimum(x.eigvals), bands)), maximum(map(x->maximum(x.eigvals), bands)), step=dE)
-    dos_bins = zeros(length(E_bins))
+function DFControl.pdos(wbands::Vector{<:WannierBand}, atoms::Vector{<:AbstractAtom}, dE = 0.02)
+    Emin = minimum(wbands[1].eigvals)
+    Emax = maximum(wbands[end].eigvals)
+    E_range = range(Emin, Emax, step=dE)
 
-    for (b, pdos) in zip(bands, all_contributions)
-        for (v, c) in zip(b.eigvals, pdos)
-            for i=1:length(E_bins)
-                if E_bins[i]-dE/2 <= v <= E_bins[i] + dE/2
-                    dos_bins[i] += c
-                end
-            end
+    bins = energy_bins(wbands, E_range, false) do v
+        tot = 0.0
+        for a in atoms
+            tot += norm(v[a])^2/dE
         end
+        return tot
     end
-    return (E=E_bins, pdos=dos_bins./length(bands[1].eigvals))
+    return (E=E_range, pdos=bins./length(wbands[1].kpoints_cryst))
 end
 
 kpdos(bands::Vector{<:WannierBand}, atoms::Vector{<:AbstractAtom}) = map(x -> character_contribution(x, atoms), bands)
-    
-
-
-

@@ -243,7 +243,10 @@ function readhami(job::DFJob)
     @assert any(x -> x isa DFInput{Wannier90}, job.inputs) "No wannier90 calculations found in the job."
 
     seedname = getfirst(x -> x isa DFInput{Wannier90}, job.inputs).name
-
+    jld_file = joinpath(job, "hami.jld2")
+    if ispath(jld_file)
+        return DFC.load(jld_file)["hami"]
+    end
 	hami_files  = searchdir(job.local_dir, "hr.dat")
 	wsvec_files = searchdir(job.local_dir, "wsvec.dat")
 	@assert !isempty(hami_files) "No hamiltonian files ($(seedname)_hr.dat) found."
