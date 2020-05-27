@@ -14,7 +14,7 @@ w_eachindex(m::Matrix) = eachindex(m)
 #     block   ::M
 #     preprocessed_block ::M
 # end
-struct TbBlock{T <: AbstractFloat, LT<:Length{T},  M <: AbstractMatrix{Complex{T}}}
+struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, LT<:Length{T}}
     R_cryst ::Vec3{Int}
     R_cart  ::Vec3{LT}
     # wigner_seitz_shifts_cryst::VS
@@ -37,7 +37,7 @@ LinearAlgebra.eigen(h::TbBlock) =
 	eigen(block(h))
 
 # const TbHami{T, M, MI, VS, LT, VL}  = Vector{TbBlock{T, M, MI, VS, LT, VL}}
-const TbHami{T, M}  = Vector{TbBlock{T, M}}
+const TbHami{T, M, LT}  = Vector{TbBlock{T, M, LT}}
 
 getindex(h::TbHami, R::Vec3{Int}) =
 	getfirst(x -> x.R_cryst == R, h)

@@ -188,7 +188,7 @@ read_hr(file::AbstractString) = read_hr(ComplexF64, file)
 function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T, LT}) where  {T<:AbstractFloat,LT<:Length{T}}
     hr    = read_hr(Complex{T}, hami_file)
     wsvec = read_wsvec(wsvec_file, size(hr[1].block,1))
-    out = [TbBlock(h.R_cryst, zeros(Complex{T}, size(h.block))) for h in hr]
+    out = [TbBlock(h.R_cryst, h.R_cart, zeros(Complex{T}, size(h.block))) for h in hr]
     for (h, w) in zip(hr, wsvec)
         for i in eachindex(h.block)
             nshifts = w.nshifts[i]
