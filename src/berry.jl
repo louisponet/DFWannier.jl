@@ -114,7 +114,7 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
         B = B_k[i]
         Ω = Ω_k[i]
         C = C_k[i]
-        fourier_transform(tb_hami, kpoints[i]) do n, iR, R_cart, b, fac
+        fourier_transform_nows(tb_hami, kpoints[i]) do n, iR, R_cart, b, fac
             Rcart = ustrip.(R_cart)
             for v=1:3
                 ∇Hk[v][n] += Rcart[v] * 1im * fac * block(b)[n]

@@ -124,98 +124,214 @@ function write_xsf_file(filename::String, wfc, structure; value_func=x -> norm(x
 end
 
 #This comes from w90; it's basically a cube
-const MAX_WIGNER_SEITZ_DEGENERACIES = 8 
+function read_wsvec(file, nwanfun::Int)
+    out = NamedTuple{(:R_cryst, :shifts_cryst, :nshifts),
+                     Tuple{Vec3{Int}, Matrix{Vector{Vec3{Int}}}, Matrix{Int}}}[]
 
-@doc raw"""
-	readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T})
+    open(file, "r") do f
+        readline(f)
+        n_wsvec_read = 0
+        while !eof(f)
+            n_wsvec_read = 0
+            R_cryst = zero(Vec3{Int})
+            shifts_cryst = [Vec3{Int}[] for i=1:nwanfun, j=1:nwanfun]
+            nshifts = [0 for i=1:nwanfun, j=1:nwanfun]
+            while n_wsvec_read < nwanfun^2
+                l = strip_split(readline(f))
+                R_cryst = iszero(R_cryst) ? parse(Vec3{Int}, l[1:3]) : R_cryst
+                i, j = parse.(Int, l[4:5])
+                nshifts[i, j] = parse(Int, strip(readline(f)))
+                for ip = 1:nshifts[i, j]
+                    push!(shifts_cryst[i, j], parse(Vec3{Int}, strip_split(readline(f))))
+                end
+                n_wsvec_read += 1
+            end
+            push!(out, (R_cryst=R_cryst, shifts_cryst=shifts_cryst, nshifts=nshifts))
+        end
+    end
+    return out
+end
 
-Reads `seedname_hr.dat` and `seedname_wsvec.dat` and returns a vector of TbBlocks with the hopping parameters of the Wannier Tight Binding Hamiltonian.
-"""
-function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T, LT}) where  {T<:AbstractFloat,LT<:Length{T}}
-    @assert ispath(hami_file) && ispath(wsvec_file) "Please provide valid hamiltonian and wsvec files."
-
-    wsvec_f = open(wsvec_file, "r")
-    readline(wsvec_f)
-
-    out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}[]
-    degen = Int64[]
-    nwanfun = 0
-    ndegen  = 0
-    open(hami_file) do f
-        linenr = 0
+function read_hr(::Type{T}, file) where {T<:Complex}
+    out = NamedTuple{(:R_cryst, :block),
+                     Tuple{Vec3{Int}, Matrix{T}}}[]
+    open(file, "r") do f
+        degen = Int64[]
         readline(f)
         nwanfun = parse(Int64, readline(f))
         ndegen  = parse(Int64, readline(f))
         while length(degen) < ndegen
-            push!(degen, parse.(Int, split(readline(f)))...)
+            append!(degen, parse.(Int, split(readline(f))))
         end
+        nwanfun2 = nwanfun^2
+        rpt = 1
         while !eof(f)
-            l = split(readline(f))
-            linenr += 1
-            rpt = div(linenr - 1, nwanfun^2) + 1
-            R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
-            if length(out) < rpt
-                # Reading all the wigner seitz shifts etc from the wsvec.dat file
-                # TODO Performance: It's probably a better idea to have a nwanfun * nwanfun dimensional matrix with the number of degeneracies,
-                #                   and a vector with all the actual shifts serialized into it.
-
-                # wigner_seitz_shifts_cryst = Vec3{Int}[]
-                wigner_seitz_shifts_cryst = Matrix{Vector{Vec3{Int}}}(undef, nwanfun, nwanfun)
-                # wigner_seitz_shifts_cart = Vec3{LT}[]
-                wigner_seitz_shifts_cart = Matrix{Vector{Vec3{LT}}}(undef, nwanfun, nwanfun)
-                wigner_seitz_nshift_matrix = Matrix{Int}(undef, nwanfun, nwanfun)
-                n_wsvecs_read = 0
-                while n_wsvecs_read < nwanfun^2
-                    wanid1, wanid2 = parse.(Int, strip_split(readline(wsvec_f))[end-1:end]) #R line that should be the same as already read
-                    n_ws_degeneracies = parse(Int, strip(readline(wsvec_f)))
-                    t_shifts = zeros(Vec3{Int}, n_ws_degeneracies)
-                    wigner_seitz_nshift_matrix[wanid1, wanid2] = n_ws_degeneracies
-                    for i in 1:n_ws_degeneracies
-                        t_shifts[i] = Vec3(parse.(Int, strip_split(readline(wsvec_f)))...)
-                    end
-                    wigner_seitz_shifts_cryst[wanid1, wanid2] = t_shifts
-                    wigner_seitz_shifts_cart[wanid1, wanid2] = (cell(structure),).*t_shifts
-                    # prepend!(wigner_seitz_shifts_cryst, t_shifts)
-                    # prepend!(wigner_seitz_shifts_cart, (cell(structure),).*t_shifts)
-                    n_wsvecs_read += 1
-                    # wigner_seitz_shift_matrix[wanid1, wanid2] = t_shifts
-                end
-
-                block = TbBlock(cell(structure) * R_cryst, R_cryst, wigner_seitz_shifts_cryst, wigner_seitz_shifts_cart, wigner_seitz_nshift_matrix, degen[rpt], zeros(Complex{T}, nwanfun, nwanfun), zeros(Complex{T}, nwanfun, nwanfun))
-                push!(out, block)
-            else
-                block = out[rpt]
+            n_ids_read = 0
+            block = zeros(T, nwanfun, nwanfun)
+            R_cryst = zero(Vec3{Int})
+            deg = degen[rpt]
+            while n_ids_read < nwanfun2
+                l = split(readline(f))
+                R_cryst = iszero(R_cryst) ? parse(Vec3{Int}, l[1:3]) : R_cryst
+                block[parse(Int, l[4]), parse(Int, l[5])] = T(parse(eltype(T), l[6]), parse(eltype(T), l[7])) / deg
+                n_ids_read += 1
             end
-            complex = Complex{T}(parse(T, l[6]), parse(T, l[7]))
-            i, j = parse(Int, l[4]), parse(Int, l[5])
-            block.block[i, j] = complex/(block.wigner_seitz_degeneracy * block.wigner_seitz_nshifts[i, j])
-            # block.preprocessed_block[i, j] = complex
+            rpt += 1
+            push!(out, (R_cryst=R_cryst, block = block))
         end
-
-        for b in out
-            for i in eachindex(b.block)
-                nshifts = b.wigner_seitz_nshifts[i]
-                if nshifts == 0
-                    continue
-                end
-                for is = 1:nshifts
-                    R_cryst = b.R_cryst + b.wigner_seitz_shifts_cryst[i][is]
-                    b1 = out[R_cryst]
-                    if b1 === nothing
-                        b1 = TbBlock(cell(structure) * R_cryst, R_cryst, Matrix{Vector{Vec3{Int}}}(undef, nwanfun, nwanfun),Matrix{Vector{Vec3{LT}}}(undef, nwanfun, nwanfun), zeros(Int, nwanfun, nwanfun), 1, copy(b.block), zeros(Complex{T}, nwanfun, nwanfun))
-                        push!(out, b1)
-                    end
-                    # b1.preprocessed_block[i] += b.block[i] / (nshifts * b.wigner_seitz_degeneracy)
-                    b1.preprocessed_block[i] += b.block[i]
-                end
-            end
-        end
-        return out
     end
+    return out
 end
+
+read_hr(file::AbstractString) = read_hr(ComplexF64, file)
+
+function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T, LT}) where  {T<:AbstractFloat,LT<:Length{T}}
+    hr    = read_hr(Complex{T}, hami_file)
+    wsvec = read_wsvec(wsvec_file, size(hr[1].block,1))
+    out = [TbBlock(h.R_cryst, zeros(Complex{T}, size(h.block))) for h in hr]
+    for (h, w) in zip(hr, wsvec)
+        for i in eachindex(h.block)
+            nshifts = w.nshifts[i]
+            for is = 1:nshifts
+                R_cryst = h.R_cryst + w.shifts_cryst[i][is]
+                h1 = out[R_cryst]
+                if h1 === nothing
+                    h1 = TbBlock(R_cryst, cell(structure) * R_cryst, zeros(Complex{T}, size(h.block)))
+                    push!(out, h1)
+                end
+                h1.block[i] += h.block[i]/nshifts
+            end
+        end
+    end
+    return out
+end
+
+# @doc raw"""
+# 	readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T})
+
+# Reads `seedname_hr.dat` and `seedname_wsvec.dat` and returns a vector of TbBlocks with the hopping parameters of the Wannier Tight Binding Hamiltonian.
+# """
+# function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T, LT}) where  {T<:AbstractFloat,LT<:Length{T}}
+#     @assert ispath(hami_file) && ispath(wsvec_file) "Please provide valid hamiltonian and wsvec files."
+
+#     wsvec_f = open(wsvec_file, "r")
+#     readline(wsvec_f)
+
+#     out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}[]
+#     degen = Int64[]
+#     nwanfun = 0
+#     ndegen  = 0
+#     open(hami_file) do f
+#         linenr = 0
+#         readline(f)
+#         nwanfun = parse(Int64, readline(f))
+#         ndegen  = parse(Int64, readline(f))
+#         while length(degen) < ndegen
+#             push!(degen, parse.(Int, split(readline(f)))...)
+#         end
+#         while !eof(f)
+#             l = split(readline(f))
+#             linenr += 1
+#             rpt = div(linenr - 1, nwanfun^2) + 1
+#             R_cryst = Vec3(parse(Int, l[1]), parse(Int, l[2]), parse(Int, l[3]))
+#             if length(out) < rpt
+#                 # Reading all the wigner seitz shifts etc from the wsvec.dat file
+#                 # TODO Performance: It's probably a better idea to have a nwanfun * nwanfun dimensional matrix with the number of degeneracies,
+#                 #                   and a vector with all the actual shifts serialized into it.
+
+#                 # wigner_seitz_shifts_cryst = Vec3{Int}[]
+#                 wigner_seitz_shifts_cryst = Matrix{Vector{Vec3{Int}}}(undef, nwanfun, nwanfun)
+#                 # wigner_seitz_shifts_cart = Vec3{LT}[]
+#                 wigner_seitz_shifts_cart = Matrix{Vector{Vec3{LT}}}(undef, nwanfun, nwanfun)
+#                 wigner_seitz_nshift_matrix = Matrix{Int}(undef, nwanfun, nwanfun)
+#                 n_wsvecs_read = 0
+#                 while n_wsvecs_read < nwanfun^2
+#                     wanid1, wanid2 = parse.(Int, strip_split(readline(wsvec_f))[end-1:end]) #R line that should be the same as already read
+#                     n_ws_degeneracies = parse(Int, strip(readline(wsvec_f)))
+#                     t_shifts = zeros(Vec3{Int}, n_ws_degeneracies)
+#                     wigner_seitz_nshift_matrix[wanid1, wanid2] = n_ws_degeneracies
+#                     for i in 1:n_ws_degeneracies
+#                         t_shifts[i] = Vec3(parse.(Int, strip_split(readline(wsvec_f)))...)
+#                     end
+#                     wigner_seitz_shifts_cryst[wanid1, wanid2] = t_shifts
+#                     wigner_seitz_shifts_cart[wanid1, wanid2] = (cell(structure),).*t_shifts
+#                     # prepend!(wigner_seitz_shifts_cryst, t_shifts)
+#                     # prepend!(wigner_seitz_shifts_cart, (cell(structure),).*t_shifts)
+#                     n_wsvecs_read += 1
+#                     # wigner_seitz_shift_matrix[wanid1, wanid2] = t_shifts
+#                 end
+
+#                 block = TbBlock(cell(structure) * R_cryst, R_cryst, wigner_seitz_shifts_cryst, wigner_seitz_shifts_cart, wigner_seitz_nshift_matrix, degen[rpt], zeros(Complex{T}, nwanfun, nwanfun), zeros(Complex{T}, nwanfun, nwanfun))
+#                 push!(out, block)
+#             else
+#                 block = out[rpt]
+#             end
+#             complex = Complex{T}(parse(T, l[6]), parse(T, l[7]))
+#             i, j = parse(Int, l[4]), parse(Int, l[5])
+#             block.block[i, j] = complex/(block.wigner_seitz_degeneracy * block.wigner_seitz_nshifts[i, j])
+#             # block.preprocessed_block[i, j] = complex
+#         end
+
+#         for b in out
+#             for i in eachindex(b.block)
+#                 nshifts = b.wigner_seitz_nshifts[i]
+#                 if nshifts == 0
+#                     continue
+#                 end
+#                 for is = 1:nshifts
+#                     R_cryst = b.R_cryst + b.wigner_seitz_shifts_cryst[i][is]
+#                     b1 = out[R_cryst]
+#                     if b1 === nothing
+#                         b1 = TbBlock(cell(structure) * R_cryst, R_cryst, Matrix{Vector{Vec3{Int}}}(undef, nwanfun, nwanfun),Matrix{Vector{Vec3{LT}}}(undef, nwanfun, nwanfun), zeros(Int, nwanfun, nwanfun), 1, copy(b.block), zeros(Complex{T}, nwanfun, nwanfun))
+#                         push!(out, b1)
+#                     end
+#                     # b1.preprocessed_block[i] += b.block[i] / (nshifts * b.wigner_seitz_degeneracy)
+#                     b1.preprocessed_block[i] += b.block[i]
+#                 end
+#             end
+#         end
+#         return out
+#     end
+# end
 
 #super not optimized
 #TODO Test: new wigner seitz shift stuff
+# @doc raw"""
+# 	read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws_file::AbstractString, down_ws_file::AbstractString structure::AbstractStructure{T})
+
+# Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
+# """
+# function read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws_file::AbstractString, down_ws_file::AbstractString, structure::AbstractStructure)
+# 	uphami   = readhami(upfile, up_ws_file, structure)
+# 	downhami = readhami(downfile, down_ws_file, structure)
+# 	dim = blocksize(uphami)
+# 	@assert dim == blocksize(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
+
+# 	u1 = uphami[1]
+# 	d1 = downhami[u1.R_cryst]
+	
+# 	first = TbBlock(u1.R_cart,
+# 	                u1.R_cryst,
+# 	                ColinMatrix(u1.wigner_seitz_shifts_cryst, d1.wigner_seitz_shifts_cryst),
+# 	                ColinMatrix(u1.wigner_seitz_shifts_cart, d1.wigner_seitz_shifts_cart),
+# 	                ColinMatrix(u1.wigner_seitz_nshifts, d1.wigner_seitz_nshifts),
+# 	                u1.wigner_seitz_degeneracy,
+# 	                ColinMatrix(block(u1), block(d1)),
+# 	                ColinMatrix(u1.preprocessed_block, d1.preprocessed_block))
+
+# 	outhami  = [first]
+# 	for u in uphami[2:end]
+#     	d = downhami[u.R_cryst] 
+# 		tmat = ColinMatrix(block(u), block(d))
+# 		tmat_pre = ColinMatrix(u.preprocessed_block, d.preprocessed_block)
+# 		t_shifts_cryst = ColinMatrix(u.wigner_seitz_shifts_cryst, d.wigner_seitz_shifts_cryst)
+# 		t_shifts_cart = ColinMatrix(u.wigner_seitz_shifts_cart, d.wigner_seitz_shifts_cart)
+# 		t_nshifts = ColinMatrix(u.wigner_seitz_nshifts, d.wigner_seitz_nshifts)
+# 		degen = u.wigner_seitz_degeneracy
+# 		push!(outhami, TbBlock(u.R_cart, u.R_cryst, t_shifts_cryst, t_shifts_cart, t_nshifts, degen, tmat, tmat_pre))
+# 	end
+# 	return outhami
+# end
 @doc raw"""
 	read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws_file::AbstractString, down_ws_file::AbstractString structure::AbstractStructure{T})
 
@@ -230,25 +346,13 @@ function read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws
 	u1 = uphami[1]
 	d1 = downhami[u1.R_cryst]
 	
-	first = TbBlock(u1.R_cart,
-	                u1.R_cryst,
-	                ColinMatrix(u1.wigner_seitz_shifts_cryst, d1.wigner_seitz_shifts_cryst),
-	                ColinMatrix(u1.wigner_seitz_shifts_cart, d1.wigner_seitz_shifts_cart),
-	                ColinMatrix(u1.wigner_seitz_nshifts, d1.wigner_seitz_nshifts),
-	                u1.wigner_seitz_degeneracy,
-	                ColinMatrix(block(u1), block(d1)),
-	                ColinMatrix(u1.preprocessed_block, d1.preprocessed_block))
+	first = TbBlock(u1.R_cryst, u1.R_cart, ColinMatrix(block(u1), block(d1)))
 
 	outhami  = [first]
 	for u in uphami[2:end]
     	d = downhami[u.R_cryst] 
 		tmat = ColinMatrix(block(u), block(d))
-		tmat_pre = ColinMatrix(u.preprocessed_block, d.preprocessed_block)
-		t_shifts_cryst = ColinMatrix(u.wigner_seitz_shifts_cryst, d.wigner_seitz_shifts_cryst)
-		t_shifts_cart = ColinMatrix(u.wigner_seitz_shifts_cart, d.wigner_seitz_shifts_cart)
-		t_nshifts = ColinMatrix(u.wigner_seitz_nshifts, d.wigner_seitz_nshifts)
-		degen = u.wigner_seitz_degeneracy
-		push!(outhami, TbBlock(u.R_cart, u.R_cryst, t_shifts_cryst, t_shifts_cart, t_nshifts, degen, tmat, tmat_pre))
+		push!(outhami, TbBlock(u.R_cryst, u.R_cart, tmat))
 	end
 	return outhami
 end
