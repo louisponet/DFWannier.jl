@@ -12,6 +12,7 @@ struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:Abstract
     wigner_seitz_degeneracy::Int #not sure if we need to keep this
     # For example on boundaries of the supercell
     block   ::M
+    preprocessed_block ::M
 end
 
 block(x::TbBlock) = x.block
@@ -84,8 +85,9 @@ end
 
 function Hk!(out::AbstractMatrix, tbhami::TbHami, kpoint::Vec3)
     fill!(out, zero(eltype(out)))
-    fourier_transform(tbhami, kpoint) do i, iR, R_cart, b, fac
-        @inbounds out[i] += fac * block(b)[i]
+    fourier_transform_nows(tbhami, kpoint) do i, iR, R_cart, b, fac
+        # @inbounds out[i] += fac * b.block[i]
+        @inbounds out[i] += fac * b.preprocessed_block[i]
     end
 end
 
@@ -103,29 +105,30 @@ eigvals(g::HamiltonianKGrid) = g.eigvals
 function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
     for (iR, b) in enumerate(tb_hami)
         degen = b.wigner_seitz_degeneracy
-        shifts_used = 0
         for i in eachindex(block(b))
+            n_shifts     = b.wigner_seitz_nshifts[i]
+            if n_shifts == 0
+                continue
+            end
             cart_shifts  = b.wigner_seitz_shifts_cart[i]
             cryst_shifts = b.wigner_seitz_shifts_cryst[i]
-            n_shifts     = length(cart_shifts)
             for is in 1:n_shifts
                 shift = cryst_shifts[is]
                 R_cryst = b.R_cryst + shift
-                fac = ℯ^(2im*π*(R_cryst ⋅ kpoint))/(degen * n_shifts)
+                fac = ℯ^(2im * π * (R_cryst ⋅ kpoint))
                 R_function(i, iR, b.R_cart + cart_shifts[is],  b, fac)
             end
-            shifts_used += n_shifts
         end
     end
 end
 
 "Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
 function fourier_transform_nows(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
-    for b in tb_hami
-        degen = b.wigner_seitz_degeneracy
-        fac = ℯ^(2im*π*(b.R_cryst ⋅ kpoint))/degen
+    for (iR, b) in enumerate(tb_hami)
+        # degen = b.wigner_seitz_degeneracy
+        fac = ℯ^(2im * π * (b.R_cryst ⋅ kpoint))
         for i in eachindex(block(b))
-            R_function(i, b, fac)
+            R_function(i, iR, b.R_cart, b, fac)
         end
     end
 end
@@ -197,7 +200,7 @@ function energy_bins(binfunc::Function, wbands::Vector{<:WannierBand}, E_range, 
     nperbin = zeros(Int, nbins)
     for b in wbands
         for (e, v) in zip(b.eigvals, b.eigvec)
-            ie = findfirst(i -> E_range[i] <= e <= E_range[i+1], 1:nbins)
+            ie = findfirst(i -> E_range[i] <= e < E_range[i+1], 1:nbins)
             if ie === nothing
                 continue
             end
@@ -225,19 +228,19 @@ function character_contribution(wband::WannierBand, atoms::Vector{<:AbstractAtom
     return contributions
 end
 
+#This is correct, there's a mistake in w90 bin selection!
 function DFControl.pdos(wbands::Vector{<:WannierBand}, atoms::Vector{<:AbstractAtom}, dE = 0.02)
     Emin = minimum(wbands[1].eigvals)
     Emax = maximum(wbands[end].eigvals)
     E_range = range(Emin, Emax, step=dE)
-
     bins = energy_bins(wbands, E_range, false) do v
         tot = 0.0
         for a in atoms
-            tot += norm(v[a])^2/dE
+            tot += norm(v[a])^2
         end
         return tot
     end
-    return (E=E_range, pdos=bins./length(wbands[1].kpoints_cryst))
+    return (E=E_range, pdos=bins./(dE*length(wbands[1].kpoints_cryst)))
 end
 
 kpdos(bands::Vector{<:WannierBand}, atoms::Vector{<:AbstractAtom}) = map(x -> character_contribution(x, atoms), bands)

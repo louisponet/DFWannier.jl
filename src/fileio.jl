@@ -181,13 +181,34 @@ function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structu
                     # wigner_seitz_shift_matrix[wanid1, wanid2] = t_shifts
                 end
 
-                block = TbBlock(cell(structure) * R_cryst, R_cryst, wigner_seitz_shifts_cryst, wigner_seitz_shifts_cart, wigner_seitz_nshift_matrix, degen[rpt], Matrix{Complex{T}}(I, nwanfun, nwanfun))
+                block = TbBlock(cell(structure) * R_cryst, R_cryst, wigner_seitz_shifts_cryst, wigner_seitz_shifts_cart, wigner_seitz_nshift_matrix, degen[rpt], zeros(Complex{T}, nwanfun, nwanfun), zeros(Complex{T}, nwanfun, nwanfun))
                 push!(out, block)
             else
                 block = out[rpt]
             end
-            complex = Complex{T}(parse(T, l[6]), parse(T, l[7])) 
-            block.block[parse(Int, l[4]), parse(Int, l[5])] = complex
+            complex = Complex{T}(parse(T, l[6]), parse(T, l[7]))
+            i, j = parse(Int, l[4]), parse(Int, l[5])
+            block.block[i, j] = complex/(block.wigner_seitz_degeneracy * block.wigner_seitz_nshifts[i, j])
+            # block.preprocessed_block[i, j] = complex
+        end
+
+        for b in out
+            for i in eachindex(b.block)
+                nshifts = b.wigner_seitz_nshifts[i]
+                if nshifts == 0
+                    continue
+                end
+                for is = 1:nshifts
+                    R_cryst = b.R_cryst + b.wigner_seitz_shifts_cryst[i][is]
+                    b1 = out[R_cryst]
+                    if b1 === nothing
+                        b1 = TbBlock(cell(structure) * R_cryst, R_cryst, Matrix{Vector{Vec3{Int}}}(undef, nwanfun, nwanfun),Matrix{Vector{Vec3{LT}}}(undef, nwanfun, nwanfun), zeros(Int, nwanfun, nwanfun), 1, copy(b.block), zeros(Complex{T}, nwanfun, nwanfun))
+                        push!(out, b1)
+                    end
+                    # b1.preprocessed_block[i] += b.block[i] / (nshifts * b.wigner_seitz_degeneracy)
+                    b1.preprocessed_block[i] += b.block[i]
+                end
+            end
         end
         return out
     end
@@ -200,15 +221,14 @@ end
 
 Returns an array of tuples that define the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
-function read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws_file::AbstractString, down_ws_file::AbstractString, structure::AbstractStructure{T}) where  T
+function read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws_file::AbstractString, down_ws_file::AbstractString, structure::AbstractStructure)
 	uphami   = readhami(upfile, up_ws_file, structure)
 	downhami = readhami(downfile, down_ws_file, structure)
 	dim = blocksize(uphami)
-	CT = Complex{T}
 	@assert dim == blocksize(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
 
 	u1 = uphami[1]
-	d1 = downhami[1]
+	d1 = downhami[u1.R_cryst]
 	
 	first = TbBlock(u1.R_cart,
 	                u1.R_cryst,
@@ -216,16 +236,19 @@ function read_colin_hami(upfile::AbstractString, downfile::AbstractString, up_ws
 	                ColinMatrix(u1.wigner_seitz_shifts_cart, d1.wigner_seitz_shifts_cart),
 	                ColinMatrix(u1.wigner_seitz_nshifts, d1.wigner_seitz_nshifts),
 	                u1.wigner_seitz_degeneracy,
-	                ColinMatrix(block(u1), block(d1)))
+	                ColinMatrix(block(u1), block(d1)),
+	                ColinMatrix(u1.preprocessed_block, d1.preprocessed_block))
 
 	outhami  = [first]
-	for (u, d) in zip(uphami[2:end], downhami[2:end])
+	for u in uphami[2:end]
+    	d = downhami[u.R_cryst] 
 		tmat = ColinMatrix(block(u), block(d))
+		tmat_pre = ColinMatrix(u.preprocessed_block, d.preprocessed_block)
 		t_shifts_cryst = ColinMatrix(u.wigner_seitz_shifts_cryst, d.wigner_seitz_shifts_cryst)
 		t_shifts_cart = ColinMatrix(u.wigner_seitz_shifts_cart, d.wigner_seitz_shifts_cart)
 		t_nshifts = ColinMatrix(u.wigner_seitz_nshifts, d.wigner_seitz_nshifts)
 		degen = u.wigner_seitz_degeneracy
-		push!(outhami, TbBlock(u.R_cart, u.R_cryst, t_shifts_cryst,t_shifts_cart,t_nshifts, degen, tmat))
+		push!(outhami, TbBlock(u.R_cart, u.R_cryst, t_shifts_cryst, t_shifts_cart, t_nshifts, degen, tmat, tmat_pre))
 	end
 	return outhami
 end
