@@ -55,6 +55,7 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami) where {T}
             end
         end
     end
+    # @show A_q[1][1]
     A_R = [berry_vec() for k=1:length(irvec)]
     B_R = [berry_vec() for k=1:length(irvec)]
     C_R = [berry_mat() for k=1:length(irvec)]
@@ -135,7 +136,7 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
         occupations_H_gauge = map(x -> x < fermi ? 1 : 0, Ek) #acting like it's only an insulator for now
         n_wann = length(Ek)
         
-        f[i] .= Uk * diagm(0=>occupations_H_gauge) * Uk'
+        f[i] .= Uk * diagm(0 => occupations_H_gauge) * Uk'
 
         g[i] .= map(x -> -x, f[i])
         for j = 1:n_wann
@@ -231,7 +232,8 @@ function orbital_angular_momentum_w90(berry_K_grid::BerryKGrid{T}) where {T}
     non_traced_Hαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
     non_traced_Gαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
 
-    Threads.@threads for ik in 1:nk
+    for ik in 1:nk
+    # for ik in 1:nk
         f = berry_K_grid.f[ik]
         g = berry_K_grid.g[ik]
         A = berry_K_grid.A[ik] 
@@ -246,7 +248,6 @@ function orbital_angular_momentum_w90(berry_K_grid::BerryKGrid{T}) where {T}
             β = pseudo_β[iv]
 
             non_traced_Fαβ[ik][iv] .+= real.(f * Ω[iv]) .- 2 .* imag.(A[α] * J_plus[β] .+ J_minus[α] * A[β] .+ J_minus[α] * J_plus[β])
-
             t_1 = H * A[α]
             t_3 = H * Ω[iv]
 

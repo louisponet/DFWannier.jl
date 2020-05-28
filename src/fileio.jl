@@ -496,6 +496,161 @@ function read_exchanges(filename::String, T=Float64)
     end
 end
 
+# function read_chk(filename)
+#     # try
+#         f = FortranFile(filename)
+#         header = String(read(f, FString{33}))
+#         n_bands = Int(read(f, Int32))
+#         n_excluded_bands = Int(read(f, Int32))
+#         # exclude_bands_t = zeros(Int32, n_excluded_bands)
+#         read(f, (Int32, n_excluded_bands))
+#         # exclude_bands= convert.(Int, exclude_bands_t)
+#         read(f)
+#         real_lattice = Mat3(read(f, (Float64, 3, 3))...)
+#         recip_lattice = K_CART_TYPE{Float64}.(Mat3(read(f, (Float64, 3, 3))...)')
+#         n_kpoints = read(f, Int32)
+#         mp_grid = Vec3(Int.(read(f, (Int32, 3)))...)
+#         kpt_lattice_t = read(f, (Float64, 3, n_kpoints))
+#         kpt_lattice = [Vec3(kpt_lattice_t[:, i]...) for i = 1:size(kpt_lattice_t)[2]]
+#         k_nearest_neighbors = read(f, Int32)
+
+#         n_wann = read(f, Int32)
+#         chkpt = strip(String(read(f, FString{20})))
+#         have_disentangled = read(f, Int32) == 1 ? true : false
+#         if have_disentangled
+#             omega_invariant = read(f, Float64)
+#             lwindow = map(x-> x==1 ? true : false, read(f, (Int32, n_bands, n_kpoints)))
+#             ndimwin = read(f, (Int32, n_kpoints))
+#             U_matrix_opt = read(f, (Complex{Float64}, n_bands, n_wann, n_kpoints))
+#         else
+#             omega_invariant = 0.0
+#             lwindow = fill(true, 1, n_kpoints)
+#             ndimwin = fill(n_wann, n_kpoints)
+#             U_matrix_opt= Array{Complex{Float64}, 3}()
+#         end
+#         U_matrix = permutedims(read(f, (Complex{Float64}, n_wann, n_wann, n_kpoints)),(2,1,3))
+
+#         # Combined effect of disentanglement and localization
+#         V_matrix = Array{Complex{Float64},3}(undef, n_bands, n_wann, n_kpoints)
+#         if have_disentangled
+#             for ik in 1:n_kpoints
+#                 V_matrix[:, :, ik] = U_matrix_opt[:, :, ik] * U_matrix[:, :, ik]
+#             end
+#         else
+#             V_matrix = U_matrix
+#         end
+
+#         m_matrix = read(f, (Complex{Float64}, n_wann, n_wann, k_nearest_neighbors, n_kpoints))
+#         wannier_centers_t = read(f, (Float64, 3, n_wann))
+#         wannier_centers = [Point3(wannier_centers_t[:, i]...) for i = 1:size(wannier_centers_t)[2]]
+#         wannier_spreads = read(f, (Float64, n_wann))
+
+#         wb = read(f, (Float64, k_nearest_neighbors)) #this requires patched w90
+
+#         return (
+#             n_bands=n_bands,
+#             n_excluded_bands=n_excluded_bands,
+#             cell=real_lattice',
+#             recip_cell=recip_lattice,
+#             n_kpoints=n_kpoints,
+#             mp_grid=mp_grid,
+#             kpoints=kpt_lattice,
+#             n_nearest_neighbors=k_nearest_neighbors,
+#             neighbor_weights=wb,
+#             n_wann=n_wann,
+#             have_disentangled=have_disentangled,
+#             Ω_invariant = omega_invariant,
+#             lwindow=lwindow,
+#             ndimwin =ndimwin,
+#             U_matrix_opt=U_matrix_opt,
+#             U_matrix=U_matrix,
+#             V_matrix=V_matrix,
+#             m_matrix=m_matrix,
+#             wannier_centers=wannier_centers,
+#             wannier_spreads=wannier_spreads
+#         )
+    # catch
+    #     open(filename, "r") do f
+    #         header = readline(f)
+    #         n_bands = parse(Int, readline(f))
+    #         n_excluded_bands = parse(Int,readline(f))
+    #         # exclude_bands_t = zeros(Int32, n_excluded_bands)
+    #         for i=1:n_excluded_bands
+    #             readline(f)
+    #         end
+    #         # exclude_bands= convert.(Int, exclude_bands_t)
+    #         # read(f)
+    #         ssl = () -> strip_split(readline(f))
+    #         real_lattice = Mat3(parse.(Float64, ssl()))
+    #         recip_lattice = K_CART_TYPE{Float64}.(parse.(Float64, ssl())')
+    #         n_kpoints = parse(Int, readline(f))
+    #         mp_grid = parse(Vec3{Int}, ssl())
+    #         kpt_lattice = [zero(Vec3{Float64}) for i=1:n_kpoints]
+    #         for i = 1:n_kpoints
+    #             kpt_lattice[i] = parse(Vec3{Float64}, ssl())
+    #         end
+    #         k_nearest_neighbors = parse(Int, readline(f))
+
+    #         n_wann = parse(Int, readline(f))
+    #         chkpt = readline(f)
+    #         have_disentangled = parse(Bool, readline(f))
+    #         if have_disentangled
+    #             omega_invariant = parse(Float64, readline(f))
+    #             lwindow = [parse(Bool, readline(f)) for i=1:n_bands, j=1:n_kpoints]
+    #             # lwindow = map(x-> x == 1 ? true : false, )
+    #             ndimwin = [parse(Int, readline(f)) for i=1:n_kpoints]
+    #             U_matrix_opt = [complex(parse.(Float64, ssl())...) for i=1:n_bands, j=1:n_wann, k=1:n_kpoints]
+    #         else
+    #             omega_invariant = 0.0
+    #             lwindow = fill(true, 1, n_kpoints)
+    #             ndimwin = fill(n_wann, n_kpoints)
+    #             U_matrix_opt= Array{Complex{Float64}, 3}()
+    #         end
+    #         U_matrix = permutedims([complex(parse.(Float64, ssl())...) for i=1:n_wann, j=1:n_wann, k=1:n_kpoints],(2,1,3))
+
+    #         # Combined effect of disentanglement and localization
+    #         V_matrix = Array{Complex{Float64},3}(undef, n_bands, n_wann, n_kpoints)
+    #         if have_disentangled
+    #             for ik in 1:n_kpoints
+    #                 V_matrix[:, :, ik] = U_matrix_opt[:, :, ik] * U_matrix[:, :, ik]
+    #             end
+    #         else
+    #             V_matrix = U_matrix
+    #         end
+
+    #         m_matrix = [complex(parse.(Float64, ssl())...) for i=1:n_wann, j=1:n_wann, k=1:k_nearest_neighbors, l=1:n_kpoints]
+    #         wannier_centers = [parse(Point3{Float64}, ssl()) for i=1:n_wann]
+    #         wannier_spreads = [parse(Float64, readline(f)) for i=1:n_wann]
+
+    #         # wb = [parse(Float64, readline(f)) for i=1:k_nearest_neighbors] #this requires patched w90
+
+    #         return (
+    #             n_bands=n_bands,
+    #             n_excluded_bands=n_excluded_bands,
+    #             cell=real_lattice',
+    #             recip_cell=recip_lattice,
+    #             n_kpoints=n_kpoints,
+    #             mp_grid=mp_grid,
+    #             kpoints=kpt_lattice,
+    #             n_nearest_neighbors=k_nearest_neighbors,
+    #             neighbor_weights=wb,
+    #             n_wann=n_wann,
+    #             have_disentangled=have_disentangled,
+    #             Ω_invariant = omega_invariant,
+    #             lwindow=lwindow,
+    #             ndimwin =ndimwin,
+    #             U_matrix_opt=U_matrix_opt,
+    #             U_matrix=U_matrix,
+    #             V_matrix=V_matrix,
+    #             m_matrix=m_matrix,
+    #             wannier_centers=wannier_centers,
+    #             wannier_spreads=wannier_spreads
+    #         )
+    #     end
+    #     # return read_chk_formatted(filename)
+    # end
+# end
+
 function read_chk(filename)
     f = FortranFile(filename)
     header = String(read(f, FString{33}))
@@ -512,7 +667,7 @@ function read_chk(filename)
     kpt_lattice_t = read(f, (Float64, 3, n_kpoints))
     kpt_lattice = [Vec3(kpt_lattice_t[:, i]...) for i = 1:size(kpt_lattice_t)[2]]
     k_nearest_neighbors = read(f, Int32)
-
+ 
     n_wann = read(f, Int32)
     chkpt = strip(String(read(f, FString{20})))
     have_disentangled = read(f, Int32) == 1 ? true : false
@@ -527,8 +682,8 @@ function read_chk(filename)
         ndimwin = fill(n_wann, n_kpoints)
         U_matrix_opt= Array{Complex{Float64}, 3}()
     end
-    U_matrix = permutedims(read(f, (Complex{Float64}, n_wann, n_wann, n_kpoints)),(2,1,3))
-
+    U_matrix = read(f, (Complex{Float64}, n_wann, n_wann, n_kpoints))
+ 
     # Combined effect of disentanglement and localization
     V_matrix = Array{Complex{Float64},3}(undef, n_bands, n_wann, n_kpoints)
     if have_disentangled
@@ -538,18 +693,17 @@ function read_chk(filename)
     else
         V_matrix = U_matrix
     end
-
+ 
     m_matrix = read(f, (Complex{Float64}, n_wann, n_wann, k_nearest_neighbors, n_kpoints))
     wannier_centers_t = read(f, (Float64, 3, n_wann))
     wannier_centers = [Point3(wannier_centers_t[:, i]...) for i = 1:size(wannier_centers_t)[2]]
     wannier_spreads = read(f, (Float64, n_wann))
-
+ 
     wb = read(f, (Float64, k_nearest_neighbors)) #this requires patched w90
-
     return (
         n_bands=n_bands,
         n_excluded_bands=n_excluded_bands,
-        cell=real_lattice',
+        cell=real_lattice,
         recip_cell=recip_lattice,
         n_kpoints=n_kpoints,
         mp_grid=mp_grid,
@@ -598,12 +752,39 @@ function ReciprocalOverlaps{T}(k_id::Int, n_nearest_neighbors::Int, nbands::Int)
     ReciprocalOverlaps{T}(k_id, zeros(Int, n_nearest_neighbors), zeros(Vec3{Int}, n_nearest_neighbors), overlap_matrices)
 end
 
+function read_uHu(file)
+    try 
+        uHu_file = FortranFile(file)
+        read(uHu_file, FString{20})
+        nbands, nkpoints, n_nearest_neighbors = read(uHu_file, (Int32, 3))
+        out = [Matrix{ComplexF64}(undef, nbands, nbands) for i=1:nkpoints*n_nearest_neighbors^2]
+        for i=1:nkpoints*n_nearest_neighbors^2
+            out[i] = transpose(read(uHu_file, (ComplexF64, nbands, nbands)))
+        end
+        return out
+    catch
+        open(file, "r") do f
+            readline(f)
+            nbands, nkpoints, n_nearest_neighbors = parse.(Int, strip_split(readline(f)))
+            out = [Matrix{ComplexF64}(undef, nbands, nbands) for i=1:nkpoints*n_nearest_neighbors^2]
+            for i=1:nkpoints*n_nearest_neighbors^2
+                for j = 1:nbands
+                    for k = 1:nbands
+                        out[i][j,k] = complex(parse.(Float64, strip_split(readline(f)))...)
+                    end
+                end
+            end
+            return out
+        end
+    end
+end
+
 function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractString, uHu_filename::AbstractString, wannier_chk_params) where {T}
     num_wann = wannier_chk_params.n_wann
     uHu_file = FortranFile(uHu_filename)
     read(uHu_file, FString{20})
     read(uHu_file, (Int32, 3))
-
+ 
     open(mmn_filename, "r") do f
         readline(f) #header
         nbands, nkpoints, n_nearest_neighbors = parse.(Int, strip_split(readline(f)))
@@ -615,34 +796,33 @@ function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractS
         for i in 1:nkpoints*n_nearest_neighbors
             sline = strip_split(readline(f))
             cur_neighbor = mod1(neighbor_counter, n_nearest_neighbors) 
-
+ 
             ik, ik2 = parse.(Int, sline[1:2])
-
+ 
             overlap_ab_initio_gauge = Matrix{Complex{T}}(undef, nbands, nbands)
             for n in eachindex(overlap_ab_initio_gauge)
                 overlap_ab_initio_gauge[n] = complex(parse.(T, strip_split(readline(f)))...)
             end
-
+ 
             vmat_ik = wannier_chk_params.V_matrix[:, :, ik]
             vmat_ik2 = wannier_chk_params.V_matrix[:, :, ik2]
             first_band_id_ik = findfirst(wannier_chk_params.lwindow[:, ik])
             first_band_id_ik2 = findfirst(wannier_chk_params.lwindow[:, ik2])
-
+ 
             num_states_ik = wannier_chk_params.ndimwin[ik]
             num_states_ik2 = wannier_chk_params.ndimwin[ik2]
-
+ 
             V1 = vmat_ik[1:num_states_ik, 1:num_wann]
             V2 = vmat_ik2[1:num_states_ik2, 1:num_wann]
-
 
             disentanglement_range_k1 = first_band_id_ik:first_band_id_ik+num_states_ik-1
             disentanglement_range_k2 = first_band_id_ik2:first_band_id_ik2+num_states_ik2-1
             S12 = overlap_ab_initio_gauge[disentanglement_range_k1, disentanglement_range_k2]
-
+ 
             kpoint = grid[ik]
-
+ 
             vr = (wannier_chk_params.recip_cell * parse(Vec3{Int}, sline[3:5]) + grid[ik2].k_cart) - kpoint.k_cart
-
+ 
             V1_T = V1'
             S12_V2 = S12 * V2
             kpoint.overlaps[cur_neighbor] =  V1_T * S12_V2
@@ -653,10 +833,10 @@ function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractS
                 ik3 = kpoint.neighbors[nearest_neighbor2].k_id2
                 first_band_id_ik3 = findfirst(wannier_chk_params.lwindow[:, ik3])
                 num_states_ik3    = wannier_chk_params.ndimwin[ik3]
-
+ 
                 V3 = wannier_chk_params.V_matrix[1:num_states_ik3, 1:num_wann, ik3]
                 
-
+ 
                 uHu_k2_k3 = transpose(read(uHu_file, (ComplexF64, nbands, nbands)))
                 disentanglement_range_k3 = first_band_id_ik3:first_band_id_ik3+num_states_ik3-1
                 kpoint.uHu[nearest_neighbor2, cur_neighbor] =  V3' * uHu_k2_k3[disentanglement_range_k3, disentanglement_range_k2] * V2
@@ -665,6 +845,74 @@ function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractS
         return grid
     end
 end
+
+# function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractString, uHu_filename::AbstractString, wannier_chk_params) where {T}
+#     num_wann = wannier_chk_params.n_wann
+#     uHu_file = FortranFile(uHu_filename)
+#     read(uHu_file, FString{20})
+#     nbands, nkpoints, n_nearest_neighbors = read(uHu_file, (Int32, 3))
+
+#     open(mmn_filename, "r") do f
+#         readline(f) #header
+#         nbands, nkpoints, n_nearest_neighbors = parse.(Int, strip_split(readline(f)))
+#         #pre setup uHu
+#         for k in grid
+#             k.uHu = [Matrix{Complex{T}}(undef, num_wann, num_wann) for m=1:n_nearest_neighbors, n=1:n_nearest_neighbors]
+#         end
+#         neighbor_counter = 1
+#         for i in 1:nkpoints*n_nearest_neighbors
+#             sline = strip_split(readline(f))
+#             cur_neighbor = mod1(neighbor_counter, n_nearest_neighbors) 
+
+#             ik, ik2 = parse.(Int, sline[1:2])
+
+#             overlap_ab_initio_gauge = Matrix{Complex{T}}(undef, nbands, nbands)
+#             for n in eachindex(overlap_ab_initio_gauge)
+#                 overlap_ab_initio_gauge[n] = complex(parse.(T, strip_split(readline(f)))...)
+#             end
+
+#             vmat_ik = wannier_chk_params.V_matrix[:, :, ik]
+#             vmat_ik2 = wannier_chk_params.V_matrix[:, :, ik2]
+#             first_band_id_ik = findfirst(wannier_chk_params.lwindow[:, ik])
+#             first_band_id_ik2 = findfirst(wannier_chk_params.lwindow[:, ik2])
+
+#             num_states_ik = wannier_chk_params.ndimwin[ik]
+#             num_states_ik2 = wannier_chk_params.ndimwin[ik2]
+
+#             V1 = vmat_ik[1:num_states_ik, 1:num_wann]
+#             V2 = vmat_ik2[1:num_states_ik2, 1:num_wann]
+
+
+#             disentanglement_range_k1 = first_band_id_ik:first_band_id_ik+num_states_ik-1
+#             disentanglement_range_k2 = first_band_id_ik2:first_band_id_ik2+num_states_ik2-1
+#             S12 = overlap_ab_initio_gauge[disentanglement_range_k1, disentanglement_range_k2]
+
+#             kpoint = grid[ik]
+
+#             vr = (wannier_chk_params.recip_cell * parse(Vec3{Int}, sline[3:5]) + grid[ik2].k_cart) - kpoint.k_cart
+
+#             V1_T = V1'
+#             S12_V2 = S12 * V2
+#             kpoint.overlaps[cur_neighbor] =  V1_T * S12_V2
+#             k_eigvals_mat = diagm(kpoint.eigvals[disentanglement_range_k1])
+#             kpoint.hamis[cur_neighbor] = V1_T * k_eigvals_mat * S12_V2
+#             neighbor_counter += 1
+#             for nearest_neighbor2 in 1:n_nearest_neighbors
+#                 ik3 = kpoint.neighbors[nearest_neighbor2].k_id2
+#                 first_band_id_ik3 = findfirst(wannier_chk_params.lwindow[:, ik3])
+#                 num_states_ik3    = wannier_chk_params.ndimwin[ik3]
+
+#                 V3 = wannier_chk_params.V_matrix[1:num_states_ik3, 1:num_wann, ik3]
+                
+
+#                 uHu_k2_k3 = transpose(read(uHu_file, (ComplexF64, nbands, nbands)))
+#                 disentanglement_range_k3 = first_band_id_ik3:first_band_id_ik3+num_states_ik3-1
+#                 kpoint.uHu[nearest_neighbor2, cur_neighbor] =  V3' * uHu_k2_k3[disentanglement_range_k3, disentanglement_range_k2] * V2
+#             end
+#         end
+#         return grid
+#     end
+# end
 
 function fill_k_neighbors!(kpoints::Vector{AbInitioKPoint{T}}, file::AbstractString, recip_cell::Mat3) where {T}
     open(file, "r") do f
@@ -718,10 +966,10 @@ function read_wannier_functions(job)
         t_funcs = WannierFunction[]
         # here we assume that if it's a spinor calculation, and all the upre, upim, downre, downim are there
         if DFC.hasflag(wancalc, :spinors) && wancalc[:spinors]
-            upre_files   = filter(x -> occursin(name(wancalc), x), DFC.find_files(job, "upre"))
-            upim_files   = filter(x -> occursin(name(wancalc), x), DFC.find_files(job, "upim"))
-            downre_files = filter(x -> occursin(name(wancalc), x), DFC.find_files(job, "downre"))
-            downim_files = filter(x -> occursin(name(wancalc), x), DFC.find_files(job, "downim"))
+            upre_files   = filter(x -> occursin(name(wancalc), x), DFC.searchdir(job, "upre"))
+            upim_files   = filter(x -> occursin(name(wancalc), x), DFC.searchdir(job, "upim"))
+            downre_files = filter(x -> occursin(name(wancalc), x), DFC.searchdir(job, "downre"))
+            downim_files = filter(x -> occursin(name(wancalc), x), DFC.searchdir(job, "downim"))
             any(isempty.((upre_files, upim_files, downre_files, downim_files))) && continue
             points = read_points_from_xsf(upre_files[1])
 

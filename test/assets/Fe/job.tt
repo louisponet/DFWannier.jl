@@ -1,0 +1,8 @@
+#!/bin/bash
+#SBATCH -J Fe 
+#SBATCH -N 1
+#SBATCH --ntasks-per-node=128
+#SBATCH --time=24:00:00
+#SBATCH -p amd
+
+wannier90.x Fe.win > Fe.wout
