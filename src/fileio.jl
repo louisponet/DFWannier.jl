@@ -124,7 +124,35 @@ function write_xsf_file(filename::String, wfc, structure; value_func=x -> norm(x
 end
 
 #This comes from w90; it's basically a cube
-const MAX_WIGNER_SEITZ_DEGENERACIES = 8 
+const MAX_WIGNER_SEITZ_DEGENERACIES = 8
+
+function read_wsvec(file, nwanfun::Int)
+    out = NamedTuple{(:R_cryst, :shifts_cryst, :nshifts),
+                     Tuple{Vec3{Int}, Matrix{Vector{Vec3{Int}}}, Matrix{Int}}}[]
+ 
+    open(file, "r") do f
+        readline(f)
+        n_wsvec_read = 0
+        while !eof(f)
+            n_wsvec_read = 0
+            R_cryst = zero(Vec3{Int})
+            shifts_cryst = [Vec3{Int}[] for i=1:nwanfun, j=1:nwanfun]
+            nshifts = [0 for i=1:nwanfun, j=1:nwanfun]
+            while n_wsvec_read < nwanfun^2
+                l = strip_split(readline(f))
+                R_cryst = iszero(R_cryst) ? parse(Vec3{Int}, l[1:3]) : R_cryst
+                i, j = parse.(Int, l[4:5])
+                nshifts[i, j] = parse(Int, strip(readline(f)))
+                for ip = 1:nshifts[i, j]
+                    push!(shifts_cryst[i, j], parse(Vec3{Int}, strip_split(readline(f))))
+                end
+                n_wsvec_read += 1
+            end
+            push!(out, (R_cryst=R_cryst, shifts_cryst=shifts_cryst, nshifts=nshifts))
+        end
+    end
+    return out
+end 
 
 @doc raw"""
 	readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T})
@@ -138,6 +166,7 @@ function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structu
     readline(wsvec_f)
 
     out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}[]
+    # out = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT}[]
     degen = Int64[]
     nwanfun = 0
     ndegen  = 0
@@ -182,6 +211,7 @@ function readhami(hami_file::AbstractString, wsvec_file::AbstractString, structu
                 end
 
                 block = TbBlock(cell(structure) * R_cryst, R_cryst, wigner_seitz_shifts_cryst, wigner_seitz_shifts_cart, wigner_seitz_nshift_matrix, degen[rpt], Matrix{Complex{T}}(I, nwanfun, nwanfun))
+                # block = TbBlock(cell(structure) * R_cryst, R_cryst, wigner_seitz_shifts_cryst, wigner_seitz_nshift_matrix, degen[rpt], Matrix{Complex{T}}(I, nwanfun, nwanfun))
                 push!(out, block)
             else
                 block = out[rpt]
@@ -650,7 +680,8 @@ end
     #     # return read_chk_formatted(filename)
     # end
 # end
-
+#TODO: cleanup
+const CART_TYPE{T} = Quantity{T,Unitful.𝐋,Unitful.FreeUnits{(Ang,),Unitful.𝐋,nothing}} 
 function read_chk(filename)
     f = FortranFile(filename)
     header = String(read(f, FString{33}))
@@ -660,7 +691,7 @@ function read_chk(filename)
     read(f, (Int32, n_excluded_bands))
     # exclude_bands= convert.(Int, exclude_bands_t)
     read(f)
-    real_lattice = Mat3(read(f, (Float64, 3, 3))...)
+    real_lattice = CART_TYPE{Float64}.(Mat3(read(f, (Float64, 3, 3))...))
     recip_lattice = K_CART_TYPE{Float64}.(Mat3(read(f, (Float64, 3, 3))...)')
     n_kpoints = read(f, Int32)
     mp_grid = Vec3(Int.(read(f, (Int32, 3)))...)

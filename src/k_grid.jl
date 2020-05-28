@@ -147,7 +147,7 @@ function wigner_seitz_points(chk)
         R = Vec3(n1, n2, n3)
         dist_R0  = 0.0
         min_dist = typemax(Float64)
-        ndegen   = 0
+        ndegen   = 1
         for i1 in -2:2, i2 in -2:2, i3 in -2:2
             ndiff = R .- Vec3(i1, i2, i3) .* mp_grid
             dist = ndiff' * real_metric * ndiff
@@ -156,7 +156,7 @@ function wigner_seitz_points(chk)
                     ndegen += 1
                 else
                     min_dist = dist
-                    ndegen   = 0
+                    ndegen   = 1
                 end
             elseif abs(dist - min_dist) < 1e-7
                 ndegen += 1

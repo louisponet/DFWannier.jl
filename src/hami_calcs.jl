@@ -3,6 +3,7 @@ div1(x, y) = div(x - 1, y) + 1
 w_eachindex(m::Matrix) = eachindex(m)
 
 struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:AbstractMatrix{Int}, VS <: AbstractMatrix{Vector{Vec3{Int}}}, LT<:Length{T}, VL<:AbstractMatrix{Vector{Vec3{LT}}}}
+# struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:AbstractMatrix{Int}, VS <: AbstractMatrix{Vector{Vec3{Int}}}, LT<:Length{T}}
     R_cart  ::Vec3{LT}
     R_cryst ::Vec3{Int}
     wigner_seitz_shifts_cryst::VS
@@ -24,6 +25,7 @@ LinearAlgebra.eigen(h::TbBlock) =
 	eigen(block(h))
 
 const TbHami{T, M, MI, VS, LT, VL}  = Vector{TbBlock{T, M, MI, VS, LT, VL}}
+# const TbHami{T, M, MI, VS, LT}  = Vector{TbBlock{T, M, MI, VS, LT}}
 
 getindex(h::TbHami, R::Vec3{Int}) =
 	getfirst(x -> x.R_cryst == R, h)
@@ -105,14 +107,14 @@ function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec
         degen = b.wigner_seitz_degeneracy
         shifts_used = 0
         for i in eachindex(block(b))
-            cart_shifts  = b.wigner_seitz_shifts_cart[i]
             cryst_shifts = b.wigner_seitz_shifts_cryst[i]
+            cart_shifts = b.wigner_seitz_shifts_cart[i]
             n_shifts     = length(cart_shifts)
             for is in 1:n_shifts
                 shift = cryst_shifts[is]
                 R_cryst = b.R_cryst + shift
                 fac = ℯ^(2im*π*(R_cryst ⋅ kpoint))/(degen * n_shifts)
-                R_function(i, iR, b.R_cart + cart_shifts[is],  b, fac)
+                R_function(i, iR, b.R_cart + cart_shifts[is], b, fac)
             end
             shifts_used += n_shifts
         end

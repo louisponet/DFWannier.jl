@@ -240,8 +240,8 @@ function orbital_angular_momentum_w90(berry_K_grid::BerryKGrid{T}) where {T}
         B = berry_K_grid.B[ik] 
         H = berry_K_grid.hamiltonian_kgrid.Hk[ik]
         C = berry_K_grid.C[ik]
-        J_plus = berry_K_grid.J_plus[ik]
-        J_minus = berry_K_grid.J_minus[ik]
+        J_plus = map(x->x', berry_K_grid.J_plus[ik])
+        J_minus = map(x->x', berry_K_grid.J_minus[ik])
         Ω = berry_K_grid.Ω[ik]
         for iv in 1:3
             α = pseudo_α[iv]
