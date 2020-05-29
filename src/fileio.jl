@@ -126,7 +126,7 @@ end
 #This comes from w90; it's basically a cube
 const MAX_WIGNER_SEITZ_DEGENERACIES = 8
 
-function read_wsvec(file, nwanfun::Int)
+function read_wsvec(file, nwanfun::Integer)
     out = NamedTuple{(:R_cryst, :shifts_cryst, :nshifts),
                      Tuple{Vec3{Int}, Matrix{Vector{Vec3{Int}}}, Matrix{Int}}}[]
  
@@ -153,6 +153,30 @@ function read_wsvec(file, nwanfun::Int)
     end
     return out
 end 
+
+function readhami(chk_file::AbstractString, eig_file::AbstractString, wsvec_file::AbstractString)
+    chk = read_chk(chk_file)
+    wsvec = read_wsvec(wsvec_file, chk.n_wann)
+    v_mat = chk.V_matrix
+    eigvals = read_eig(eig_file)
+    R_cryst, degens = wigner_seitz_points(chk)
+    Hq = map(1:length(chk.kpoints)) do ik
+        v = v_mat[1:num_states(chk, ik), 1:chk.n_wann, ik]
+
+        return v' * diagm(eigvals[disentanglement_range(chk, ik), ik]) * v
+    end
+    c = chk.cell'
+    LT = eltype(c)
+    T = eltype(eigvals)
+    out = [TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}(c*R, R, w.shifts_cryst, map(x->map(y->c*y,x), w.shifts_cryst), w.nshifts, d, zeros(ComplexF64, chk.n_wann, chk.n_wann)) for (R, w, d) in zip(R_cryst, wsvec, degens)]
+    fourier_q_to_R(chk.kpoints, R_cryst) do iR, ik, phase
+        @inbounds out[iR].block .+= phase .* Hq[ik]
+    end
+    for o in out
+        o.block ./= length(chk.kpoints)
+    end
+    return out
+end
 
 @doc raw"""
 	readhami(hami_file::AbstractString, wsvec_file::AbstractString, structure::AbstractStructure{T})

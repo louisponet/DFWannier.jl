@@ -24,7 +24,7 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami) where {T}
 
     n_nearest = n_nearest_neighbors(ab_initio_grid)
     neighbor_weights = ab_initio_grid.neighbor_weights 
-    for i in 1:n_kpoints
+    Threads.@threads for i in 1:n_kpoints
         kpoint = ab_initio_grid.kpoints[i]
         for n in 1:n_nearest
             neighbor_bond = kpoint.neighbors[n]
@@ -232,16 +232,15 @@ function orbital_angular_momentum_w90(berry_K_grid::BerryKGrid{T}) where {T}
     non_traced_Hαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
     non_traced_Gαβ = [Vec3([zeros(T, nwann, nwann) for i =1:3]...) for ik=1:nk]
 
-    for ik in 1:nk
-    # for ik in 1:nk
+    Threads.@threads for ik in 1:nk
         f = berry_K_grid.f[ik]
         g = berry_K_grid.g[ik]
         A = berry_K_grid.A[ik] 
         B = berry_K_grid.B[ik] 
         H = berry_K_grid.hamiltonian_kgrid.Hk[ik]
         C = berry_K_grid.C[ik]
-        J_plus = map(x->x', berry_K_grid.J_plus[ik])
-        J_minus = map(x->x', berry_K_grid.J_minus[ik])
+        J_plus = berry_K_grid.J_plus[ik]
+        J_minus = berry_K_grid.J_minus[ik]
         Ω = berry_K_grid.Ω[ik]
         for iv in 1:3
             α = pseudo_α[iv]
@@ -276,5 +275,5 @@ function orbital_angular_momentum_w90(berry_K_grid::BerryKGrid{T}) where {T}
 
         end
     end
-    return non_traced_Fαβ, non_traced_Hαβ, non_traced_Gαβ
+    return non_traced_Fαβ./nk, non_traced_Hαβ./nk, non_traced_Gαβ./nk
 end
