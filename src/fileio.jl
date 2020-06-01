@@ -154,9 +154,9 @@ function read_wsvec(file, nwanfun::Integer)
     return out
 end 
 
-function readhami(chk_file::AbstractString, eig_file::AbstractString, wsvec_file::AbstractString)
+function readhami(chk_file::AbstractString, eig_file::AbstractString)
     chk = read_chk(chk_file)
-    wsvec = read_wsvec(wsvec_file, chk.n_wann)
+    ws_shifts, ws_nshifts = generate_wsvec(chk)
     v_mat = chk.V_matrix
     eigvals = read_eig(eig_file)
     R_cryst, degens = wigner_seitz_points(chk)
@@ -168,7 +168,7 @@ function readhami(chk_file::AbstractString, eig_file::AbstractString, wsvec_file
     c = chk.cell'
     LT = eltype(c)
     T = eltype(eigvals)
-    out = [TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}(c*R, R, w.shifts_cryst, map(x->map(y->c*y,x), w.shifts_cryst), w.nshifts, d, zeros(ComplexF64, chk.n_wann, chk.n_wann)) for (R, w, d) in zip(R_cryst, wsvec, degens)]
+    out = [TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}(c*R, R, shifts, map(x->map(y->c*y,x), shifts), nshifts, d, zeros(ComplexF64, chk.n_wann, chk.n_wann)) for (R, shifts, nshifts, d) in zip(R_cryst, ws_shifts, ws_nshifts, degens)]
     fourier_q_to_R(chk.kpoints, R_cryst) do iR, ik, phase
         @inbounds out[iR].block .+= phase .* Hq[ik]
     end
@@ -792,6 +792,63 @@ function read_eig(filename)
     end
     return Hk
 end
+
+
+const WS_DISTANCE_TOL = 1e-5
+function generate_wsvec(chk)
+    R_cryst, degens = wigner_seitz_points(chk)
+    wannier_centers = chk.wannier_centers
+    ws_shifts_cryst = [[Vec3{Int}[zero(Vec3{Int})] for i=1:chk.n_wann, j=1:chk.n_wann] for iR = 1:length(R_cryst)]
+    ws_nshifts      = [zeros(Int, chk.n_wann,chk.n_wann) for iR = 1:length(R_cryst)]
+    c = ustrip.(chk.cell')
+    ic = inv(c)
+    for (iR, R) in enumerate(R_cryst)
+        r_cart = c * R
+        for i in 1:chk.n_wann, j=1:chk.n_wann
+            best_r_cart = -wannier_centers[i] + r_cart + wannier_centers[j]
+            nr = norm(best_r_cart)
+
+            r_cryst = ic * best_r_cart
+
+            for l in -3:3, m in -3:3, n in -3:3
+                lmn = Vec3(l, m, n)
+                test_r_cryst = r_cryst + lmn .* chk.mp_grid
+                test_r_cart  = c * test_r_cryst
+                if norm(test_r_cart) < nr
+                    best_r_cart = test_r_cart
+                    nr = norm(test_r_cart)
+                    ws_shifts_cryst[iR][i, j][1] = lmn .* chk.mp_grid
+                end
+            end
+
+            if nr < WS_DISTANCE_TOL
+                ws_nshifts[iR][i, j] = 1
+                ws_shifts_cryst[iR][i, j][1] = Vec3(0, 0, 0)
+            else
+                best_r_cryst = ic * best_r_cart
+                orig_shift = ws_shifts_cryst[iR][i,j][1]
+                for l in -3:3, m in -3:3, n in -3:3
+                    lmn = Vec3(l, m, n)
+                    test_r_cryst = best_r_cryst + lmn .* chk.mp_grid
+                    test_r_cart  = c * test_r_cryst
+                    if abs(norm(test_r_cart) - nr) < WS_DISTANCE_TOL
+                        ws_nshifts[iR][i, j] += 1
+                        if ws_nshifts[iR][i, j] == 1
+                            ws_shifts_cryst[iR][i, j][ws_nshifts[iR][i, j]] = orig_shift + lmn .* chk.mp_grid
+                        else
+                            push!(ws_shifts_cryst[iR][i, j], orig_shift + lmn .* chk.mp_grid)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return ws_shifts_cryst, ws_nshifts
+end
+
+
+
+
 
 #TODO: speedup, we don't need all of them if things were disentangled
 
