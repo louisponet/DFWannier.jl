@@ -168,25 +168,29 @@ function readhami(chk_file::AbstractString, eig_file::AbstractString)
     c = chk.cell'
     LT = eltype(c)
     T = eltype(eigvals)
-    out = [TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}(c*R, R, shifts, map(x->map(y->c*y,x), shifts), nshifts, d, zeros(ComplexF64, chk.n_wann, chk.n_wann), zeros(ComplexF64, chk.n_wann, chk.n_wann)) for (R, shifts, nshifts, d) in zip(R_cryst, ws_shifts, ws_nshifts, degens)]
+    Hr_t = [TbBlock(R, c*R, zeros(ComplexF64, chk.n_wann, chk.n_wann)) for R in R_cryst]
     fourier_q_to_R(chk.kpoints, R_cryst) do iR, ik, phase
-        @inbounds out[iR].block .+= phase .* Hq[ik]
+        @inbounds Hr_t[iR].block .+= phase .* Hq[ik]
     end
-    for o in out
+
+    for o in Hr_t
         o.block ./= length(chk.kpoints)
     end
 
-    for (iR, h) in enumerate(out)
+    out = [TbBlock(R, c*R, zeros(ComplexF64, chk.n_wann, chk.n_wann)) for R in R_cryst]
+
+    for (iR, (h, shifts, nshifts, d)) in enumerate(zip(Hr_t, ws_shifts, ws_nshifts, degens))
         for i in eachindex(h.block)
-            nshifts = h.wigner_seitz_nshifts[i]
-            for is = 1:nshifts
-                rcryst = h.R_cryst + h.wigner_seitz_shifts_cryst[i][is]
+            ns = nshifts[i]
+            frac = 1/(ns * d)
+            for is = 1:ns
+                rcryst = h.R_cryst + shifts[i][is]
                 h1 = out[rcryst]
                 if h1 === nothing
-                    h1 = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}(c*rcryst, rcryst, fill(Vec3{Int}[], size(h.block)),fill(Vec3{LT}[], size(h.block)), zeros(Int, chk.n_wann, chk.n_wann), 1, zeros(ComplexF64, chk.n_wann, chk.n_wann), zeros(ComplexF64, chk.n_wann, chk.n_wann))
+                    h1 = TbBlock{T, LT, Matrix{Complex{T}}}(rcryst, c*rcryst, zeros(ComplexF64, chk.n_wann, chk.n_wann))
                     push!(out, h1)
                 end
-                h1.preprocessed_block[i] += h.block[i] / (h.wigner_seitz_degeneracy * nshifts)
+                h1.block[i] += h.block[i] * frac 
             end
         end
     end

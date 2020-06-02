@@ -2,18 +2,18 @@ div1(x, y) = div(x - 1, y) + 1
 
 w_eachindex(m::Matrix) = eachindex(m)
 
-struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:AbstractMatrix{Int}, VS <: AbstractMatrix{Vector{Vec3{Int}}}, LT<:Length{T}, VL<:AbstractMatrix{Vector{Vec3{LT}}}}
+struct TbBlock{T <: AbstractFloat, LT<:Length{T}, M <: AbstractMatrix{Complex{T}}}
 # struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:AbstractMatrix{Int}, VS <: AbstractMatrix{Vector{Vec3{Int}}}, LT<:Length{T}}
-    R_cart  ::Vec3{LT}
     R_cryst ::Vec3{Int}
-    wigner_seitz_shifts_cryst::VS
-    wigner_seitz_shifts_cart::VL
+    R_cart  ::Vec3{LT}
+    # wigner_seitz_shifts_cryst::VS
+    # wigner_seitz_shifts_cart::VL
     # Like w90 irdist_ws: The integer number of unit cells to shift the Wannier function j to put its center inside the wigner-seitz of wannier function i. Can have multiple equivalent shifts (maximum of 8), they are all stored. 
-    wigner_seitz_nshifts::MI
-    wigner_seitz_degeneracy::Int #not sure if we need to keep this
+    # wigner_seitz_nshifts::MI
+    # wigner_seitz_degeneracy::Int #not sure if we need to keep this
     # For example on boundaries of the supercell
     block::M
-    preprocessed_block::M
+    # preprocessed_block::M
 end
 
 block(x::TbBlock) = x.block
@@ -25,8 +25,8 @@ end
 LinearAlgebra.eigen(h::TbBlock) =
 	eigen(block(h))
 
-const TbHami{T, M, MI, VS, LT, VL}  = Vector{TbBlock{T, M, MI, VS, LT, VL}}
-# const TbHami{T, M, MI, VS, LT}  = Vector{TbBlock{T, M, MI, VS, LT}}
+# const TbHami{T, M, MI, VS, LT, VL}  = Vector{TbBlock{T, M, MI, VS, LT, VL}}
+const TbHami{T, LT, M}  = Vector{TbBlock{T, LT, M}}
 
 getindex(h::TbHami, R::Vec3{Int}) =
 	getfirst(x -> x.R_cryst == R, h)
@@ -88,7 +88,7 @@ end
 function Hk!(out::AbstractMatrix, tbhami::TbHami, kpoint::Vec3)
     fill!(out, zero(eltype(out)))
     fourier_transform_nows(tbhami, kpoint) do i, iR, R_cart, b, fac
-        @inbounds out[i] += fac * b.preprocessed_block[i]
+        @inbounds out[i] += fac * b.block[i]
     end
 end
 
@@ -123,7 +123,6 @@ end
 "Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
 function fourier_transform_nows(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
     for (iR, b) in enumerate(tb_hami)
-        # degen = b.wigner_seitz_degeneracy
         fac = ℯ^(2im*π*(b.R_cryst ⋅ kpoint))
         for i in eachindex(block(b))
             R_function(i, iR, b.R_cart, b, fac)

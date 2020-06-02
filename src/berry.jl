@@ -1,6 +1,6 @@
 
-struct BerryRGrid{T, MT, MT1}
-    hami::TbHami{T, MT}
+struct BerryRGrid{T, LT, MT, MT1}
+    hami::TbHami{T, LT, MT}
     A ::Vector{Vec3{MT}} #A_a(R) = <0|r_a|R> is the Fourier transform of the Berrry connection A_a(k) = i<u|del_a u> (a=x,y,z)the berry connection 
     B ::Vector{Vec3{MT}} #B_a(R)=<0n|H(r-R)|Rm> is the Fourier transform of B_a(k) = i<u|H|del_a u> (a=x,y,z)
     C ::Vector{MT1} #CC_ab(R) = <0|r_a.H.(r-R)_b|R> is the Fourier transform of CC_ab(k) = <del_a u|H|del_b u> (a,b=x,y,z)}
@@ -8,7 +8,7 @@ end
 
 #A_a(R) = <0|r_a|R> is the Fourier transform of the Berrry connection A_a(k) = i<u|del_a u> (a=x,y,z)the berry connection
 #B_a(R)=<0n|H(r-R)|Rm> is the Fourier transform of B_a(k) = i<u|H|del_a u> (a=x,y,z)
-function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami) where {T}
+function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami, chk) where {T}
     irvec = map(x->x.R_cryst, hami)
 
     n_wann = n_wannier_functions(ab_initio_grid)
@@ -68,21 +68,23 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami) where {T}
             end
         end
     end
+    ws_shifts, ws_nshifts = generate_wsvec(chk)
+    points, degens = wigner_seitz_points(chk) 
     A_R_out = [berry_vec() for k=1:length(irvec)]
     B_R_out = [berry_vec() for k=1:length(irvec)]
     C_R_out = [berry_mat() for k=1:length(irvec)]
-    for (ir1, h) in enumerate(hami)
+    for (ir1, (h, shifts, nshifts, degen)) in enumerate(zip(hami, ws_shifts, ws_nshifts, degens))
         for i in eachindex(h.block)
-            nshifts = h.wigner_seitz_nshifts[i]
-            degen = h.wigner_seitz_degeneracy
-            for is in 1:nshifts
-                rcryst = h.R_cryst + h.wigner_seitz_shifts_cryst[i][is]
+            ns = nshifts[i]
+            frac = 1/(ns * degen)
+             for is in 1:ns
+                rcryst = h.R_cryst + shifts[i][is]
                 ir2 = findfirst(x->x.R_cryst == rcryst, hami)
                 for v in 1:3
-                    A_R_out[ir2][v][i] += A_R[ir1][v][i]/(degen*nshifts)
-                    B_R_out[ir2][v][i] += B_R[ir1][v][i]/(degen*nshifts)
+                    A_R_out[ir2][v][i] += A_R[ir1][v][i]*frac
+                    B_R_out[ir2][v][i] += B_R[ir1][v][i]*frac
                     for v2 in 1:3
-                        C_R_out[ir2][v, v2][i] += C_R[ir1][v, v2][i]/(degen*nshifts)
+                        C_R_out[ir2][v, v2][i] += C_R[ir1][v, v2][i]*frac
                     end
                 end
             end
@@ -138,7 +140,7 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
         fourier_transform_nows(tb_hami, kpoints[i]) do n, iR, R_cart, b, fac
             Rcart = ustrip.(R_cart)
             for v=1:3
-                ∇Hk[v][n] += Rcart[v] * 1im * fac * b.preprocessed_block[n]
+                ∇Hk[v][n] += Rcart[v] * 1im * fac * b.block[n]
                 A[v][n]   += fac * berry_R_grid.A[iR][v][n]
 
                 B[v][n]   += fac * berry_R_grid.B[iR][v][n]
