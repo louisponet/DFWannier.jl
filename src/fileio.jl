@@ -168,12 +168,27 @@ function readhami(chk_file::AbstractString, eig_file::AbstractString)
     c = chk.cell'
     LT = eltype(c)
     T = eltype(eigvals)
-    out = [TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}(c*R, R, shifts, map(x->map(y->c*y,x), shifts), nshifts, d, zeros(ComplexF64, chk.n_wann, chk.n_wann)) for (R, shifts, nshifts, d) in zip(R_cryst, ws_shifts, ws_nshifts, degens)]
+    out = [TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}(c*R, R, shifts, map(x->map(y->c*y,x), shifts), nshifts, d, zeros(ComplexF64, chk.n_wann, chk.n_wann), zeros(ComplexF64, chk.n_wann, chk.n_wann)) for (R, shifts, nshifts, d) in zip(R_cryst, ws_shifts, ws_nshifts, degens)]
     fourier_q_to_R(chk.kpoints, R_cryst) do iR, ik, phase
         @inbounds out[iR].block .+= phase .* Hq[ik]
     end
     for o in out
         o.block ./= length(chk.kpoints)
+    end
+
+    for (iR, h) in enumerate(out)
+        for i in eachindex(h.block)
+            nshifts = h.wigner_seitz_nshifts[i]
+            for is = 1:nshifts
+                rcryst = h.R_cryst + h.wigner_seitz_shifts_cryst[i][is]
+                h1 = out[rcryst]
+                if h1 === nothing
+                    h1 = TbBlock{T, Matrix{Complex{T}}, Matrix{Int}, Matrix{Vector{Vec3{Int}}}, LT, Matrix{Vector{Vec3{LT}}}}(c*rcryst, rcryst, fill(Vec3{Int}[], size(h.block)),fill(Vec3{LT}[], size(h.block)), zeros(Int, chk.n_wann, chk.n_wann), 1, zeros(ComplexF64, chk.n_wann, chk.n_wann), zeros(ComplexF64, chk.n_wann, chk.n_wann))
+                    push!(out, h1)
+                end
+                h1.preprocessed_block[i] += h.block[i] / (h.wigner_seitz_degeneracy * nshifts)
+            end
+        end
     end
     return out
 end

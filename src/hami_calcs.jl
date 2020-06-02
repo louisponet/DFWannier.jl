@@ -12,7 +12,8 @@ struct TbBlock{T <: AbstractFloat, M <: AbstractMatrix{Complex{T}}, MI<:Abstract
     wigner_seitz_nshifts::MI
     wigner_seitz_degeneracy::Int #not sure if we need to keep this
     # For example on boundaries of the supercell
-    block   ::M
+    block::M
+    preprocessed_block::M
 end
 
 block(x::TbBlock) = x.block
@@ -86,8 +87,8 @@ end
 
 function Hk!(out::AbstractMatrix, tbhami::TbHami, kpoint::Vec3)
     fill!(out, zero(eltype(out)))
-    fourier_transform(tbhami, kpoint) do i, iR, R_cart, b, fac
-        @inbounds out[i] += fac * block(b)[i]
+    fourier_transform_nows(tbhami, kpoint) do i, iR, R_cart, b, fac
+        @inbounds out[i] += fac * b.preprocessed_block[i]
     end
 end
 
@@ -105,7 +106,6 @@ eigvals(g::HamiltonianKGrid) = g.eigvals
 function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
     for (iR, b) in enumerate(tb_hami)
         degen = b.wigner_seitz_degeneracy
-        shifts_used = 0
         for i in eachindex(block(b))
             cryst_shifts = b.wigner_seitz_shifts_cryst[i]
             cart_shifts = b.wigner_seitz_shifts_cart[i]
@@ -116,18 +116,17 @@ function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec
                 fac = ℯ^(2im*π*(R_cryst ⋅ kpoint))/(degen * n_shifts)
                 R_function(i, iR, b.R_cart + cart_shifts[is], b, fac)
             end
-            shifts_used += n_shifts
         end
     end
 end
 
 "Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
 function fourier_transform_nows(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
-    for b in tb_hami
-        degen = b.wigner_seitz_degeneracy
-        fac = ℯ^(2im*π*(b.R_cryst ⋅ kpoint))/degen
+    for (iR, b) in enumerate(tb_hami)
+        # degen = b.wigner_seitz_degeneracy
+        fac = ℯ^(2im*π*(b.R_cryst ⋅ kpoint))
         for i in eachindex(block(b))
-            R_function(i, b, fac)
+            R_function(i, iR, b.R_cart, b, fac)
         end
     end
 end

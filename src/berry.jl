@@ -59,7 +59,7 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami) where {T}
     A_R = [berry_vec() for k=1:length(irvec)]
     B_R = [berry_vec() for k=1:length(irvec)]
     C_R = [berry_mat() for k=1:length(irvec)]
-    f_to_fourier = (iR, ik, phase) -> begin
+    fourier_q_to_R(ab_initio_grid.kpoints, irvec) do iR, ik, phase
         for v in 1:3
             A_R[iR][v] .+= phase .* A_q[ik][v] 
             B_R[iR][v] .+= phase .* B_q[ik][v]
@@ -68,17 +68,37 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami) where {T}
             end
         end
     end
-    fourier_q_to_R(f_to_fourier, ab_initio_grid.kpoints, irvec)
-    for i in 1:length(A_R)
-        for v=1:3
-            A_R[i][v] ./= n_kpoints
-            B_R[i][v] ./= n_kpoints
-            for v2 in 1:3
-                C_R[i][v, v2] ./= n_kpoints
+    A_R_out = [berry_vec() for k=1:length(irvec)]
+    B_R_out = [berry_vec() for k=1:length(irvec)]
+    C_R_out = [berry_mat() for k=1:length(irvec)]
+    for (ir1, h) in enumerate(hami)
+        for i in eachindex(h.block)
+            nshifts = h.wigner_seitz_nshifts[i]
+            degen = h.wigner_seitz_degeneracy
+            for is in 1:nshifts
+                rcryst = h.R_cryst + h.wigner_seitz_shifts_cryst[i][is]
+                ir2 = findfirst(x->x.R_cryst == rcryst, hami)
+                for v in 1:3
+                    A_R_out[ir2][v][i] += A_R[ir1][v][i]/(degen*nshifts)
+                    B_R_out[ir2][v][i] += B_R[ir1][v][i]/(degen*nshifts)
+                    for v2 in 1:3
+                        C_R_out[ir2][v, v2][i] += C_R[ir1][v, v2][i]/(degen*nshifts)
+                    end
+                end
             end
         end
     end
-    return BerryRGrid(hami, A_R, B_R, C_R)
+
+    for i in 1:length(A_R_out)
+        for v=1:3
+            A_R_out[i][v] ./= n_kpoints
+            B_R_out[i][v] ./= n_kpoints
+            for v2 in 1:3
+                C_R_out[i][v, v2] ./= n_kpoints
+            end
+        end
+    end
+    return BerryRGrid(hami, A_R_out, B_R_out, C_R_out)
 end
 
 
@@ -115,10 +135,10 @@ function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::Ab
         B = B_k[i]
         Ω = Ω_k[i]
         C = C_k[i]
-        fourier_transform(tb_hami, kpoints[i]) do n, iR, R_cart, b, fac
+        fourier_transform_nows(tb_hami, kpoints[i]) do n, iR, R_cart, b, fac
             Rcart = ustrip.(R_cart)
             for v=1:3
-                ∇Hk[v][n] += Rcart[v] * 1im * fac * block(b)[n]
+                ∇Hk[v][n] += Rcart[v] * 1im * fac * b.preprocessed_block[n]
                 A[v][n]   += fac * berry_R_grid.A[iR][v][n]
 
                 B[v][n]   += fac * berry_R_grid.B[iR][v][n]
