@@ -87,7 +87,7 @@ end
 
 function Hk!(out::AbstractMatrix, tbhami::TbHami, kpoint::Vec3)
     fill!(out, zero(eltype(out)))
-    fourier_transform_nows(tbhami, kpoint) do i, iR, R_cart, b, fac
+    fourier_transform(tbhami, kpoint) do i, iR, R_cart, b, fac
         @inbounds out[i] += fac * b.block[i]
     end
 end
@@ -104,24 +104,6 @@ eigvals(g::HamiltonianKGrid) = g.eigvals
 
 "Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
 function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
-    for (iR, b) in enumerate(tb_hami)
-        degen = b.wigner_seitz_degeneracy
-        for i in eachindex(block(b))
-            cryst_shifts = b.wigner_seitz_shifts_cryst[i]
-            cart_shifts = b.wigner_seitz_shifts_cart[i]
-            n_shifts     = length(cart_shifts)
-            for is in 1:n_shifts
-                shift = cryst_shifts[is]
-                R_cryst = b.R_cryst + shift
-                fac = ℯ^(2im*π*(R_cryst ⋅ kpoint))/(degen * n_shifts)
-                R_function(i, iR, b.R_cart + cart_shifts[is], b, fac)
-            end
-        end
-    end
-end
-
-"Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
-function fourier_transform_nows(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
     for (iR, b) in enumerate(tb_hami)
         fac = ℯ^(2im*π*(b.R_cryst ⋅ kpoint))
         for i in eachindex(block(b))

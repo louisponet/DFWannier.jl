@@ -7,9 +7,7 @@ n_ωv = 50
 ωv = 0.5
 
 i, structure = DFW.DFControl.wan_read_input(assetfile("wanup.win"))
-hami = readhami(assetfile("wanup_hr.dat"), assetfile("wanup_wsvec.dat"), structure)
+hami = readhami(DFW.read_chk(assetfile("wanup.chk")), assetfile("wanup.eig"))
 
 wbands = wannierbands(hami, uniform_kgrid(nk...))
-@test isapprox(sum(sum.(wbands[3].eigvec)), 0.5674222220608227 - 0.2689932756449306im)
-
-
+@test isapprox(sum(wbands[3].eigvals), 26.2642711779676)

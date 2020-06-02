@@ -1,0 +1,10 @@
+#!/bin/bash
+#SBATCH -J NiO_afm 
+#SBATCH -N 1
+#SBATCH --ntasks-per-node=128
+#SBATCH --time=128:00:00
+#SBATCH -p amd-hp
+source /etc/profile.d/modules.sh
+module load qe/qe-6.4
+wannier90.x wanup.win > wanup.wout
+wannier90.x wandn.win > wandn.wout

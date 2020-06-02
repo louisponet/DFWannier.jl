@@ -6,8 +6,9 @@ n_ωv = 50
 ωh = -30.0
 ωv = 0.5
 
-i, structure = DFW.DFControl.wan_read_input(assetfile("wanup.win"))
-hami = DFW.read_colin_hami(assetfile("wanup_hr.dat"), assetfile("wandn_hr.dat"), assetfile("wanup_wsvec.dat"), assetfile("wandn_wsvec.dat"), structure)
+
+job = DFW.DFControl.DFJob(assetfile(""))
+hami = DFW.readhami(job)
 
 ω_grid = DFW.setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
 kpoints = DFW.ExchangeKGrid(hami, DFW.uniform_shifted_kgrid(nk...), R)

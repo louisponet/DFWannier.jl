@@ -68,8 +68,8 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami, chk) where {
             end
         end
     end
-    ws_shifts, ws_nshifts = generate_wsvec(chk)
-    points, degens = wigner_seitz_points(chk) 
+    ws_shifts, ws_nshifts = chk.ws_shifts_cryst, chk.ws_nshifts
+    points, degens = chk.ws_R_cryst, chk.ws_degens 
     A_R_out = [berry_vec() for k=1:length(irvec)]
     B_R_out = [berry_vec() for k=1:length(irvec)]
     C_R_out = [berry_mat() for k=1:length(irvec)]
