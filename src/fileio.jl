@@ -184,14 +184,15 @@ function read_colin_hami(up_chk, down_chk, up_eig_file::AbstractString, down_eig
 	@assert dim == blocksize(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
 
 	u1 = uphami[1]
-	d1 = downhami[1]
+	d1 = downhami[u1.R_cryst]
 	
 	first = TbBlock(u1.R_cryst,
 	                u1.R_cart,
 	                ColinMatrix(block(u1), block(d1)))
 
 	outhami  = [first]
-	for (u, d) in zip(uphami[2:end], downhami[2:end])
+	for u in uphami[2:end]
+    	d = downhami[u.R_cryst]
 		push!(outhami, TbBlock(u.R_cryst, u.R_cart, ColinMatrix(block(u), block(d))))
 	end
 	return outhami

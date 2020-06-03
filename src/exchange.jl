@@ -2,9 +2,6 @@ import DFControl: Projection, Orbital, Structure, orbital, size, orbsize, dfprin
 
 import DFControl.Crayons: @crayon_str
 
-
-
-
 setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset=0.001) = vcat(range(ωh,             ωh + ωv*1im,     length=n_ωv)[1:end-1],
 											         range(ωh + ωv*1im,     offset + ωv*1im, length=n_ωh)[1:end-1],
 											         range(offset + ωv*1im, offset,          length=n_ωv))
