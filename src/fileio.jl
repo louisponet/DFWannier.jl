@@ -193,7 +193,9 @@ function read_colin_hami(up_chk, down_chk, up_eig_file::AbstractString, down_eig
 	outhami  = [first]
 	for u in uphami[2:end]
     	d = downhami[u.R_cryst]
-		push!(outhami, TbBlock(u.R_cryst, u.R_cart, ColinMatrix(block(u), block(d))))
+    	if d !== nothing
+    		push!(outhami, TbBlock(u.R_cryst, u.R_cart, ColinMatrix(block(u), block(d))))
+		end
 	end
 	return outhami
 end
