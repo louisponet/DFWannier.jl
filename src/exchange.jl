@@ -1,4 +1,4 @@
-import DFControl: Projection, Orbital, Structure, orbital, size, orbsize, dfprintln, dfprint
+import DFControl: Orbital, Structure, orbital, size, orbsize, dfprintln, dfprint
 
 import DFControl.Crayons: @crayon_str
 
@@ -218,10 +218,10 @@ end
 spin_sign(D) = -sign(real(tr(D))) #up = +1, down = -1. If D_upup > D_dndn, onsite spin will be down and the tr(D) will be positive. Thus explaining the - in front of this.
 spin_sign(D::Vector) = sign(real(sum(D))) #up = +1, down = -1
 
-perturbation_bubble(exch::Exchange2ndOrder, D_site1, G_forward, D_site2, G_backward) =
+perturbation_bubble(::Exchange2ndOrder, D_site1, G_forward, D_site2, G_backward) =
 	D_site1 * G_forward * D_site2 * G_backward
 
-perturbation_bubble(exch::Exchange4thOrder, D_site1, G_forward, D_site2, G_backward) =
+perturbation_bubble(::Exchange4thOrder, D_site1, G_forward, D_site2, G_backward) =
 	D_site1 * G_forward * D_site2 * G_backward * D_site1 * G_forward * D_site2 * G_backward
 
 @inline function Jω(exch, D, G, dω)

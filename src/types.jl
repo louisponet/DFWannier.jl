@@ -21,7 +21,7 @@ function WannierFunction(filename_re::String, filename_im::String, points::Array
 	return normalize(WannierFunction(points, values))
 end
 
-function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3} = read_points_from_xsf(filename_re)) where {T <: AbstractFloat}
+function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3} = read_points_from_xsf(filename_up_re)) where {T <: AbstractFloat}
 	up_re, up_im, down_re, down_im =
 		read_values_from_xsf.(T, (filename_up_re, filename_up_im, filename_down_re, filename_down_im))
 	values = [SVector(Complex(a, b), Complex(c, d)) for (a, b, c, d) in zip(up_re, up_im, down_re, down_im)]

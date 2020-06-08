@@ -428,19 +428,19 @@ end
 #     write_xsf_file(filename,Wfc3D(tmp_points,Point3{T}[],Atom()))
 # end
 
-function write_exchanges(filename::String, structure::Structure)
-    open(filename, "w") do f
-        exchanges = data(structure)[:exchanges]
-        for (i, atom1) in enumerate(atoms(structure))
-            for (i2, atom2) in enumerate(atoms(structure)[i + 1:end])
-                J = exchange_between(atom1, atom2, exchanges)
-                if J != 0
-                    write(f, "$i:$(name(atom1)) -> $(i2+i):$(name(atom2)) $J\n")
-                end
-            end
-        end
-    end
-end
+# function write_exchanges(filename::String, structure::Structure)
+#     open(filename, "w") do f
+#         exchanges = data(structure)[:exchanges]
+#         for (i, atom1) in enumerate(atoms(structure))
+#             for (i2, atom2) in enumerate(atoms(structure)[i + 1:end])
+#                 J = exchange_between(atom1, atom2, exchanges)
+#                 if J != 0
+#                     write(f, "$i:$(name(atom1)) -> $(i2+i):$(name(atom2)) $J\n")
+#                 end
+#             end
+#         end
+#     end
+# end
 
 function read_exchanges(filename::String, T=Float64)
     open(filename, "r") do f
