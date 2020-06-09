@@ -227,8 +227,8 @@ perturbation_bubble(::Exchange4thOrder, D_site1, G_forward, D_site2, G_backward)
 @inline function Jω(exch, D, G, dω)
     D_site1    = view(D, exch.atom1)
     D_site2    = view(D, exch.atom2)
-    G_forward  = view(G, exch.atom1, exch.atom2, Up())
-    G_backward = view(G, exch.atom2, exch.atom1, Down())
+    G_forward  = view(G, exch.atom1, exch.atom2, Down())
+    G_backward = view(G, exch.atom2, exch.atom1, Up())
 	return spin_sign(D_site1) .* spin_sign(D_site2) .* imag.(perturbation_bubble(exch,
 																			   D_site1,
 																			   G_forward,
@@ -240,8 +240,8 @@ end
 	s1 = spin_sign(D.values[exch.atom1])
 	s2 = spin_sign(D.values[exch.atom2])
 	t  = zeros(exch.J)
-	G_forward  = D.T[exch.atom1]' * G[exch.atom1, exch.atom2, Up()] * D.T[exch.atom2]
-	G_backward = D.T[exch.atom2]' * G[exch.atom2, exch.atom1, Down()] *  D.T[exch.atom1]
+	G_forward  = D.T[exch.atom1]' * G[exch.atom1, exch.atom2, Down()] * D.T[exch.atom2]
+	G_backward = D.T[exch.atom2]' * G[exch.atom2, exch.atom1, Up()] *  D.T[exch.atom1]
 	for j=1:size(t, 2), i=1:size(t, 1)
 		t[i, j] = s1 * s2 * imag(D.values[exch.atom1][i] * G_forward[i, j] * D.values[exch.atom2][j] * G_backward[j, i] * dω)
 	end

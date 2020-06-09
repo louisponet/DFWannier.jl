@@ -14,9 +14,8 @@ hami = DFW.readhami(job)
 kpoints = DFW.ExchangeKGrid(hami, DFW.uniform_kgrid(nk...), R)
 
 # @test isapprox(sum(sum.(sum.(kpoints.hamiltonian_kgrid.eigvecs))), -14.6966233042585 - 3.805745562455212im)
-@show sum(sum.(kpoints.hamiltonian_kgrid.eigvals))
 @test isapprox(sum(sum.(kpoints.hamiltonian_kgrid.eigvals)), 37498.386533451325)
-@test isapprox(sum(kpoints.D), -0.3740534125061543 - 6.899612174995906e-16im)
+@test isapprox(sum(kpoints.D), +0.3740534125061543 + 6.899612174995906e-16im)
 
 g_caches = [fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(ComplexF64)) for i=1:3]
 G        =fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(ComplexF64))

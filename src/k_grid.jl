@@ -1,6 +1,6 @@
 const K_CART_TYPE{T} = Quantity{T,Unitful.𝐋^-1,Unitful.FreeUnits{(Ang^-1,),Unitful.𝐋^-1,nothing}} 
 
-phases(kpoints::Vector{<:Vec3}, R::Vec3) = exp.(2im * π .* dot.(kpoints, (R,)))
+phases(kpoints::Vector{<:Vec3}, R::Vec3) = exp.(-2im * π .* dot.(kpoints, (R,)))
 
 uniform_shifted_kgrid(::Type{T}, nkx::Integer, nky::Integer, nkz::Integer) where {T} =
 	reshape([Vec3{T}(kx, ky, kz) for kx = 0.5/nkx:1/nkx:1, ky = 0.5/nky:1/nky:1, kz = 0.5/nkz:1/nkz:1], nkx*nky*nkz)
@@ -117,5 +117,3 @@ n_wannier_functions(grid::AbInitioKGrid) = size(grid.kpoints.overlaps[1], 1)
 n_nearest_neighbors(grid::AbInitioKGrid) = length(grid.kpoints.neighbors[1])
 
 Base.length(grid::AbInitioKGrid) = length(grid.kpoints)
-
-

@@ -216,8 +216,8 @@ function readhami(job::DFJob)
     if ispath(jld_file)
         return DFC.load(jld_file)["hami"]
     end
-	eig_files  = searchdir(job, ".eig")
-	chk_files = searchdir(job, ".chk")
+	eig_files = reverse(searchdir(job, ".eig"))
+	chk_files = reverse(searchdir(job, ".chk"))
 	@assert !isempty(eig_files) "No eig files ($(seedname).eig) found."
 	@assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
 	if !any(DFC.iscolincalc.(job.inputs))
