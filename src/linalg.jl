@@ -5,47 +5,69 @@ import Base: @propagate_inbounds
 
 abstract type Spin end
 struct Up <: Spin end
-struct Down <: Spin end 
+struct Down <: Spin end
+    
+abstract type AbstractMagneticMatrix{T} <: AbstractMatrix{T} end
 
-struct ColinMatrix{T, M <: AbstractMatrix{T}} <: AbstractMatrix{T}
+data(m::AbstractMatrix) = m
+data(m::AbstractMagneticMatrix) = m.data
+
+Base.similar(::Type{M}, i::NTuple{2, Int}) where {M<:AbstractMagneticMatrix} =
+	M(Matrix{M.parameters[1]}(undef, i))
+
+for f in (:length, :size, :setindex!, :elsize)
+	@eval @inline @propagate_inbounds Base.$f(c::AbstractMagneticMatrix, args...) =
+		Base.$f(c.data, args...)
+end
+
+blockdim(c::AbstractMatrix) = div(size(data(c), 2), 2)
+
+up(c::AbstractMatrix) = view(data(c), 1:blockdim(c), 1:blockdim(c))
+down(c::AbstractMatrix) = view(data(c), blockdim(c)+1:2*blockdim(c), blockdim(c)+1:2*blockdim(c))
+
+@inline @propagate_inbounds Base.getindex(c::AbstractMagneticMatrix, args...) =
+	getindex(c.data, args...)
+
+for f in (:view, :getindex)
+	@eval @inline @propagate_inbounds Base.$f(c::AbstractMagneticMatrix, args::AbstractUnitRange...) =
+		Base.$f(c.data, args...)
+end
+
+Base.similar(c::M, args::AbstractUnitRange...) where {M<:AbstractMagneticMatrix} =
+	M(similar(c.data), args...)
+
+struct ColinMatrix{T, M <: AbstractMatrix{T}} <: AbstractMagneticMatrix{T}
 	data::M
 end
 
 function ColinMatrix(up::AbstractMatrix, down::AbstractMatrix)
 	@assert size(up) == size(down)
-	ColinMatrix([up down])
+	return ColinMatrix([up down])
 end
-
-Base.similar(::Type{<:DFWannier.ColinMatrix{T}}, i::NTuple{2, Int}) where T =
-	ColinMatrix(Matrix{T}(undef, i))
 
 Base.Array(c::ColinMatrix{T}) where T =
 	[c[Up()] zeros(T, blockdim(c), blockdim(c)); zeros(T, blockdim(c), blockdim(c)) c[Down()]]
 
-
-up(c::ColinMatrix)   = view(c.data, 1:blockdim(c), 1:blockdim(c))
-# down(c::ColinMatrix) = view(c.data, blockdim(c)+1:2*blockdim(c), 1:blockdim(c))
 down(c::ColinMatrix) = view(c.data, 1:blockdim(c), blockdim(c)+1:2*blockdim(c))
-# blockdim(c::ColinMatrix) = size(c.data, 2)
-blockdim(a::AbstractMatrix) = div(size(a, 1), 2)
 blockdim(c::ColinMatrix) = size(c.data, 1)
 
-for f in (:length, :size, :setindex!, :elsize)
-	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix, args...) =
-		Base.$f(c.data, args...)
+struct NonColinMatrix{T, M <: AbstractMatrix{T}} <: AbstractMagneticMatrix{T}
+	data::M
 end
 
-@inline @propagate_inbounds Base.getindex(c::ColinMatrix, args...) =
-	getindex(c.data, args...)
-
-for f in (:view, :getindex)
-	@eval @inline @propagate_inbounds Base.$f(c::ColinMatrix, args::AbstractUnitRange...) =
-		Base.$f(c.data, args...)
+function NonColinMatrix(up::AbstractMatrix{T}, down::AbstractMatrix{T}) where {T}
+	@assert size(up) == size(down)
+	return NonColinMatrix([up zeros(T, size(up));zeros(T, size(up)) down])
 end
 
-Base.similar(c::ColinMatrix, args::AbstractUnitRange...) =
-	ColinMatrix(similar(c.data), args...)
+Base.Array(c::NonColinMatrix) = copy(c.data)
 
+function noncolin_uprange(a::Union{DFC.Projection, DFC.AbstractAtom})
+	projrange = range(a)
+	return range(div(first(projrange) - 1, 2) + 1, length = div(length(projrange), 2))
+end
+    
+## Indexing ##
 for f in (:view, :getindex)
 	@eval function Base.$f(c::ColinMatrix, a1::T, a2::T) where {T<:Union{DFC.Projection, DFC.AbstractAtom}}
 		projrange1 = range(a1)
@@ -53,51 +75,79 @@ for f in (:view, :getindex)
 
 		return ColinMatrix($f(c, projrange1, projrange2), $f(c, projrange1, projrange2 .+ blockdim(c)))
 	end
+	
+	@eval function Base.$f(c::NonColinMatrix, a1::T, a2::T) where {T<:Union{DFC.Projection, DFC.AbstractAtom}}
+		up_range1 = noncolin_uprange(a1)
+		up_range2 = noncolin_uprange(a2)
+		dn_range1 = up_range1 .+ blockdim(c)
+		dn_range2 = up_range2 .+ blockdim(c)
+		
+		return NonColinMatrix([$f(c, up_range1, up_range2) $f(c, up_range1, dn_range2)
+		                       $f(c, dn_range2, up_range2) $f(c, dn_range1, dn_range2)])
+	end
 
-	@eval Base.$f(c::ColinMatrix, a1::T) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+	@eval Base.$f(c::AbstractMagneticMatrix, a1::T) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
 		$f(c, a1, a1)
 
 	@eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Up) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
 		$f(c, range(a1), range(a2))
+		
+	@eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Up) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+	    $f(c, noncolin_uprange(a1), noncolin_uprange(a2))
 
 	@eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Down) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
 		$f(c, range(a1), range(a2) .+ blockdim(c))
+		
+	@eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Down) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+		$f(c, noncolin_uprange(a1) .+ blockdim(c), noncolin_uprange(a2) .+ blockdim(c))
+		
+	# @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Up) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+	# 	$f(c, range(a1), range(a2))
 
-	@eval Base.$f(c::ColinMatrix, ::Up) =
-		$f(c, 1:blockdim(c), 1:blockdim(c))
+	# @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Down) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+	# 	$f(c, range(a1), range(a2) .+ blockdim(c))
+
+	@eval Base.$f(c::AbstractMagneticMatrix, ::Up) =
+		(r = 1:blockdim(c); $f(c, r, r))
 
 	@eval Base.$f(c::ColinMatrix, ::Down) =
-		$f(c, 1:blockdim(c), (1:blockdim(c)) .+ blockdim(c))
+		(d = blockdim(c); r = 1:d; $f(c, r, r .+ d))
+		
+	# @eval Base.$f(c::NonColinMatrix, ::Down) =
+	# 	(d = blockdim(c); r = d+1 : 2*d; $f(c, r, r))
 
 	@eval Base.$f(c::AbstractMatrix, ::Up) =
-		$f(c, 1:blockdim(c), 1:blockdim(c))
+		(r = 1:blockdim(c); $f(c, r, r))
 
 	@eval Base.$f(c::AbstractMatrix, ::Down) =
-		$f(c, blockdim(c)+1:2*blockdim(c),blockdim(c)+1:2*blockdim(c))
+		(d = blockdim(c); r = d+1 : 2*d; $f(c, r, r))
 end
 
 for op in (:*, :-, :+, :/)
 	@eval @inline Base.$op(c1::ColinMatrix, c2::ColinMatrix) =
 		ColinMatrix($op(c1[Up()], c2[Up()]), $op(c1[Down()], c2[Down()]))
+		
+	@eval @inline Base.$op(c1::NonColinMatrix, c2::NonColinMatrix) =
+		NonColinMatrix($op(c1.data, c2.data))
 end
 
 # BROADCASTING
-Base.BroadcastStyle(::Type{<:ColinMatrix}) =
-	Broadcast.ArrayStyle{ColinMatrix}()
+Base.BroadcastStyle(::Type{<:AbstractMagneticMatrix}) =
+	Broadcast.ArrayStyle{AbstractMagneticMatrix}()
 
-Base.ndims(::Type{<:ColinMatrix}) =
+Base.ndims(::Type{<:AbstractMagneticMatrix}) =
 	2
 	
-Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{ColinMatrix}}, ::Type{ElType}) where {ElType} =
-	Base.similar(ColinMatrix{ElType}, axes(bc))
+Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{AbstractMagneticMatrix}}, ::Type{ElType}) where {ElType} =
+	Base.similar(AbstractMagneticMatrix{ElType}, axes(bc))
 	
-Base.axes(c::ColinMatrix) =
+Base.axes(c::AbstractMagneticMatrix) =
 	Base.axes(c.data)
 
-@inline @propagate_inbounds Base.broadcastable(c::ColinMatrix) =
+@inline @propagate_inbounds Base.broadcastable(c::AbstractMagneticMatrix) =
 	c
 
-@inline @propagate_inbounds Base.unsafe_convert(::Type{Ptr{T}}, c::ColinMatrix{T}) where {T} =
+@inline @propagate_inbounds Base.unsafe_convert(::Type{Ptr{T}}, c::AbstractMagneticMatrix{T}) where {T} =
 	Base.unsafe_convert(Ptr{T}, c.data)
 
 for (elty, cfunc) in zip((:ComplexF32, :ComplexF64), (:cgemm_, :zgemm_))
@@ -125,7 +175,7 @@ for (elty, cfunc) in zip((:ComplexF32, :ComplexF64), (:cgemm_, :zgemm_))
 	end
 end
 
-@inline function LinearAlgebra.adjoint(c::ColinMatrix)
+@inline function LinearAlgebra.adjoint(c::AbstractMagneticMatrix)
 	out = similar(c)
 	adjoint!(out, c)
 end
@@ -140,6 +190,8 @@ end
 	end
 	return out
 end
+@inline LinearAlgebra.adjoint!(out::NonColinMatrix, in1::NonColinMatrix) =
+    adjoint!(out.data, in1.data)
 
 for (elty, relty, cfunc) in zip((:ComplexF32, :ComplexF64), (:Float32, :Float64), (:cheev_, :zheev_))
 # We use Upper Triangular blas for everything! And Eigvals are always all calculated
@@ -182,6 +234,7 @@ struct EigCache{T <: AbstractFloat}
     end
 end
 EigCache(A::ColinMatrix) = EigCache(up(A))
+EigCache(A::NonColinMatrix) = EigCache(A.data)
 
 @inline function eigen!(vals::AbstractVector{T}, vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
 	blas_eig_ccall(vecs, vals, c.work, c.lwork, c.rwork, c.n, c.info)
@@ -191,6 +244,11 @@ end
 @inline function eigen!(vals::AbstractVector{T}, vecs::ColinMatrix{Complex{T}}, c::EigCache{T}) where {T}
     eigen!(view(vals, 1:c.n), up(vecs), c)
     eigen!(view(vals, c.n+1:2*c.n), down(vecs), c)
+	return Eigen(vals, vecs)
+end
+
+@inline function eigen!(vals::AbstractVector{T}, vecs::NonColinMatrix{Complex{T}}, c::EigCache{T}) where {T}
+    eigen!(vals, vecs.data, c)
 	return Eigen(vals, vecs)
 end
 
@@ -206,5 +264,3 @@ function Base.Array(e::Eigen{Complex{T}, T, <:ColinMatrix{Complex{T}}}) where {T
 	d = size(e.vectors, 1)
 	return [e.vectors[1:d, 1:d] * diagm(0=>e.values[1:d]) * e.vectors[1:d, 1:d]' e.vectors[1:d, d+1:2d] * diagm(0=>e.values[d+1:2d]) * e.vectors[1:d, d+1:2d]']
 end
-
-
