@@ -6,6 +6,7 @@ struct TbBlock{T <: AbstractFloat, LT<:Length{T}, M <: AbstractMatrix{Complex{T}
     R_cryst ::Vec3{Int}
     R_cart  ::Vec3{LT}
     block::M
+    # not_processed_block::M
 end
 
 block(x::TbBlock) = x.block
