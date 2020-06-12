@@ -5,8 +5,8 @@ w_eachindex(m::Matrix) = eachindex(m)
 struct TbBlock{T <: AbstractFloat, LT<:Length{T}, M <: AbstractMatrix{Complex{T}}}
     R_cryst ::Vec3{Int}
     R_cart  ::Vec3{LT}
-    block::M
-    # not_processed_block::M
+    block::M #has contributions from all the ws shifts and divided by the degeneracies 1/(degen * nshifts), use for k-point interpolation
+    tb_block::M #this is the correct tight binding block, with ws shifts applied such that entries represent hopping between closest two wfs
 end
 
 block(x::TbBlock) = x.block
@@ -37,11 +37,11 @@ blocksize(h::TbHami, args...) =
 	size(block(h[1]), args...)
 
 for op in (:+, :-, :*, :/)
-	@eval $op(t::TbBlock{T}, v::T) where {T} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), v))
-	@eval $op(v::T, t::TbBlock{T}) where {T} = TbBlock(t.R_cart, t.R_cryst, $op(v, block(t)))
-	@eval $op(t::TbBlock{T,M}, v::M) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), v))
-	@eval $op(v::M, t::TbBlock{T,M}) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(v, block(t)))
-	@eval $op(t::TbBlock{T,M}, v::TbBlock{T,M}) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), block(v)))
+	@eval $op(t::TbBlock{T}, v::T) where {T} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), v), $op(t.tb_block, v))
+	@eval $op(v::T, t::TbBlock{T}) where {T} = TbBlock(t.R_cart, t.R_cryst, $op(v, block(t)), $op(v, t.tb_block))
+	@eval $op(t::TbBlock{T,M}, v::M) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), v), $op(t.tb_block, v))
+	@eval $op(v::M, t::TbBlock{T,M}) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(v, block(t)), $op(v, t.tb_block))
+	@eval $op(t::TbBlock{T,M}, v::TbBlock{T,M}) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), block(v)), $op(t.tb_block, v.tb_block))
 end
 
 struct HamiltonianKGrid{T,MT<:AbstractMatrix{Complex{T}}} <: AbstractKGrid{T}

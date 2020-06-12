@@ -141,29 +141,30 @@ function readhami(chk, eig_file::AbstractString)
     c = chk.cell'
     LT = eltype(c)
     T = eltype(eigvals)
-    Hr_t = [TbBlock(R, c*R, zeros(ComplexF64, chk.n_wann, chk.n_wann)) for R in R_cryst]
+    Hr_t = [zeros(ComplexF64, chk.n_wann, chk.n_wann) for R in R_cryst]
     fourier_q_to_R(chk.kpoints, R_cryst) do iR, ik, phase
-        @inbounds Hr_t[iR].block .+= phase .* Hq[ik]
+        @inbounds Hr_t[iR] .+= phase .* Hq[ik]
     end
 
     for o in Hr_t
-        o.block ./= length(chk.kpoints)
+        o ./= length(chk.kpoints)
     end
 
-    out = [TbBlock(R, c*R, zeros(ComplexF64, chk.n_wann, chk.n_wann)) for R in R_cryst]
+    out = [TbBlock(R, c*R, zeros(ComplexF64, chk.n_wann, chk.n_wann), zeros(ComplexF64, chk.n_wann, chk.n_wann)) for R in R_cryst]
 
-    for (iR, (h, shifts, nshifts, d)) in enumerate(zip(Hr_t, ws_shifts, ws_nshifts, degens))
-        for i in eachindex(h.block)
+    for (iR, (h, R, shifts, nshifts, d)) in enumerate(zip(Hr_t, R_cryst, ws_shifts, ws_nshifts, degens))
+        for i in eachindex(h)
             ns = nshifts[i]
             frac = 1/(ns * d)
             for is = 1:ns
-                rcryst = h.R_cryst + shifts[i][is]
+                rcryst = R + shifts[i][is]
                 h1 = out[rcryst]
                 if h1 === nothing
-                    h1 = TbBlock{T, LT, Matrix{Complex{T}}}(rcryst, c*rcryst, zeros(ComplexF64, chk.n_wann, chk.n_wann))
+                    h1 = TbBlock{T, LT, Matrix{Complex{T}}}(rcryst, c*rcryst, zeros(ComplexF64, chk.n_wann, chk.n_wann), zeros(ComplexF64, chk.n_wann, chk.n_wann))
                     push!(out, h1)
                 end
-                h1.block[i] += h.block[i] * frac 
+                h1.block[i] += h[i] * frac
+                h1.tb_block[i] = h[i]
             end
         end
     end
@@ -188,13 +189,14 @@ function read_colin_hami(up_chk, down_chk, up_eig_file::AbstractString, down_eig
 	
 	first = TbBlock(u1.R_cryst,
 	                u1.R_cart,
-	                ColinMatrix(block(u1), block(d1)))
+	                ColinMatrix(block(u1), block(d1)),
+	                ColinMatrix(u1.tb_block, d1.tb_block))
 
 	outhami  = [first]
 	for u in uphami[2:end]
     	d = downhami[u.R_cryst]
     	if d !== nothing
-    		push!(outhami, TbBlock(u.R_cryst, u.R_cart, ColinMatrix(block(u), block(d))))
+    		push!(outhami, TbBlock(u.R_cryst, u.R_cart, ColinMatrix(block(u), block(d)), ColinMatrix(u.tb_block, d.tb_block)))
 		end
 	end
 	return outhami
@@ -733,6 +735,10 @@ function metrics(cell, recip_cell)
 end
 
 #This is a straight translation from the function in W90, this give the wigner_seitz R points
+# The point of this is to determine the R_cryst but also the degeneracies i.e. the periodic images that have
+# the exact same distance and will thus have exactly the same Tb hamiltonian block.
+# This means that if one would be interpolating kpoings without dividing by the degeneracies, the periodic images
+# would be "Double counted", which is why we divide by degen. In the actual tb hamiltonian this is fine though, no division needed.
 wigner_seitz_points(chk) = wigner_seitz_points(chk.mp_grid, metrics(chk).real)
 function wigner_seitz_points(mp_grid, real_metric)
     nrpts   = 0
@@ -743,23 +749,21 @@ function wigner_seitz_points(mp_grid, real_metric)
         dist_R0  = 0.0
         min_dist = typemax(Float64)
         ndegen   = 1
+        best_R = copy(R)
         for i1 in -2:2, i2 in -2:2, i3 in -2:2
             ndiff = R .- Vec3(i1, i2, i3) .* mp_grid
             dist = ndiff' * real_metric * ndiff
-            if dist < min_dist
-                if abs(dist - min_dist) < 1e-7
-                    ndegen += 1
-                else
-                    min_dist = dist
-                    ndegen   = 1
-                end
-            elseif abs(dist - min_dist) < 1e-7
+            if abs(dist - min_dist) < 1e-7
                 ndegen += 1
+            elseif dist < min_dist
+                min_dist = dist
+                ndegen   = 1
             end
             if i1 == i2 == i3 == 0
                 dist_R0 = dist
             end
         end
+        # Only if R is actually the smallest distance it gets added to the R_cryst.
         if abs(min_dist - dist_R0) < 1e-7
             push!(r, R)
             push!(r_degens, ndegen)
