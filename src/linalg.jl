@@ -58,13 +58,20 @@ Base.Array(c::ColinMatrix{T}) where T =
 down(c::ColinMatrix) = (d = blockdim(c); view(c.data, 1:d, d + 1:2 * d))
 blockdim(c::ColinMatrix) = size(c.data, 1)
 
+function LinearAlgebra.diag(c::ColinMatrix)
+    d = blockdim(c)
+    r = LinearAlgebra.diagind(d, d)
+    @show r
+    [c[r];c[r.+last(r)]]
+end
+
 """
     NonColinMatrix{T, M <: AbstractMatrix{T}} <: AbstractMagneticMatrix{T}
 
 
 Defines a Hamiltonian Matrix with [up updown;downup down] structure.
 Since atomic projections w.r.t spins are defined rather awkwardly in Wannier90 for exchange calculations,
-i.e. storing the up-down parts of an orbital sequentially,
+i.e. storing the up-down parts of an atom sequentially,
 a NonColinMatrix reshuffles the entries of a matrix such that it follows the above structure. 
 """
 struct NonColinMatrix{T,M <: AbstractMatrix{T}} <: AbstractMagneticMatrix{T}
@@ -72,17 +79,29 @@ struct NonColinMatrix{T,M <: AbstractMatrix{T}} <: AbstractMagneticMatrix{T}
 end
 
 "Reshuffles standard Wannier90 up-down indices to the ones for the structure of a NonColinMatrix."
-function Base.convert(::Type{NonColinMatrix}, m::M) where {M <: AbstractMatrix}
+function Base.convert(::Type{NonColinMatrix}, m::M, ats::Vector{<:DFC.AbstractAtom}) where {M <: AbstractMatrix}
     @assert iseven(size(m, 1)) "Error, dimension of the supplied matrix is odd, i.e. it does not contain both spin components."
     data = similar(m)
     d    = blockdim(m)
-    for i in 1:2:size(m, 1), j in 1:2:size(m, 2)
-        up_id1 = div1(i, 2)
-        up_id2 = div1(j, 2)
-        data[up_id1, up_id2] = m[i, j]
-        data[up_id1 + d, up_id2] = m[i + 1, j]
-        data[up_id1, up_id2 + d] = m[i, j + 1]
-        data[up_id1 + d, up_id2 + d] = m[i + 1, j + 1]
+    at_ranges = range.(ats)
+    sequential_ranges = sort(at_ranges, by = first)
+    mid1 = div(length(sequential_ranges[1]),2)
+    up_ranges   = [sequential_ranges[1][1:mid1]]
+    for i in 2:length(sequential_ranges)
+        half_length = div(length(sequential_ranges[i]), 2) 
+        push!(up_ranges, (1:half_length) .+ last(up_ranges[i-1]))
+    end
+    l = last(up_ranges[end])
+    down_ranges = [u .+ l for u in up_ranges]
+    for (r1, ur1, dr1) in zip(sequential_ranges, up_ranges, down_ranges), (r2, ur2, dr2) in zip(sequential_ranges, up_ranges, down_ranges)
+        mid1 = div(length(r1), 2)
+        mid2 = div(length(r2), 2)
+        for (i1, u1) in enumerate(ur1), (i2, u2) in enumerate(ur2)
+            data[u1, u2] = m[r1[i1], r2[i2]]
+            data[dr1[i1], dr2[i2]] = m[r1[i1+mid1], r2[i2+mid2]]
+            data[dr1[i1], u2] = m[r1[i1+mid1], r2[i2]]
+            data[u1, dr2[i2]] = m[r1[i1], r2[i2+mid2]]
+        end
     end
     return NonColinMatrix(data)
 end
@@ -93,7 +112,7 @@ function NonColinMatrix(up::AbstractMatrix{T}, down::AbstractMatrix{T}) where {T
 end
 
 Base.Array(c::NonColinMatrix) = copy(c.data)
-
+   
 function noncolin_uprange(a::Union{DFC.Projection,DFC.AbstractAtom})
     projrange = range(a)
     return range(div1(first(projrange), 2), length = div(length(projrange), 2))
@@ -137,19 +156,21 @@ for f in (:view, :getindex)
 
     @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Down, ::Up) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
         $f(c, noncolin_uprange(a1) .+ blockdim(c), noncolin_uprange(a2))
-    # @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Up) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
-        # $f(c, range(a1), range(a2))
+        
+    @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Up) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+        $f(c, range(a1), range(a2))
 
-    # @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Down) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
-        # $f(c, range(a1), range(a2) .+ blockdim(c))
+    @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Down) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+        $f(c, range(a1), range(a2) .+ blockdim(c))
 
     @eval Base.$f(c::AbstractMagneticMatrix, ::Up) =
         (r = 1:blockdim(c); $f(c, r, r))
 
     @eval Base.$f(c::ColinMatrix, ::Down) =
         (d = blockdim(c); r = 1:d; $f(c, r, r .+ d))
-    # @eval Base.$f(c::NonColinMatrix, ::Down) =
-        # (d = blockdim(c); r = d+1 : 2*d; $f(c, r, r))
+        
+    @eval Base.$f(c::NonColinMatrix, ::Down) =
+        (d = blockdim(c); r = d+1 : 2*d; $f(c, r, r))
 
     @eval Base.$f(c::AbstractMatrix, ::Up) =
         (r = 1:blockdim(c); $f(c, r, r))
@@ -293,6 +314,14 @@ end
     return eigen!(vals, out, c)
 end
 
+# @inline function eigen!(orig::M) where {M<:AbstractMagneticMatrix}
+#     vals, vecs = eigen!(orig.data)
+#     return Eigen(vals, M(vecs)) 
+# end
+
+@inline function eigen(h::AbstractMagneticMatrix)
+    return eigen(h, EigCache(h))
+end
     # Very unoptimized
 function Base.Array(e::Eigen{Complex{T},T,<:ColinMatrix{Complex{T}}}) where {T}
     d = size(e.vectors, 1)

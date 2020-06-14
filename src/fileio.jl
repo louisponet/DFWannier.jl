@@ -222,7 +222,7 @@ function readhami(job::DFJob)
 	chk_files = reverse(searchdir(job, ".chk"))
 	@assert !isempty(eig_files) "No eig files ($(seedname).eig) found."
 	@assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
-	if !any(DFC.iscolincalc.(job.inputs))
+	if !DFC.iscolin(job.structure) || any(x -> DFC.hasflag(x, :lspinorb) && x[:lspinorb], DFC.inputs(job))
 		return readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1]))
 	else
 		return read_colin_hami(read_chk.(chk_files)..., eig_files...)
