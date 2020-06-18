@@ -55,7 +55,6 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami, chk) where {
             end
         end
     end
-    # @show A_q[1][1]
     A_R = [berry_vec() for k=1:length(irvec)]
     B_R = [berry_vec() for k=1:length(irvec)]
     C_R = [berry_mat() for k=1:length(irvec)]

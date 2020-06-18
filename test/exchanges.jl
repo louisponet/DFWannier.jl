@@ -13,23 +13,26 @@ hami = DFW.readhami(job)
 ω_grid = DFW.setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
 kpoints = DFW.ExchangeKGrid(hami, DFW.uniform_kgrid(nk...), R)
 
-# @test isapprox(sum(sum.(sum.(kpoints.hamiltonian_kgrid.eigvecs))), -14.6966233042585 - 3.805745562455212im)
 @test isapprox(sum(sum.(kpoints.hamiltonian_kgrid.eigvals)), 37498.386533451325)
-@test isapprox(sum(kpoints.D), +0.3740534125061543 + 6.899612174995906e-16im)
+@test isapprox(sum(kpoints.D), 0.3740534125061543 + 6.899612174995906e-16im)
 
 g_caches = [fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(ComplexF64)) for i=1:3]
 G        =fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(ComplexF64))
 fill!(G, zero(ComplexF64))
 DFW.integrate_Gk!(G, ω_grid[1], fermi, kpoints, g_caches);
 
-# @test isapprox(sum(G[1:16,1:16]), -2.6165384154946817e-5 - 8.046059332175577e-5im)
-
-exch     = calc_exchanges(hami, atoms(structure), fermi; R=R, site_diagonal=false, nk=nk, n_ωh = n_ωh, n_ωv = n_ωv, ωh = ωh, ωv = ωv )
+exch     = calc_exchanges(hami, atoms(job), fermi; R=R, site_diagonal=false, nk=nk, n_ωh = n_ωh, n_ωv = n_ωv, ωh = ωh, ωv = ωv )
 maxJ = maximum([tr(e.J) for e in exch])
 @test isapprox(maxJ, 21.796000086541323)
 
-exch1    = calc_exchanges(hami, atoms(structure), fermi; R=R, site_diagonal=true, nk=nk, n_ωh = n_ωh, n_ωv = n_ωv, ωh = ωh, ωv = ωv )
+exch1    = calc_exchanges(hami, atoms(job), fermi; R=R, site_diagonal=true, nk=nk, n_ωh = n_ωh, n_ωv = n_ωv, ωh = ωh, ωv = ωv )
 maxJ1 = maximum([sum(e.J) for e in exch1])
 @test isapprox(maxJ1, 21.796000086541323)
 @test isapprox(maxJ, maxJ1)  
-exch     = calc_exchanges(hami, atoms(structure), fermi, DFW.Exchange4thOrder, R=R, n_ωv = n_ωv, nk=nk, n_ωh=n_ωh, ωv = 0.5, site_diagonal=false)
+
+hami_soc = [DFW.TbBlock(b.R_cryst, b.R_cart, DFW.NonColinMatrix(DFW.up(b.block), DFW.down(b.block)), DFW.NonColinMatrix(DFW.up(b.tb_block), DFW.down(b.tb_block))) for b in hami]
+
+setprojections!(job.structure, :Ni1 => [:s, :d], :Ni2 => [:s, :d], :O => [:p], soc=true)
+exch     = calc_exchanges(hami_soc, atoms(job), fermi; R=R, site_diagonal=false, nk=nk, n_ωh = n_ωh, n_ωv = n_ωv, ωh = ωh, ωv = ωv )
+maxJ = maximum([tr(e.J) for e in exch])
+@test isapprox(maxJ, 21.796000086541323)

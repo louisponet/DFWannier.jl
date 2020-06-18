@@ -185,7 +185,6 @@ function calc_exchanges(hami,  atoms, fermi::T, ::Type{E} = Exchange2ndOrder;
     for (i, at1) in enumerate(atoms), at2 in atoms[i:end]
         push!(exchanges, E(at1, at2, site_diagonal = site_diagonal))
     end
-
     kpoints = ExchangeKGrid(hami, uniform_shifted_kgrid(nk...), R)
 
     D_ = site_diagonal ? site_diagonalize(kpoints.D, atoms) : kpoints.D

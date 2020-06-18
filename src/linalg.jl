@@ -61,7 +61,6 @@ blockdim(c::ColinMatrix) = size(c.data, 1)
 function LinearAlgebra.diag(c::ColinMatrix)
     d = blockdim(c)
     r = LinearAlgebra.diagind(d, d)
-    @show r
     [c[r];c[r.+last(r)]]
 end
 

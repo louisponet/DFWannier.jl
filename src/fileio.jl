@@ -145,8 +145,6 @@ function readhami(chk, eig_file::AbstractString)
     fourier_q_to_R(chk.kpoints, R_cryst) do iR, ik, phase
         @inbounds Hr_t[iR] .+= phase .* Hq[ik]
     end
-    @show R_cryst[1]
-    @show Hr_t[1][:,1]
     for o in Hr_t
         o ./= length(chk.kpoints)
     end
