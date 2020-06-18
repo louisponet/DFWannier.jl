@@ -21,23 +21,23 @@ for F in (Float32, Float64)
 end
 
 mat = rand(20, 20)
-atoms = [DFControl.Atom(:Fe, DFControl.element(:Fe), DFControl.Point3(0.0, 0.0,0.0).*DFControl.angstrom, DFControl.Point3(0.0,0.0,0.0), projections=[DFControl.Projection(DFControl.orbital(:d), 1, 10)]), DFControl.Atom(:Fe, DFControl.element(:Fe), DFControl.Point3(1.0, 0.0,0.0).*DFControl.angstrom, DFControl.Point3(1.0,0.0,0.0), projections=[DFControl.Projection(DFControl.orbital(:d), 11, 20)])] 
-noncolinmat = convert(DFW.NonColinMatrix, mat, atoms)
+ats = [DFControl.Atom(:Fe, DFControl.element(:Fe), DFControl.Point3(0.0, 0.0,0.0).*DFControl.angstrom, DFControl.Point3(0.0,0.0,0.0), projections=[DFControl.Projection(DFControl.orbital(:d), 1, 10)]), DFControl.Atom(:Fe, DFControl.element(:Fe), DFControl.Point3(1.0, 0.0,0.0).*DFControl.angstrom, DFControl.Point3(1.0,0.0,0.0), projections=[DFControl.Projection(DFControl.orbital(:d), 11, 20)])] 
+noncolinmat = convert(DFW.NonColinMatrix, mat)
 
 @test mat[1] == noncolinmat[1]
-@test mat[2, 2] == noncolinmat[2, 2]
-@test mat[6, 6] == noncolinmat[11, 11]
+@test mat[2, 2] == noncolinmat[11, 11]
+@test mat[6, 6] == noncolinmat[13, 13]
 @test mat[11, 11] == noncolinmat[6, 6]
-@test mat[1, 2] == noncolinmat[1, 2]
-@test mat[2, 1] == noncolinmat[2, 1]
-@test mat[1, 6] == noncolinmat[1, 11]
+@test mat[1, 2] == noncolinmat[1, 11]
+@test mat[2, 1] == noncolinmat[11, 1]
+@test mat[1, 6] == noncolinmat[1, 13]
 @test mat[11, 1] == noncolinmat[6, 1]
 
-@test noncolinmat[atoms[1]] == [noncolinmat[1:5,1:5] noncolinmat[1:5, 11:15];noncolinmat[11:15, 1:5] noncolinmat[11:15, 11:15]]
-@test noncolinmat[atoms[1], atoms[2]] == [noncolinmat[1:5,6:10] noncolinmat[1:5, 16:20];noncolinmat[11:15, 6:10] noncolinmat[11:15, 16:20]]
+@test noncolinmat[ats[1]] == [noncolinmat[1:5,1:5] noncolinmat[1:5, 11:15];noncolinmat[11:15, 1:5] noncolinmat[11:15, 11:15]]
+@test noncolinmat[ats[1], ats[2]] == [noncolinmat[1:5,6:10] noncolinmat[1:5, 16:20];noncolinmat[11:15, 6:10] noncolinmat[11:15, 16:20]]
 
-@test noncolinmat[atoms[1], atoms[2], DFW.Up()] == noncolinmat[1:5,6:10]
-@test noncolinmat[atoms[1], atoms[2], DFW.Down()] == noncolinmat[11:15, 16:20]
+@test noncolinmat[ats[1], ats[2], DFW.Up()] == noncolinmat[1:5,6:10]
+@test noncolinmat[ats[1], ats[2], DFW.Down()] == noncolinmat[11:15, 16:20]
 
-@test noncolinmat[atoms[1], atoms[2], DFW.Up(), DFW.Down()] == noncolinmat[1:5,16:20]
-@test noncolinmat[atoms[1], atoms[2], DFW.Down(), DFW.Up()] == noncolinmat[11:15, 6:10]
+@test noncolinmat[ats[1], ats[2], DFW.Up(), DFW.Down()] == noncolinmat[1:5,16:20]
+@test noncolinmat[ats[1], ats[2], DFW.Down(), DFW.Up()] == noncolinmat[11:15, 6:10]

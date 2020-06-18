@@ -83,9 +83,6 @@ function AbInitioKGrid(::Type{T},
                                  H       = v' * diagm(eigvals[disentanglement_range(wannier_chk_params, ik)]) * v) 
 
     end
-    # kpoints = [AbInitioKPoint{T}(k_cryst = k,
-    #                               k_cart  = wannier_chk_params.recip_cell * k,
-    #                               eigvals = eigenvalues[:, i]) for (i, k) in enumerate(wannier_chk_params.kpoints)]
     fill_k_neighbors!(kpoints, nnkp_filename, wannier_chk_params.recip_cell)
     fill_overlaps!(kpoints, mmn_filename, uHu_filename, wannier_chk_params)
     

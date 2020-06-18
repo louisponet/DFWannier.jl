@@ -79,29 +79,17 @@ struct NonColinMatrix{T,M <: AbstractMatrix{T}} <: AbstractMagneticMatrix{T}
 end
 
 "Reshuffles standard Wannier90 up-down indices to the ones for the structure of a NonColinMatrix."
-function Base.convert(::Type{NonColinMatrix}, m::M, ats::Vector{<:DFC.AbstractAtom}) where {M <: AbstractMatrix}
+function Base.convert(::Type{NonColinMatrix}, m::M) where {M <: AbstractMatrix}
     @assert iseven(size(m, 1)) "Error, dimension of the supplied matrix is odd, i.e. it does not contain both spin components."
     data = similar(m)
     d    = blockdim(m)
-    at_ranges = range.(ats)
-    sequential_ranges = sort(at_ranges, by = first)
-    mid1 = div(length(sequential_ranges[1]),2)
-    up_ranges   = [sequential_ranges[1][1:mid1]]
-    for i in 2:length(sequential_ranges)
-        half_length = div(length(sequential_ranges[i]), 2) 
-        push!(up_ranges, (1:half_length) .+ last(up_ranges[i-1]))
-    end
-    l = last(up_ranges[end])
-    down_ranges = [u .+ l for u in up_ranges]
-    for (r1, ur1, dr1) in zip(sequential_ranges, up_ranges, down_ranges), (r2, ur2, dr2) in zip(sequential_ranges, up_ranges, down_ranges)
-        mid1 = div(length(r1), 2)
-        mid2 = div(length(r2), 2)
-        for (i1, u1) in enumerate(ur1), (i2, u2) in enumerate(ur2)
-            data[u1, u2] = m[r1[i1], r2[i2]]
-            data[dr1[i1], dr2[i2]] = m[r1[i1+mid1], r2[i2+mid2]]
-            data[dr1[i1], u2] = m[r1[i1+mid1], r2[i2]]
-            data[u1, dr2[i2]] = m[r1[i1], r2[i2+mid2]]
-        end
+    for i in 1:2:size(m, 1), j in 1:2:size(m, 2) 
+        up_id1 = div1(i, 2) 
+        up_id2 = div1(j, 2) 
+        data[up_id1, up_id2] = m[i, j] 
+        data[up_id1 + d, up_id2] = m[i + 1, j] 
+        data[up_id1, up_id2 + d] = m[i, j + 1] 
+        data[up_id1 + d, up_id2 + d] = m[i + 1, j + 1]
     end
     return NonColinMatrix(data)
 end

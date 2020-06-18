@@ -195,7 +195,13 @@ for f in (:Hk, :eigvecs, :eigvals)
     @eval $f(bgrid::BerryKGrid) = $f(bgrid.hamiltonian_kgrid)
 end
 
+"""
+    fourier_q_to_R(f::Function, q_vectors, R_vectors)
 
+Performs a fourier transform from the ab-initio kpoints to the wigner seitz unit cells.
+The function will be executed inside the fourier transform loop, being called like
+`f(iR, ik, phase)`
+"""
 function fourier_q_to_R(f::Function, q_vectors, R_vectors)
     for iR in 1:length(R_vectors)
         for ik in 1:length(q_vectors)

@@ -1129,3 +1129,60 @@ function read_unk_noncollinear(file)
     end
     return Uk
 end
+
+function read_spn(filename)
+    f = FortranFile(filename)
+    read(f)
+    nbnd, nk = read(f, (Int32, 2))
+    Sx, Sy, Sz = [zeros(ComplexF64, nbnd, nbnd) for k = 1:nk],
+                 [zeros(ComplexF64, nbnd, nbnd) for k = 1:nk],
+                 [zeros(ComplexF64, nbnd, nbnd) for k = 1:nk]
+    for ik in 1:nk
+        t = read(f, (ComplexF64, 3, div(nbnd * (nbnd + 1), 2)))
+        counter = 1
+        for ib1 in 1:nbnd, ib2 in 1:ib1
+            Sx[ik][ib2, ib1] = t[1, counter]
+            Sx[ik][ib1, ib2] = conj(t[1, counter])
+            Sy[ik][ib2, ib1] = t[2, counter] 
+            Sy[ik][ib1, ib2] = conj(t[2, counter])
+            Sz[ik][ib2, ib1] = t[3, counter] 
+            Sz[ik][ib1, ib2] = conj(t[3, counter])
+            counter += 1
+        end
+    end
+    return (Sx, Sy, Sz)
+end
+
+function S_R(chk, Sx, Sy, Sz)
+    #q is in wannier gauge
+    nk = length(chk.kpoints)
+    Sx_q = [zeros(ComplexF64, chk.n_wann, chk.n_wann) for i=1:nk]
+    Sy_q = [zeros(ComplexF64, chk.n_wann, chk.n_wann) for i=1:nk]
+    Sz_q = [zeros(ComplexF64, chk.n_wann, chk.n_wann) for i=1:nk]
+    vmat = chk.V_matrix
+    nwann = chk.n_wann
+    for ik in 1:nk
+        v = vmat[1:num_states(chk, ik), 1:nwann, ik]
+        disr = disentanglement_range(chk, ik)
+        Sx_q[ik] = v' * Sx[ik][disr, disr] * v
+        Sy_q[ik] = v' * Sy[ik][disr, disr] * v
+        Sz_q[ik] = v' * Sz[ik][disr, disr] * v
+    end
+    R_cryst, degens = chk.ws_R_cryst, chk.ws_degens
+    nR = length(R_cryst) 
+    Sx_R = [zeros(ComplexF64, chk.n_wann, chk.n_wann) for i=1:nR]
+    Sy_R = [zeros(ComplexF64, chk.n_wann, chk.n_wann) for i=1:nR]
+    Sz_R = [zeros(ComplexF64, chk.n_wann, chk.n_wann) for i=1:nR]
+
+    fourier_q_to_R(chk.kpoints, R_cryst) do iR, ik, phase
+        Sx_R[iR] .+= Sx_q[ik] .* phase
+        Sy_R[iR] .+= Sy_q[ik] .* phase
+        Sz_R[iR] .+= Sz_q[ik] .* phase
+    end
+    for iR in 1:nR
+        Sx_R[iR] ./= nk
+        Sy_R[iR] ./= nk
+        Sz_R[iR] ./= nk
+    end
+    return Sx_R, Sy_R, Sz_R
+end
