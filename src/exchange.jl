@@ -52,7 +52,7 @@ function integrate_Gk!(G::AbstractMatrix, ω, μ, kpoints, caches)
     @inbounds for ik = 1:length(kpoints)
     # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(eltype(cache1)))
-        for x = 1:dim
+        for x = 1:2dim
             cache1[x, x] = 1.0 / (μ + ω - eigvals(kpoints)[ik][x])
         end
     # Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
@@ -64,7 +64,7 @@ function integrate_Gk!(G::AbstractMatrix, ω, μ, kpoints, caches)
         tp = t'
         for i in 1:dim, j in 1:dim
             G[i, j] += cache1[i, j] * t
-            G[i + dim, j + dim] += cache1[i + dim, j + dim] * t
+            G[i + dim, j + dim] += cache1[i + dim, j + dim] * tp
         end
     end
     G  ./= length(kpoints)
