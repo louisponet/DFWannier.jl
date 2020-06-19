@@ -24,10 +24,10 @@ function ExchangeKGrid(hami::TbHami, kpoints::Vector{Vec3{T}}, R = zero(Vec3{T})
     return ExchangeKGrid(hami_kpoints, phases(kpoints, R), (Ds[Up()] - Ds[Down()]) / nk)
 end
 
-struct ColinGreensFunction{T <: AbstractFloat}
-    ω::T
-    G::ColinMatrix{Complex{T}} # forward part is always spin up, backward spin down
-end
+# struct ColinGreensFunction{T <: AbstractFloat}
+#     ω::T
+#     G::ColinMatrix{Complex{T}} # forward part is always spin up, backward spin down
+# end
 
 function calc_greens_functions(ω_grid, kpoints, μ::T) where T
     g_caches = [ThreadCache(fill!(similar(eigvecs(kpoints)[1]), zero(Complex{T}))) for i = 1:3]
@@ -48,7 +48,6 @@ function integrate_Gk!(G::AbstractMatrix, ω, μ, kpoints, caches)
     dim = blockdim(G)
     cache1, cache2, cache3 = caches
 
-    b_ranges = [1:dim, 1:dim]
     @inbounds for ik = 1:length(kpoints)
     # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(eltype(cache1)))
@@ -65,6 +64,8 @@ function integrate_Gk!(G::AbstractMatrix, ω, μ, kpoints, caches)
         for i in 1:dim, j in 1:dim
             G[i, j] += cache1[i, j] * t
             G[i + dim, j + dim] += cache1[i + dim, j + dim] * tp
+            G[i+dim, j] = cache1[i + dim, j]
+            G[i, j+dim] = cache1[i, j+dim]
         end
     end
     G  ./= length(kpoints)
@@ -74,7 +75,6 @@ function integrate_Gk!(G::ColinMatrix, ω, μ, kpoints, caches)
     dim = size(G, 1)
     cache1, cache2, cache3 = caches
 
-    b_ranges = [1:dim, dim + 1:2dim]
     @inbounds for ik = 1:length(kpoints)
     # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(eltype(cache1)))
@@ -122,15 +122,8 @@ end
 abstract type Exchange{T <: AbstractFloat} end
 
 function (::Type{E})(at1::AbstractAtom{T}, at2::AbstractAtom{T}; site_diagonal::Bool = false) where {E <: Exchange,T}
-    r1 = range(at1)
-    r2 = range(at2)
-    if length(r1) > sum(map(x->x.orb.size, projections(at1)))
-        l1 = div(length(r1), 2)
-        l2 = div(length(r2), 2)
-    else
-        l1 = length(r1)
-        l2 = length(r2)
-    end
+    l1 = length(noncolin_uprange(at1))
+    l2 = length(noncolin_uprange(at2))
     return site_diagonal ? E{T}(zeros(T, l1, l2), at1, at2) : E{T}(zeros(T, l1, l1), at1, at2)
 end
 """
@@ -182,8 +175,10 @@ function calc_exchanges(hami,  atoms, fermi::T, ::Type{E} = Exchange2ndOrder;
     ω_grid          = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
     
     exchanges       = E{T}[]
-    for (i, at1) in enumerate(atoms), at2 in atoms[i:end]
-        push!(exchanges, E(at1, at2, site_diagonal = site_diagonal))
+    for at1 in atoms
+        for at2 in atoms
+            push!(exchanges, E(at1, at2, site_diagonal = site_diagonal))
+        end
     end
     kpoints = ExchangeKGrid(hami, uniform_shifted_kgrid(nk...), R)
 

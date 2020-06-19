@@ -100,10 +100,15 @@ end
 
 Base.Array(c::NonColinMatrix) = copy(c.data)
    
-function noncolin_uprange(a::Union{DFC.Projection,DFC.AbstractAtom})
+function noncolin_uprange(a::DFC.Projection)
     projrange = range(a)
-    return range(div1(first(projrange), 2), length = div(length(projrange), 2))
+    if length(projrange) > a.orb.size 
+        return range(div1(first(projrange), 2), length = div(length(projrange), 2))
+    else
+        return projrange
+    end
 end
+noncolin_uprange(a::DFC.AbstractAtom) = vcat(noncolin_uprange.(projections(a))...)
     
 ## Indexing ##
 for f in (:view, :getindex)
