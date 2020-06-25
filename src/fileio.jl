@@ -998,7 +998,7 @@ function read_wannier_functions(job)
 end
 
 function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NTuple{3,Int}, wan_plot_list=1:chk_info.n_wann)
-    num_kpts = length(k_filenames)
+    num_kpts = length(chk_info.kpoints)
     U = chk_info.U_matrix
     U_opt = permutedims(chk_info.U_matrix_opt,(2,1,3))
     tu = read_unk(k_filenames[1])
@@ -1078,17 +1078,18 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
             @views wfuncs_all[:, :, :, iw, 1] ./= cmod
         end
     end
-    points = [chk_info.cell * Vec3((x-1)/nrx, (y-1)/nry, (z-1)/nrz) for x in supercell_xrange, y in supercell_yrange, z in supercell_zrange]
+    str_cell = ustrip.(chk_info.cell)
+    points = [str_cell * Point3((x-1)/nrx, (y-1)/nry, (z-1)/nrz) for x in supercell_xrange, y in supercell_yrange, z in supercell_zrange]
     if size(tu,5) == 1
         wfuncs_out = Vector{WannierFunction{1, eltype(wfuncs_all).parameters[1]}}(undef, size(wfuncs_all, 1))
-        @time Threads.@threads for i=1:size(wfuncs_all, 1)
-            wfuncs_out[i] = WannierFunction(points, map(x -> SVector(x), view(wfuncs_all,i, :, :, :, 1)))
+        Threads.@threads for i=1:size(wfuncs_all, 1)
+            wfuncs_out[i] = WannierFunction{1, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), view(wfuncs_all,i, :, :, :, 1)))
         end
         return wfuncs_out 
     else
         wfuncs_out = Vector{WannierFunction{2, eltype(wfuncs_all).parameters[1]}}(undef, size(wfuncs_all, 1))
-        @time Threads.@threads for i=1:size(wfuncs_all, 1)
-            wfuncs_out[i] = WannierFunction(points, map(x -> SVector(x), zip(view(wfuncs_all, i, :, :, :, 1), view(wfuncs_all, i, :, :, :, 2))))
+        Threads.@threads for i=1:size(wfuncs_all, 1)
+            wfuncs_out[i] = WannierFunction{2, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), zip(view(wfuncs_all, i, :, :, :, 1), view(wfuncs_all, i, :, :, :, 2))))
         end
         return wfuncs_out 
     end
