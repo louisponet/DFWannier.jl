@@ -1095,11 +1095,11 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
         Threads.@threads for i=1:size(wfuncs_all, 1)
             wfuncs_out[i] = WannierFunction{2, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), zip(view(wfuncs_all, i, :, :, :, 1), view(wfuncs_all, i, :, :, :, 2))))
         end
-        return wfuncs_out 
+        return normalize.(wfuncs_out)
     end
 end
 function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int}, args...)
-    if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure)
+    if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure) && !any(DFC.issoccalc.(job.inputs))
         wfuncs = Vector{WannierFunction}[]
         for (is, s) in enumerate(("up", "down"))
             wan_calc  = getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, DFC.inputs(job))
