@@ -221,10 +221,14 @@ function readhami(job::DFJob)
 	chk_files = reverse(searchdir(job, ".chk"))
 	@assert !isempty(eig_files) "No eig files ($(seedname).eig) found."
 	@assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
-	if !DFC.iscolin(job.structure) || any(x -> DFC.hasflag(x, :lspinorb) && x[:lspinorb], DFC.inputs(job))
-		return readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1]))
+	if DFC.ismagnetic(job.structure)
+    	if !DFC.iscolin(job.structure) || any(x -> DFC.hasflag(x, :lspinorb) && x[:lspinorb], DFC.inputs(job))
+    		return readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1]))
+    	else
+    		return read_colin_hami(read_chk.(chk_files)..., eig_files...)
+    	end
 	else
-		return read_colin_hami(read_chk.(chk_files)..., eig_files...)
+		return readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1]))
 	end
 end
 
@@ -1095,10 +1099,21 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
     end
 end
 function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int}, args...)
-    unk_files = DFC.searchdir(job, "UNK")
-    wan_calc  = getfirst(x -> DFC.package(x)==Wannier90, DFC.inputs(job))
-    chk_info  = read_chk(joinpath(job, "$(name(wan_calc)).chk"))
-    return plot_wannierfunctions(unk_files, chk_info, supercell, args...)
+    if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure)
+        wfuncs = Vector{WannierFunction}[]
+        for (is, s) in enumerate(("up", "down"))
+            wan_calc  = getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, DFC.inputs(job))
+            chk_info  = read_chk(joinpath(job, "$(name(wan_calc)).chk"))
+            unk_files = filter(x->occursin(".$is", x), DFC.searchdir(job, "UNK"))
+            push!(wfuncs, plot_wannierfunctions(unk_files, chk_info, supercell, args...))
+        end
+        return (up=wfuncs[1], down=wfuncs[2]) 
+    else
+        wan_calc  = getfirst(x -> DFC.package(x)==Wannier90, DFC.inputs(job))
+        chk_info  = read_chk(joinpath(job, "$(name(wan_calc)).chk"))
+        unk_files = DFC.searchdir(job, "UNK")
+        return plot_wannierfunctions(unk_files, chk_info, supercell, args...)
+    end
 end
 
 read_unk(file) = occursin("NC", file) ? read_unk_noncollinear(file) : read_unk_collinear(file)
