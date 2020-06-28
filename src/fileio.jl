@@ -1052,7 +1052,7 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
                         for ib in 1:n_wann
                             rt = r_wan[ib, ix, iy, iz] * scalfac
                             for iw in 1:nwfun
-                                wfuncs_all[iw, iisx, iisy, iisz, is] += u[iw, ib] * rt
+                                wfuncs_all[iw, iisx, iisy, iisz, is] += u[ib, iw] * rt
                             end
                         end
                     end
@@ -1095,14 +1095,15 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
         Threads.@threads for i=1:size(wfuncs_all, 1)
             wfuncs_out[i] = WannierFunction{2, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), zip(view(wfuncs_all, i, :, :, :, 1), view(wfuncs_all, i, :, :, :, 2))))
         end
-        return normalize.(wfuncs_out)
+        return wfuncs_out 
     end
 end
 function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int}, args...)
-    if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure) && !any(DFC.issoccalc.(job.inputs))
+    if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure)
         wfuncs = Vector{WannierFunction}[]
         for (is, s) in enumerate(("up", "down"))
             wan_calc  = getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, DFC.inputs(job))
+            @show "$(name(wan_calc)).chk"
             chk_info  = read_chk(joinpath(job, "$(name(wan_calc)).chk"))
             unk_files = filter(x->occursin(".$is", x), DFC.searchdir(job, "UNK"))
             push!(wfuncs, plot_wannierfunctions(unk_files, chk_info, supercell, args...))
