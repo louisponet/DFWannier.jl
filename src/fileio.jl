@@ -1003,7 +1003,7 @@ end
 
 function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NTuple{3,Int}, wan_plot_list=1:chk_info.n_wann)
     num_kpts = length(chk_info.kpoints)
-    U = chk_info.U_matrix
+    U = permutedims(chk_info.U_matrix, (2, 1, 3))
     U_opt = permutedims(chk_info.U_matrix_opt,(2,1,3))
     tu = read_unk(k_filenames[1])
     nrx, nry, nrz = size(tu,1), size(tu,2), size(tu,3)
@@ -1052,7 +1052,7 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
                         for ib in 1:n_wann
                             rt = r_wan[ib, ix, iy, iz] * scalfac
                             for iw in 1:nwfun
-                                wfuncs_all[iw, iisx, iisy, iisz, is] += u[ib, iw] * rt
+                                wfuncs_all[iw, iisx, iisy, iisz, is] += u[iw, ib] * rt
                             end
                         end
                     end
