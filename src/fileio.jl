@@ -1099,7 +1099,7 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
     end
 end
 function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int}, args...)
-    if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure)
+    if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure) && !any(DFC.issoccalc, job.inputs)
         wfuncs = Vector{WannierFunction}[]
         for (is, s) in enumerate(("up", "down"))
             wan_calc  = getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, DFC.inputs(job))
