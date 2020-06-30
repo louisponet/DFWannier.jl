@@ -1018,8 +1018,8 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
     n_wann = chk_info.n_wann
     r_wan      = zeros(eltype(tu), chk_info.n_wann, nrx, nry, nrz)
 
-    p = Progress(length(chk_info.kpoints))
-    @inbounds for ik = 1:num_kpts
+    p = Progress(10)
+    @inbounds for ik = 1:length(chk_info.kpoints)
         k = chk_info.kpoints[ik]
         unk_all = read_unk(k_filenames[ik])
         for is = 1:size(tu, 5)
@@ -1032,7 +1032,7 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
                 Threads.@threads for nz in 1:nrz
                     for ny in 1:nry
                         for nx in 1:nrx
-                            for iw in 1:n_wann
+                            @simd for iw in 1:n_wann
                                 r_wan[iw, nx, ny, nz] += u_opt[iw, ib] * unk_all[nx,ny,nz,iib,is]
                             end
                         end
@@ -1095,7 +1095,7 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
         Threads.@threads for i=1:size(wfuncs_all, 1)
             wfuncs_out[i] = WannierFunction{2, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), zip(view(wfuncs_all, i, :, :, :, 1), view(wfuncs_all, i, :, :, :, 2))))
         end
-        return wfuncs_out 
+        return normalize!.(wfuncs_out)
     end
 end
 function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int}, args...)

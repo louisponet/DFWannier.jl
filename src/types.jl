@@ -74,7 +74,7 @@ end
 LinearAlgebra.norm(wfc::WannierFunction) =
 	dot(wfc, wfc)
 
-LinearAlgebra.normalize(wfc::WannierFunction) =
+LinearAlgebra.normalize!(wfc::WannierFunction) =
 	wfc ./= sqrt(norm(wfc))
 
 ####
