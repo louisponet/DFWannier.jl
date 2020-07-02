@@ -223,7 +223,7 @@ function readhami(job::DFJob)
 	@assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
 	if DFC.ismagnetic(job.structure)
     	if !DFC.iscolin(job.structure) || any(x -> DFC.hasflag(x, :lspinorb) && x[:lspinorb], DFC.inputs(job))
-    		return readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1]))
+    		return make_noncolin.(readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1])))
     	else
     		return read_colin_hami(read_chk.(chk_files)..., eig_files...)
     	end

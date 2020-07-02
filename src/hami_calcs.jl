@@ -44,6 +44,9 @@ for op in (:+, :-, :*, :/)
 	@eval $op(t::TbBlock{T,M}, v::TbBlock{T,M}) where {T,M} = TbBlock(t.R_cart, t.R_cryst, $op(block(t), block(v)), $op(t.tb_block, v.tb_block))
 end
 
+make_noncolin(tb::TbBlock) =
+    TbBlock(tb.R_cryst, tb.R_cart, convert(NonColinMatrix, tb.block), convert(NonColinMatrix, tb.tb_block))
+
 struct HamiltonianKGrid{T,MT<:AbstractMatrix{Complex{T}}} <: AbstractKGrid{T}
     core::CoreKGrid{T}
     Hk::Vector{MT}
