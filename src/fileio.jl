@@ -674,8 +674,12 @@ function read_chk(filename)
     wannier_centers_t = read(f, (Float64, 3, n_wann))
     wannier_centers = [Point3(wannier_centers_t[:, i]...) for i = 1:size(wannier_centers_t)[2]]
     wannier_spreads = read(f, (Float64, n_wann))
- 
-    wb = read(f, (Float64, k_nearest_neighbors)) #this requires patched w90
+    try
+        wb = read(f, (Float64, k_nearest_neighbors)) #this requires patched w90
+    catch
+        @warn "neighbor weights not found, berry calculations won't work. Patch your w90 if this functionality is wanted"
+        wb = nothing
+    end
     ws_R_cryst, ws_degens = wigner_seitz_points(mp_grid, metrics(ustrip.(real_lattice), ustrip.(recip_lattice)).real)
     ws_shifts_cryst, ws_nshifts = find_wigner_seitz_shifts(ws_R_cryst, wannier_centers, real_lattice, mp_grid)
     return (

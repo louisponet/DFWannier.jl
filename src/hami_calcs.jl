@@ -46,6 +46,9 @@ end
 
 make_noncolin(tb::TbBlock) =
     TbBlock(tb.R_cryst, tb.R_cart, convert(NonColinMatrix, tb.block), convert(NonColinMatrix, tb.tb_block))
+    
+make_noncolin(v::Vector) =
+    [v[1:2:end];v[2:2:end]]
 
 struct HamiltonianKGrid{T,MT<:AbstractMatrix{Complex{T}}} <: AbstractKGrid{T}
     core::CoreKGrid{T}
