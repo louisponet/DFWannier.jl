@@ -674,6 +674,7 @@ function read_chk(filename)
     wannier_centers_t = read(f, (Float64, 3, n_wann))
     wannier_centers = [Point3(wannier_centers_t[:, i]...) for i = 1:size(wannier_centers_t)[2]]
     wannier_spreads = read(f, (Float64, n_wann))
+    wb = nothing
     try
         wb = read(f, (Float64, k_nearest_neighbors)) #this requires patched w90
     catch
