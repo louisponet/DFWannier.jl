@@ -21,17 +21,23 @@ for f in (:length, :size, :setindex!, :elsize)
     Base.$f(c.data, args...)
 end
 
+Base.pointer(c::AbstractMagneticMatrix, i::Integer) = pointer(c.data, i)
+
+"Magnetic block dimensions"
 blockdim(c::AbstractMatrix) = div(size(data(c), 2), 2)
 
 up(c::AbstractMatrix) =   (d = blockdim(c); view(data(c), 1:d, 1:d))
 down(c::AbstractMatrix) = (d = blockdim(c); r = d + 1:2 * d; view(data(c), r, r))
 
-@inline @propagate_inbounds Base.getindex(c::AbstractMagneticMatrix, args...) =
-    getindex(c.data, args...)
+# Standard getindex behavior
 
 for f in (:view, :getindex)
-    @eval @inline @propagate_inbounds Base.$f(c::AbstractMagneticMatrix, args::AbstractUnitRange...) =
-    Base.$f(c.data, args...)
+    @eval @inline @propagate_inbounds Base.$f(c::AbstractMagneticMatrix, args...) =
+        getindex(c.data, args...)
+    @eval @inline @propagate_inbounds Base.$f(c::AbstractMagneticMatrix, r::Union{Colon, AbstractUnitRange}, i::Int) =
+        MagneticVector(Base.$f(c.data, r, i))
+    @eval @inline @propagate_inbounds Base.$f(c::AbstractMagneticMatrix, i::Int, r::Union{Colon, AbstractUnitRange}) =
+        MagneticVector(Base.$f(c.data, i, r))
 end
 
 Base.similar(c::M, args::AbstractUnitRange...) where {M <: AbstractMagneticMatrix} =
@@ -100,7 +106,7 @@ end
 
 Base.Array(c::NonColinMatrix) = copy(c.data)
    
-function noncolin_uprange(a::DFC.Projection)
+function uprange(a::DFC.Projection)
     projrange = range(a)
     if length(projrange) > a.orb.size 
         return range(div1(first(projrange), 2), length = div(length(projrange), 2))
@@ -108,7 +114,7 @@ function noncolin_uprange(a::DFC.Projection)
         return projrange
     end
 end
-noncolin_uprange(a::DFC.AbstractAtom) = vcat(noncolin_uprange.(projections(a))...)
+uprange(a::DFC.AbstractAtom) = vcat(uprange.(projections(a))...)
     
 ## Indexing ##
 for f in (:view, :getindex)
@@ -119,8 +125,8 @@ for f in (:view, :getindex)
         return ColinMatrix($f(c, projrange1, projrange2), $f(c, projrange1, projrange2 .+ blockdim(c)))
     end
     @eval function Base.$f(c::NonColinMatrix, a1::T, a2::T) where {T <: Union{DFC.Projection,DFC.AbstractAtom}}
-        up_range1 = noncolin_uprange(a1)
-        up_range2 = noncolin_uprange(a2)
+        up_range1 = uprange(a1)
+        up_range2 = uprange(a2)
         d = blockdim(c)
         dn_range1 = up_range1 .+ d
         dn_range2 = up_range2 .+ d
@@ -135,19 +141,19 @@ for f in (:view, :getindex)
         $f(c, range(a1), range(a2))
     
     @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Up) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
-        $f(c, noncolin_uprange(a1), noncolin_uprange(a2))
+        $f(c, uprange(a1), uprange(a2))
 
     @eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Down) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
         $f(c, range(a1), range(a2) .+ blockdim(c))
         
     @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Down) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
-        $f(c, noncolin_uprange(a1) .+ blockdim(c), noncolin_uprange(a2) .+ blockdim(c))
+        $f(c, uprange(a1) .+ blockdim(c), uprange(a2) .+ blockdim(c))
         
     @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Up, ::Down) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
-        $f(c, noncolin_uprange(a1), noncolin_uprange(a2) .+ blockdim(c))
+        $f(c, uprange(a1), uprange(a2) .+ blockdim(c))
 
     @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Down, ::Up) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
-        $f(c, noncolin_uprange(a1) .+ blockdim(c), noncolin_uprange(a2))
+        $f(c, uprange(a1) .+ blockdim(c), uprange(a2))
         
     @eval Base.$f(c::NonColinMatrix, ::Up, ::Down) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
         (s = size(c,1); $f(c, 1:div(s, 2), div(s, 2)+1:s))
@@ -178,7 +184,7 @@ for f in (:view, :getindex)
     
 end
 
-    for op in (:*, :-, :+, :/)
+for op in (:*, :-, :+, :/)
     @eval @inline Base.$op(c1::ColinMatrix, c2::ColinMatrix) =
         ColinMatrix($op(c1[Up()], c2[Up()]), $op(c1[Down()], c2[Down()]))
     @eval @inline Base.$op(c1::NonColinMatrix, c2::NonColinMatrix) =
@@ -264,6 +270,69 @@ for (elty, relty, cfunc) in zip((:ComplexF32, :ComplexF64), (:Float32, :Float64)
     end
 end
 
+"Vector following the same convention as the in AbstractMagneticMatrix, i.e. first half of the indices contain the up part, second the down part"
+struct MagneticVector{T} <: AbstractVector{T}
+    data::Vector{T}
+end
+
+for f in (:length, :size, :setindex!, :elsize)
+    @eval @inline @propagate_inbounds Base.$f(c::MagneticVector, args...) =
+    Base.$f(c.data, args...)
+end
+
+up(c::MagneticVector) = view(c.data, 1:div(length(c), 2))
+down(c::MagneticVector) = (lc = length(c); view(c.data, div(lc, 2):lc))
+
+# Standard getindex behavior
+@inline @propagate_inbounds Base.getindex(c::MagneticVector, args...) =
+    getindex(c.data, args...)
+
+for f in (:view, :getindex)
+    @eval @inline @propagate_inbounds Base.$f(c::MagneticVector, args::AbstractUnitRange...) =
+    Base.$f(c.data, args...)
+end
+
+Base.similar(v::MagneticVector) = MagneticVector(similar(v.data))
+
+"Reshuffles standard Wannier90 up-down indices to the ones for the structure of a MagneticVector."
+function Base.convert(::Type{MagneticVector}, v::V) where {V <: AbstractVector}
+    @assert iseven(length(v)) "Error, dimension of the supplied matrix is odd, i.e. it does not contain both spin components."
+    data = similar(v)
+    vl = length(v)
+    d    =div(vl, 2)
+    
+    for i in 1:2:vl
+        up_id1 = div1(i, 2) 
+        data[up_id1] = v[i] 
+        data[up_id1 + d] = v[i + 1] 
+    end
+    return NonColinMatrix(data)
+end
+
+## Indexing with atoms and spins ##
+for f in (:view, :getindex)
+    @eval function Base.$f(c::MagneticVector, a1::T) where {T <: Union{DFC.Projection,DFC.AbstractAtom}}
+        projrange1 = uprange(a1)
+        return MagneticVector([$f(c, projrange1); $f(c, projrange1 .+ div(length(c), 2))])
+    end
+    @eval Base.$f(c::MagneticVector, a1::T, ::Up) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+        $f(c, uprange(a1))
+    
+    @eval Base.$f(c::MagneticVector, a1::T, ::Down) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+        $f(c, range(a1), uprange(a2) + div(length(c), 2))
+        
+    @eval Base.$f(c::MagneticVector, ::Up) =
+        $f(c, 1:div(length(c), 2))
+
+    @eval Base.$f(c::MagneticVector, ::Down) =
+        (lc = length(c); $f(c, div(lc, 2) + 1:lc))
+end
+
+for op in (:*, :-, :+, :/)
+    @eval @inline Base.$op(c1::MagneticVector, c2::MagneticVector) =
+        MagneticVector($op(c1.data, c2.data))
+end
+
 struct EigCache{T <: AbstractFloat}
     work::Vector{Complex{T}}
     lwork::BlasInt
@@ -295,13 +364,13 @@ EigCache(A::NonColinMatrix) = EigCache(A.data)
 end
 
 @inline function eigen!(vals::AbstractVector{T}, vecs::ColinMatrix{Complex{T}}, c::EigCache{T}) where {T}
-    eigen!(view(vals, 1:c.n), up(vecs), c)
-    eigen!(view(vals, c.n + 1:2 * c.n), down(vecs), c)
+    eigen!(view(vals.data, 1:c.n), up(vecs), c)
+    eigen!(view(vals.data, c.n + 1:2 * c.n), down(vecs), c)
     return Eigen(vals, vecs)
 end
 
 @inline function eigen!(vals::AbstractVector{T}, vecs::NonColinMatrix{Complex{T}}, c::EigCache{T}) where {T}
-    eigen!(vals, vecs.data, c)
+    eigen!(vals.data, vecs.data, c)
     return Eigen(vals, vecs)
 end
 
@@ -309,6 +378,12 @@ end
 @inline function eigen(vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
     out  = copy(vecs)
     vals = similar(out, T, size(out, 2))
+    return eigen!(vals, out, c)
+end
+
+@inline function eigen(vecs::AbstractMagneticMatrix{Complex{T}}, c::EigCache{T}) where {T}
+    out  = copy(vecs)
+    vals = MagneticVector(similar(out, T, size(out, 2)))
     return eigen!(vals, out, c)
 end
 

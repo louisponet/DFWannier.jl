@@ -21,7 +21,7 @@ function ExchangeKGrid(hami::TbHami, kpoints::Vector{Vec3{T}}, R = zero(Vec3{T})
     hami_kpoints = HamiltonianKGrid(hami, kpoints, x->D .+= x)
     nk = length(hami_kpoints)
     Ds = gather(D)
-    return ExchangeKGrid(hami_kpoints, phases(kpoints, R), (Ds[Up()] - Ds[Down()]) / nk)
+    return ExchangeKGrid(hami_kpoints, phases(kpoints, R), Array(Ds[Up()] - Ds[Down()]) / nk)
 end
 
 # struct ColinGreensFunction{T <: AbstractFloat}
@@ -122,8 +122,8 @@ end
 abstract type Exchange{T <: AbstractFloat} end
 
 function (::Type{E})(at1::AbstractAtom{T}, at2::AbstractAtom{T}; site_diagonal::Bool = false) where {E <: Exchange,T}
-    l1 = length(noncolin_uprange(at1))
-    l2 = length(noncolin_uprange(at2))
+    l1 = length(uprange(at1))
+    l2 = length(uprange(at2))
     return site_diagonal ? E{T}(zeros(T, l1, l2), at1, at2) : E{T}(zeros(T, l1, l1), at1, at2)
 end
 """
@@ -229,8 +229,8 @@ perturbation_bubble(::Exchange4thOrder, D_site1, G_forward, D_site2, G_backward)
 
 @inline function Jω(exch, D, G, dω)
     if size(D, 1) < size(G, 1)
-        ra1 = noncolin_uprange(exch.atom1)
-        ra2 = noncolin_uprange(exch.atom2)
+        ra1 = uprange(exch.atom1)
+        ra2 = uprange(exch.atom2)
     else
         ra1 = range(exch.atom1)
         ra2 = range(exch.atom2)

@@ -50,10 +50,10 @@ make_noncolin(tb::TbBlock) =
 make_noncolin(v::Vector) =
     [v[1:2:end];v[2:2:end]]
 
-struct HamiltonianKGrid{T,MT<:AbstractMatrix{Complex{T}}} <: AbstractKGrid{T}
+struct HamiltonianKGrid{T,MT<:AbstractMatrix{Complex{T}}, VT<:AbstractVector{T}} <: AbstractKGrid{T}
     core::CoreKGrid{T}
     Hk::Vector{MT}
-    eigvals::Vector{Vector{T}}
+    eigvals::Vector{VT}
     eigvecs::Vector{MT}
 end
 HamiltonianKGrid(kpoints::Vector{<:Vec3}, args...) = HamiltonianKGrid(CoreKGrid(kpoints), args...)
@@ -68,7 +68,8 @@ the H_function_k function is called on the intermediate Hk.
 function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3}, Hk_function::Function = x -> nothing) where {T}
 	# kpoints = [KPoint(k, blocksize(hami), R, zeros_block(hami)) for k in k_grid]
 	n_eigvals = max(blocksize(hami)...)
-	kgrid = HamiltonianKGrid(kpoints, [zeros_block(hami) for k in kpoints], [zeros(T, n_eigvals) for k in kpoints], [zeros_block(hami) for k in kpoints])
+	eigvals = hami[1].block isa AbstractMagneticMatrix ? [MagneticVector(zeros(T, n_eigvals)) for k in kpoints] : [zeros(T, n_eigvals) for k in kpoints]
+	kgrid = HamiltonianKGrid(kpoints, [zeros_block(hami) for k in kpoints], eigvals, [zeros_block(hami) for k in kpoints])
 	nk    = length(kpoints)
 	calc_caches = [EigCache(block(hami[1])) for i=1:nthreads()]
 	p = Progress(nk, 1, "Calculating H(k)...")
@@ -134,10 +135,10 @@ end
 # end
 
 "Holds all the calculated values from a wannier model."
-@with_kw mutable struct WannierBand{T<:AbstractFloat} <: Band
+@with_kw mutable struct WannierBand{T<:AbstractFloat, VT<:AbstractVector} <: Band
     kpoints_cryst ::Vector{Vec3{T}}
     eigvals        ::Vector{T}
-    eigvec         ::Vector{Vector{Complex{T}}}
+    eigvec         ::Vector{VT}
     cms      ::Vector{Point3{T}} = Point3{T}[]
     angmoms  ::Vector{Vector{Point3{T}}} = Vector{Point3{T}}[]
     spins    ::Vector{Vector{Point3{T}}} = Vector{Point3{T}}[]
@@ -145,27 +146,20 @@ end
 
 DFControl.eigvals(b::WannierBand) = b.eigvals
 
-function WannierBand(kpoints::Vector{Vec3{T}}, dim::Int) where T
-    klen = length(kpoints)
-    WannierBand{T}(kpoints_cryst=kpoints, eigvals=zeros(T, klen), eigvec=[zeros(Complex{T}, dim) for k=1:klen])
-end
-
-wannierbands(kpoints::Vector{<:Vec3}, dim::Int) =
-	[WannierBand(kpoints, dim) for i=1:dim]
-
-function wannierbands(tbhamis::TbHami, kpoints::Vector{<:Vec3})
+function wannierbands(tbhamis::TbHami{T}, kpoints::Vector{<:Vec3}) where {T}
     matdim   = blocksize(tbhamis, 2)
-    kgrid    = HamiltonianKGrid(tbhamis, kpoints) 
-    outbands = wannierbands(kpoints, matdim)
+    kgrid    = HamiltonianKGrid(tbhamis, kpoints)
+    nbnd = size(tbhamis[1].block, 2)
+    evals = [zeros(length(kpoints)) for i=1:nbnd]
+    evecs = [[similar(kgrid.eigvecs[1][:, 1]) for i=1:length(kpoints)] for i=1:nbnd]
     @threads for i = 1:length(kpoints)
         eigvals, eigvecs = kgrid.eigvals[i], kgrid.eigvecs[i]
         for e=1:length(eigvals)
-            outbands[e].eigvals[i] = eigvals[e]
-            outbands[e].eigvec[i] = eigvecs[:,e]
-            outbands[e].kpoints_cryst[i] = kpoints[i]
+            evals[e][i] = eigvals[e]
+            evecs[e][i] = eigvecs[:,e]
         end
     end
-    return outbands
+    return [WannierBand{T, eltype(evecs[1])}(kpoints_cryst = kpoints, eigvals=evals[i], eigvec=evecs[i]) for i =1:nbnd]
 end
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) =
 	wannierbands(tbhamis, dfbands[1].k_points_cryst)

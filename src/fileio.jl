@@ -625,18 +625,18 @@ end
     # end
 # end
 #TODO: cleanup
-const CART_TYPE{T} = Quantity{T,Unitful.𝐋,Unitful.FreeUnits{(Ang,),Unitful.𝐋,nothing}}
-
 function read_chk(filename)
     f = FortranFile(filename)
     header = String(read(f, FString{33}))
     n_bands = Int(read(f, Int32))
     n_excluded_bands = Int(read(f, Int32))
-    # exclude_bands_t = zeros(Int32, n_excluded_bands)
-    read(f, (Int32, n_excluded_bands))
-    # exclude_bands= convert.(Int, exclude_bands_t)
-    read(f)
-    real_lattice = CART_TYPE{Float64}.(Mat3(read(f, (Float64, 3, 3))...))
+    if n_excluded_bands != 0
+        read(f, (Int32, n_excluded_bands))
+    else
+        read(f)
+        read(f)
+    end
+    real_lattice = 1DFControl.angstrom.*(Mat3(read(f, (Float64, 3, 3))...))
     recip_lattice = K_CART_TYPE{Float64}.(Mat3(read(f, (Float64, 3, 3))...)')
     n_kpoints = read(f, Int32)
     mp_grid = Vec3(Int.(read(f, (Int32, 3)))...)
@@ -656,7 +656,7 @@ function read_chk(filename)
         omega_invariant = 0.0
         lwindow = fill(true, 1, n_kpoints)
         ndimwin = fill(n_wann, n_kpoints)
-        U_matrix_opt= Array{Complex{Float64}, 3}()
+        U_matrix_opt= nothing
     end
     U_matrix = read(f, (Complex{Float64}, n_wann, n_wann, n_kpoints))
  
@@ -1103,6 +1103,7 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
         return normalize!.(wfuncs_out)
     end
 end
+
 function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int}, args...)
     if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure) && !any(DFC.issoccalc, job.inputs)
         wfuncs = Vector{WannierFunction}[]

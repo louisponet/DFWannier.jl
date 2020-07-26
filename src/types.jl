@@ -1,6 +1,6 @@
 using DFControl: searchdir, Band, DFBand, Point3, Vec3, Point, Mat3
 using DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, pseudo, projections, setpseudo!, atom
-using DFControl.Unitful: Length
+import DFControl: Length
 import Base: getindex, zero, show, -, +, ==, !=, *, /, view
 # Cleanup Do we really need <:abstractfloat, check this!
 

@@ -1,15 +1,14 @@
-!  wannier_plot_supercell =   3 3 3
+  mp_grid =   5 5 5
   dis_win_min = -3.32697
   dis_froz_min = 1.67303
   num_bands = 50
   spin = up
-!  wannier_plot = true
-  dis_win_max = 26.1116
-!  write_hr = true
-  num_wann = 18
-!  restart = plot
-  mp_grid =   5 5 5
-  dis_froz_max = 21.1116
+  num_iter = 1000
+  num_wann = 16
+  dis_win_max = 19.2872
+  dis_froz_max = 14.287199999999999
+restart=plot
+write_hr=true
 
 begin unit_cell_cart
 4.177001691472421 2.0885008457362106 2.0885008457362106
@@ -18,14 +17,14 @@ begin unit_cell_cart
 end unit_cell_cart
 
 begin projections
-Ni1: s;d
-Ni2: s;d
+Ni: d
+Ni1: d
 O: p
 end projections
 
 begin atoms_frac
-Ni1  0.0 0.0 0.0
-Ni2  0.5 0.5 0.5
+Ni  0.0 0.0 0.0
+Ni1  0.5 0.5 0.5
 O  0.25 0.25 0.25
 O  0.75 0.75 0.75
 end atoms_frac

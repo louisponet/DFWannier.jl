@@ -1,0 +1,10 @@
+&inputpp
+  spin_component = 'down'
+  prefix = 'NiO_afm'
+  write_amn = true
+  wan_mode = 'standalone'
+  outdir = '/home/ponet/NiO/NSOC/outputs'
+  write_mmn = true
+  seedname = 'wandn'
+/
+

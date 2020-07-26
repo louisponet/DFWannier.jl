@@ -20,7 +20,6 @@ g_caches = [fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(ComplexF64
 G        =fill!(similar(kpoints.hamiltonian_kgrid.eigvecs[1]), zero(ComplexF64))
 fill!(G, zero(ComplexF64))
 DFW.integrate_Gk!(G, ω_grid[1], fermi, kpoints, g_caches);
-
 exch     = calc_exchanges(hami, atoms(job), fermi; R=R, site_diagonal=false, nk=nk, n_ωh = n_ωh, n_ωv = n_ωv, ωh = ωh, ωv = ωv )
 maxJ = maximum([tr(e.J) for e in exch])
 @test isapprox(maxJ, 21.796000086541323)
@@ -32,7 +31,7 @@ maxJ1 = maximum([sum(e.J) for e in exch1])
 
 hami_soc = [DFW.TbBlock(b.R_cryst, b.R_cart, DFW.NonColinMatrix(DFW.up(b.block), DFW.down(b.block)), DFW.NonColinMatrix(DFW.up(b.tb_block), DFW.down(b.tb_block))) for b in hami]
 
-setprojections!(job.structure, :Ni1 => [:s, :d], :Ni2 => [:s, :d], :O => [:p], soc=true)
+setprojections!(job.structure, :Ni1 => [:d], :Ni2 => [:d], :O => [:p], soc=true)
 exch     = calc_exchanges(hami_soc, atoms(job), fermi; R=R, site_diagonal=false, nk=nk, n_ωh = n_ωh, n_ωv = n_ωv, ωh = ωh, ωv = ωv )
 maxJ = maximum([tr(e.J) for e in exch])
 @test isapprox(maxJ, 21.796000086541323)
