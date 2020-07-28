@@ -83,12 +83,12 @@ end
 read_values_from_xsf(filename::String) = read_values_from_xsf(Float64, filename)
 
 """
-write_xsf_file(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
+write_xsf(filename::String, wfc::Wfc3D{T}) where T<:AbstractFloat
 
 
 Writes the real part of the Wfc3D to a .xsf file that is readable by XCrysden or VESTA.
 """
-function write_xsf_file(filename::String, wfc, structure; value_func=x -> norm(x))
+function write_xsf(filename::String, wfc, structure; value_func=x -> norm(x))
     open(filename,"w") do f
         origin = wfc.points[1,1,1]
         write(f,"# Generated from PhD calculations\n")
@@ -686,7 +686,7 @@ function read_chk(filename)
     return (
         n_bands=n_bands,
         n_excluded_bands=n_excluded_bands,
-        cell=real_lattice,
+        cell=real_lattice',
         recip_cell=recip_lattice,
         n_kpoints=n_kpoints,
         mp_grid=mp_grid,

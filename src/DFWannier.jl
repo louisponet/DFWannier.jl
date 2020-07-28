@@ -36,5 +36,6 @@ module DFWannier
 	export uniform_kgrid
 	export Up, Down, WannierFunction, calc_greens_functions, ExchangeKGrid, HamiltonianKGrid
 	export generate_wannierfunctions
-	export wan_hash
+    export wan_hash
+    export write_xsf, read_chk, read_spn, S_R
 end
