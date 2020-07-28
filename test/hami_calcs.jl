@@ -10,4 +10,6 @@ i, structure = DFW.DFControl.wan_read_input(assetfile("wanup.win"))
 hami = readhami(DFW.read_chk(assetfile("wanup.chk")), assetfile("wanup.eig"))
 
 wbands = wannierbands(hami, uniform_kgrid(nk...))
-@test isapprox(sum(wbands[3].eigvals), 26.2642711779676)
+@test isapprox(sum(wbands[3].eigvals), 26.24675680998617)
+
+

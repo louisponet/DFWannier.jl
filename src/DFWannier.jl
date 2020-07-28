@@ -35,4 +35,6 @@ module DFWannier
 	export wannierbands, readhami, calc_exchanges, read_colin_hami, character_contributions, kpdos, energy_bins
 	export uniform_kgrid
 	export Up, Down, WannierFunction, calc_greens_functions, ExchangeKGrid, HamiltonianKGrid
+	export generate_wannierfunctions
+	export wan_hash
 end

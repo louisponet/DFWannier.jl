@@ -710,6 +710,13 @@ function read_chk(filename)
         ws_nshifts = ws_nshifts
     )
 end
+function read_chk(job::DFJob)
+    if DFC.iscolin(job.structure)
+        return map(s -> read_chk(joinpath(job, "$(name(getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, DFC.inputs(job)))).chk")), ["up", "down"])
+    else
+        return read_chk(joinpath(job, "$(name(getfirst(x -> DFC.package(x)==Wannier90, DFC.inputs(job)))).chk"))
+    end
+end
 
 function read_eig(filename)
     t = readdlm(filename)
@@ -1023,7 +1030,7 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
     n_wann = chk_info.n_wann
     r_wan      = zeros(eltype(tu), chk_info.n_wann, nrx, nry, nrz)
 
-    p = Progress(10)
+    p = Progress(length(chk_info.kpoints))
     @inbounds for ik = 1:length(chk_info.kpoints)
         k = chk_info.kpoints[ik]
         unk_all = read_unk(k_filenames[ik])
@@ -1109,7 +1116,6 @@ function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int}, args...
         wfuncs = Vector{WannierFunction}[]
         for (is, s) in enumerate(("up", "down"))
             wan_calc  = getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, DFC.inputs(job))
-            @show "$(name(wan_calc)).chk"
             chk_info  = read_chk(joinpath(job, "$(name(wan_calc)).chk"))
             unk_files = filter(x->occursin(".$is", x), DFC.searchdir(job, "UNK"))
             push!(wfuncs, plot_wannierfunctions(unk_files, chk_info, supercell, args...))
@@ -1208,3 +1214,5 @@ function S_R(chk, Sx, Sy, Sz)
     end
     return Sx_R, Sy_R, Sz_R
 end
+
+wan_hash(job::DFJob) = hash(read_chk(job))
