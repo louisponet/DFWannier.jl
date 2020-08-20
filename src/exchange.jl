@@ -145,7 +145,7 @@ function Base.show(io::IO, e::Exchange)
     dfprint(io, crayon"red", " atom2:", crayon"reset")
     dfprintln(io, "name: $(name(e.atom2)), pos: $(position_cryst(e.atom2))")
 
-    dfprint(io, crayon"red", " J: ", crayon"reset", "$(e.J)")
+    dfprint(io, crayon"red", " J: ", crayon"reset", "$(tr(e.J))")
 end
 
 """

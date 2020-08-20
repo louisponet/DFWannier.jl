@@ -1100,13 +1100,18 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
         wfuncs_out = Vector{WannierFunction{1, eltype(wfuncs_all).parameters[1]}}(undef, size(wfuncs_all, 1))
         Threads.@threads for i=1:size(wfuncs_all, 1)
             wfuncs_out[i] = WannierFunction{1, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), view(wfuncs_all,i, :, :, :, 1)))
+            @show i
+            @show norm(wfuncs_out[i])
         end
-        return wfuncs_out 
+        return normalize!.(wfuncs_out)
     else
         wfuncs_out = Vector{WannierFunction{2, eltype(wfuncs_all).parameters[1]}}(undef, size(wfuncs_all, 1))
         Threads.@threads for i=1:size(wfuncs_all, 1)
             wfuncs_out[i] = WannierFunction{2, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), zip(view(wfuncs_all, i, :, :, :, 1), view(wfuncs_all, i, :, :, :, 2))))
+            @show i
+            @show norm(wfuncs_out[i])
         end
+
         return normalize!.(wfuncs_out)
     end
 end

@@ -46,6 +46,9 @@ end
 
 make_noncolin(tb::TbBlock) =
     TbBlock(tb.R_cryst, tb.R_cart, convert(NonColinMatrix, tb.block), convert(NonColinMatrix, tb.tb_block))
+
+make_noncolin(tb::TbBlock{T, LT, ColinMatrix{Complex{T}, Matrix{Complex{T}}}}) where {T<:AbstractFloat, LT<:Length{T}}=
+    TbBlock(tb.R_cryst, tb.R_cart, NonColinMatrix(tb.block[Up()], tb.block[Down()]), NonColinMatrix(tb.tb_block[Up()], tb.tb_block[Down()]))
     
 make_noncolin(v::Vector) =
     [v[1:2:end];v[2:2:end]]
