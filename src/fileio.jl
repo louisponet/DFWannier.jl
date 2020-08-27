@@ -1221,3 +1221,78 @@ function S_R(chk, Sx, Sy, Sz)
 end
 
 wan_hash(job::DFJob) = hash(read_chk(job))
+
+function read_mmn(mmn_file, nnlist, nncell)
+   open(mmn_file, "r") do f
+       readline(f) #comment
+       nbands, nkpoints, nntot = parse.(Int, split(readline(f)))
+       num_mmn = nkpoints * nntot
+       mmn_mat = Array{ComplexF64, 4}(undef, nbands, nbands, nntot, nkpoints)
+       mmn_tmp = Matrix{ComplexF64}(undef, nbands, nbands)
+       for i = 1:num_mmn
+           nkp, nkp2, nnl, nnm, nnn = parse.(Int, split(readline(f)))
+           for n = 1:nbands, m = 1:nbands
+               mmn_tmp[m, n] = complex(parse.(Float64, split(readline(f)))...)
+           end
+           nn = 0
+           nn_found = false
+           for inn = 1:nntot
+               if nkp2 == nnlist[nkp, inn] &&
+                  nnl  == nncell[1, nkp, inn] &&
+                  nnm  == nncell[2, nkp, inn] &&
+                  nnn  == nncell[3, nkp, inn] &&
+                  !nn_found
+                  nn_found = true
+                  nn = inn
+              end
+           end
+           mmn_mat[:, :, nn, nkp] .= mmn_tmp
+       end
+       return mmn_mat
+  end
+end
+
+function read_nnkp(nnkp_file) #not everything, just what I need for now
+    open(nnkp_file, "r") do f
+        blocks = read_wannier_blocks(f)
+        nkpoints = parse(Int, blocks[:kpoints][1])
+        nntot = parse(Int, blocks[:nnkpts][1])
+        nnlist = Matrix{Int32}(undef, nkpoints, nntot)
+        nncell = Array{Int32, 3}(undef, 3, nkpoints, nntot)
+        counter = 2
+        for ik = 1:nkpoints
+            for nn = 1:nntot
+                sl = strip_split(blocks[:nnkpts][counter])
+                nnlist[ik, nn] = parse(Int, sl[2])
+                for i = 1:3
+                    nncell[i, ik, nn] = parse(Int, sl[i+2])
+                end
+                counter += 1
+                    
+            end
+        end
+        return nnlist, nncell
+    end
+end
+
+function Rmn(chk)
+   
+end
+
+function read_wannier_blocks(f)
+    out = Dict{Symbol, Any}()
+    while !eof(f)
+        l = readline(f)
+        if occursin("begin", l)
+            s = Symbol(split(l)[2])
+            lines = AbstractString[]
+            l = readline(f)
+            while !occursin("end", l)
+                push!(lines, l)
+                l = readline(f)
+            end
+            out[s] = lines
+        end
+    end
+    return out
+end
