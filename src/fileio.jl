@@ -947,21 +947,34 @@ function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractS
     end
 end
 
-function fill_k_neighbors!(kpoints::Vector{AbInitioKPoint{T}}, file::AbstractString, recip_cell::Mat3) where {T}
-    open(file, "r") do f
+function read_KBonds(nnkpfile::AbstractString)
+    open(nnkpfile, "r") do f
         line = readline(f)
+        while line != "begin recip_lattice"
+            line = readline(f)
+        end
+        recip_cell = Matrix{K_CART_TYPE{Float64}}(undef, 3, 3)
+        recip_cell[:, 1] = parse.(Float64, split(readline(f))) .* 1/1DFControl.angstrom
+        recip_cell[:, 2] = parse.(Float64, split(readline(f))) .* 1/1DFControl.angstrom
+        recip_cell[:, 3] = parse.(Float64, split(readline(f))) .* 1/1DFControl.angstrom
+        
         while line != "begin kpoints"
             line = readline(f)
         end
         nkpoints = parse(Int, strip(readline(f)))
-        @assert nkpoints == length(kpoints) "Number kpoints in seedname.nnkp doesn't match with the number of kpoints in seedname.chk."
-
+        kpoints = Vector{Vec3{K_CART_TYPE{Float64}}}(undef, nkpoints)
+        counter = 1
+        line = readline(f)
+        while line != "end kpoints"
+            kpoints[counter] = recip_cell * Vec3(parse.(Float64, split(line)))
+            line = readline(f)
+            counter += 1
+        end
+        out = [KBond[] for i = 1:nkpoints] 
         while line != "begin nnkpts"
             line = readline(f)
         end
         n_nearest_neighbors = parse(Int, strip(readline(f)))
-
-
         counter = 1
         line = readline(f)
         while line != "end nnkpts"
@@ -969,16 +982,26 @@ function fill_k_neighbors!(kpoints::Vector{AbInitioKPoint{T}}, file::AbstractStr
             sline = strip_split(line)
             ik, ik2 = parse.(Int, sline[1:2])
 
-            vr = (recip_cell * parse(Vec3{Int}, sline[3:5]) + kpoints[ik2].k_cart) - kpoints[ik].k_cart
-            push!(kpoints[ik].neighbors, KBond(ik, ik2, vr))
-            push!(kpoints[ik].overlaps, Matrix{Complex{T}}(undef, 0, 0))
-            push!(kpoints[ik].hamis, Matrix{Complex{T}}(undef, 0, 0))
-            kpoints[ik].uHu = Matrix{Matrix{Complex{T}}}(undef, n_nearest_neighbors, n_nearest_neighbors)
+            vr = (recip_cell * parse(Vec3{Int}, sline[3:5]) + kpoints[ik2]) - kpoints[ik]
+            push!(out[ik], KBond(ik, ik2, vr))
             counter += 1
             line = readline(f)
         end
-        return kpoints
+        return out
     end
+end
+
+function fill_k_neighbors!(kpoints::Vector{AbInitioKPoint{T}}, file::AbstractString, recip_cell::Mat3) where {T}
+    kbonds = read_KBonds(file)
+    @assert length(kbonds) == length(kpoints) "Number kpoints in seedname.nnkp doesn't match with the number of kpoints in seedname.chk."
+    for ik = 1:length(kbonds)
+        nntot = length(kbonds[ik])
+        kpoints[ik].overlaps = [Matrix{Complex{T}}(undef, 0, 0) for ib = 1:nntot]
+        kpoints[ik].hamis = [Matrix{Complex{T}}(undef, 0, 0) for ib = 1:nntot]
+        kpoints[ik].neighbors = kbonds[ik]
+        kpoints[ik].uHu = Matrix{Matrix{Complex{T}}}(undef, nntot, nntot)
+    end
+    return kpoints
 end
 
 function read_wannier_functions(job)
@@ -1222,36 +1245,6 @@ end
 
 wan_hash(job::DFJob) = hash(read_chk(job))
 
-function read_mmn(mmn_file, nnlist, nncell)
-   open(mmn_file, "r") do f
-       readline(f) #comment
-       nbands, nkpoints, nntot = parse.(Int, split(readline(f)))
-       num_mmn = nkpoints * nntot
-       mmn_mat = Array{ComplexF64, 4}(undef, nbands, nbands, nntot, nkpoints)
-       mmn_tmp = Matrix{ComplexF64}(undef, nbands, nbands)
-       for i = 1:num_mmn
-           nkp, nkp2, nnl, nnm, nnn = parse.(Int, split(readline(f)))
-           for n = 1:nbands, m = 1:nbands
-               mmn_tmp[m, n] = complex(parse.(Float64, split(readline(f)))...)
-           end
-           nn = 0
-           nn_found = false
-           for inn = 1:nntot
-               if nkp2 == nnlist[nkp, inn] &&
-                  nnl  == nncell[1, nkp, inn] &&
-                  nnm  == nncell[2, nkp, inn] &&
-                  nnn  == nncell[3, nkp, inn] &&
-                  !nn_found
-                  nn_found = true
-                  nn = inn
-              end
-           end
-           mmn_mat[:, :, nn, nkp] .= mmn_tmp
-       end
-       return mmn_mat
-  end
-end
-
 function read_nnkp(nnkp_file) #not everything, just what I need for now
     open(nnkp_file, "r") do f
         blocks = read_wannier_blocks(f)
@@ -1275,8 +1268,29 @@ function read_nnkp(nnkp_file) #not everything, just what I need for now
     end
 end
 
-function Rmn(chk)
-   
+function Rmn(chk, nnkp_file)
+    kbonds = read_KBonds(nnkp_file)
+    m_matrix = chk.m_matrix
+    R_cryst, degens = chk.ws_R_cryst, chk.ws_degens
+    nR = length(R_cryst)
+    nwann = chk.n_wann
+    nntot = chk.n_nearest_neighbors
+    wb = chk.neighbor_weights
+    r_R = [zeros(Vec3{ComplexF64}, nwann, nwann) for i=1:nR]
+    fourier_q_to_R(chk.kpoints, R_cryst) do iR, ik, phase
+        for m = 1:nwann
+            for n = 1:nwann
+                for nn = 1:nntot
+                    r_R[iR][n, m] += m == n ? - wb[nn] .* ustrip.(kbonds[ik][nn].vr) .* imag(log(m_matrix[n, m, nn, ik])) .* phase : 1im*wb[nn] .* ustrip.(kbonds[ik][nn].vr) .* m_matrix[n, m, nn, ik] .* phase
+                end
+            end
+        end
+    end
+    nk = length(chk.kpoints)
+    for iR in 1:nR
+        r_R[iR] ./= nk
+    end
+    return r_R
 end
 
 function read_wannier_blocks(f)
