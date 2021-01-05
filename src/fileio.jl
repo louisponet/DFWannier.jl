@@ -1241,7 +1241,7 @@ end
 
 function readspin(spn_file, chk_file)
     Sx_dft, Sy_dft, Sz_dft = read_spn(spn_file)
-    return S_R(chk_file, Sx_dft, Sy_dft, Sz_dft)
+    return S_R(read_chk(chk_file), Sx_dft, Sy_dft, Sz_dft)
 end
 
 function readspin(job::DFJob)
