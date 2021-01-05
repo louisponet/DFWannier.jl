@@ -1100,16 +1100,12 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
         wfuncs_out = Vector{WannierFunction{1, eltype(wfuncs_all).parameters[1]}}(undef, size(wfuncs_all, 1))
         Threads.@threads for i=1:size(wfuncs_all, 1)
             wfuncs_out[i] = WannierFunction{1, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), view(wfuncs_all,i, :, :, :, 1)))
-            @show i
-            @show norm(wfuncs_out[i])
         end
         return normalize!.(wfuncs_out)
     else
         wfuncs_out = Vector{WannierFunction{2, eltype(wfuncs_all).parameters[1]}}(undef, size(wfuncs_all, 1))
         Threads.@threads for i=1:size(wfuncs_all, 1)
             wfuncs_out[i] = WannierFunction{2, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), zip(view(wfuncs_all, i, :, :, :, 1), view(wfuncs_all, i, :, :, :, 2))))
-            @show i
-            @show norm(wfuncs_out[i])
         end
 
         return normalize!.(wfuncs_out)
@@ -1218,6 +1214,22 @@ function S_R(chk, Sx, Sy, Sz)
         Sz_R[iR] ./= nk
     end
     return Sx_R, Sy_R, Sz_R
+end
+
+function readspin(spn_file, chk_file)
+    Sx_dft, Sy_dft, Sz_dft = read_spn(spn_file)
+    return S_R(chk_file, Sx_dft, Sy_dft, Sz_dft)
+end
+
+function readspin(job::DFJob)
+	chk_files = reverse(searchdir(job, ".chk"))
+	spn_files = reverse(searchdir(job, ".spn"))
+	isempty(chk_files) && error("No .chk files found in job dir: $(job.local_dir)")
+	isempty(spn_files) && error("No .spn files found in job dir: $(job.local_dir)")
+	if length(chk_files) > 1
+    	error("Not implemented for collinear spin-polarized calculations")
+    end
+    return readspin(spn_files[1], chk_files[1])
 end
 
 wan_hash(job::DFJob) = hash(read_chk(job))

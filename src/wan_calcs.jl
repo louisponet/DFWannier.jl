@@ -1,5 +1,5 @@
 "Calculates the angular momentum between two wavefunctions and around the center."
-function calc_angmom(wfc1::WannierFunction{N, T}, wfc2::WannierFunction{N, T}, center::Point3{T}) where {N, T <: AbstractFloat}
+function calc_angmom(wfc1::WannierFunction{N, T}, wfc2::WannierFunction{N, T}, center::Point3{T}, cutoff=Inf) where {N, T <: AbstractFloat}
 	points = wfc1.points
     origin = points[1, 1, 1]
     da     = points[2, 1, 1] - origin
@@ -7,17 +7,19 @@ function calc_angmom(wfc1::WannierFunction{N, T}, wfc2::WannierFunction{N, T}, c
     dc     = points[1, 1, 2] - origin
     V      = SMatrix{3,3}(inv([convert(Array, da) convert(Array, db) convert(Array, dc)])')
     L      = zero(Point3{Complex{T}})
-
-    @inbounds for i2 = 2:size(wfc1)[3]
-        for i1 = 2:size(wfc1)[2]
-            for i = 2:size(wfc1)[1]
-                dw_cryst = Point3(wfc2.values[i, i1, i2] - wfc2.values[i-1, i1,   i2],
-                                  wfc2.values[i, i1, i2] - wfc2.values[i,   i1-1, i2],
-  	  	  	  		              wfc2.values[i, i1, i2] - wfc2.values[i,   i1,   i2-1])
-
+    c2 = cutoff^2
+    @inbounds for i2 in 2:size(wfc1, 3)
+        for i1 in 2:size(wfc1, 2)
+            for i in 2:size(wfc1, 1)
                 r       = points[i, i1, i2] - center
-                dw_cart = V * dw_cryst
-                L      += (wfc1.values[i, i1, i2]',) .* cross(r, dw_cart)
+                if dot(r, r) < c2
+                    dw_cryst = Point3(wfc2.values[i, i1, i2] - wfc2.values[i-1, i1,   i2],
+                                      wfc2.values[i, i1, i2] - wfc2.values[i,   i1-1, i2],
+      	  	  	  		              wfc2.values[i, i1, i2] - wfc2.values[i,   i1,   i2-1])
+
+                    dw_cart = V * dw_cryst
+                    L      += (wfc1.values[i, i1, i2]',) .* cross(r, dw_cart)
+                end
 	        end
 	    end
 	end
