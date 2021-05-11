@@ -646,10 +646,10 @@ function read_chk(filename)
  
     n_wann = read(f, Int32)
     chkpt = strip(String(read(f, FString{20})))
-    have_disentangled = read(f, Int32) == 1 ? true : false
+    have_disentangled = read(f, Int32) != 0 ? true : false
     if have_disentangled
         omega_invariant = read(f, Float64)
-        lwindow = map(x-> x==1 ? true : false, read(f, (Int32, n_bands, n_kpoints)))
+        lwindow = map(x-> x!=0 ? true : false, read(f, (Int32, n_bands, n_kpoints)))
         ndimwin = read(f, (Int32, n_kpoints))
         U_matrix_opt = read(f, (Complex{Float64}, n_bands, n_wann, n_kpoints))
     else
