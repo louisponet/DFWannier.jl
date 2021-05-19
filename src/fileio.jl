@@ -654,9 +654,9 @@ function read_chk(filename)
         U_matrix_opt = read(f, (Complex{Float64}, n_bands, n_wann, n_kpoints))
     else
         omega_invariant = 0.0
-        lwindow = fill(true, 1, n_kpoints)
+        lwindow = fill(true, n_bands, n_kpoints)
         ndimwin = fill(n_wann, n_kpoints)
-        U_matrix_opt= nothing
+        U_matrix_opt= [i == j ? 1.0im : 0.0im for i=1:n_bands, j=1:n_wann, ik = 1:n_kpoints]
     end
     U_matrix = read(f, (Complex{Float64}, n_wann, n_wann, n_kpoints))
  
