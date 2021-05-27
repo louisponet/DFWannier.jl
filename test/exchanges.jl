@@ -31,7 +31,7 @@ maxJ1 = maximum([sum(e.J) for e in exch1])
 
 hami_soc = [DFW.TbBlock(b.R_cryst, b.R_cart, DFW.NonColinMatrix(DFW.up(b.block), DFW.down(b.block)), DFW.NonColinMatrix(DFW.up(b.tb_block), DFW.down(b.tb_block))) for b in hami]
 
-setprojections!(job.structure, :Ni1 => [:d], :Ni2 => [:d], :O => [:p], soc=true)
+set_projections!(job.structure, :Ni1 => [:d], :Ni2 => [:d], :O => [:p], soc=true)
 exch     = calc_exchanges(hami_soc, atoms(job), fermi; R=R, site_diagonal=false, nk=nk, n_ωh = n_ωh, n_ωv = n_ωv, ωh = ωh, ωv = ωv )
 maxJ1 = maximum([tr(e.J) for e in exch])
 @test isapprox(maxJ1, maxJ)
