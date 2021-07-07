@@ -166,6 +166,8 @@ function wannierbands(tbhamis::TbHami{T}, kpoints::Vector{<:Vec3}) where {T}
 end
 wannierbands(tbhamis, dfbands::Vector{<:DFBand}) =
 	wannierbands(tbhamis, dfbands[1].k_points_cryst)
+wannierbands(tbhamis, dfbands::Union{NamedTuple, Tuple}) =
+	wannierbands(tbhamis, dfbands[1][1].k_points_cryst)
 
 function energy_bins(binfunc::Function, wbands::Vector{<:WannierBand}, E_range, normalize_bins=false)
     nbins   = length(E_range)-1

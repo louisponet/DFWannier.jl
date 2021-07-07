@@ -210,9 +210,9 @@ if the job was either nonmagnetic or noncolinear it will read only one hamiltoni
 """
 function readhami(job::DFJob)
 
-    @assert any(x -> x isa DFInput{Wannier90}, job.inputs) "No wannier90 calculations found in the job."
+    @assert any(x -> x isa DFCalculation{Wannier90}, job.calculations) "No wannier90 calculations found in the job."
 
-    seedname = getfirst(x -> x isa DFInput{Wannier90}, job.inputs).name
+    seedname = getfirst(x -> x isa DFCalculation{Wannier90}, job.calculations).name
     jld_file = joinpath(job, "hami.jld2")
     if ispath(jld_file)
         return DFC.load(jld_file)["hami"]
@@ -222,7 +222,7 @@ function readhami(job::DFJob)
 	@assert !isempty(eig_files) "No eig files ($(seedname).eig) found."
 	@assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
 	if DFC.ismagnetic(job.structure)
-    	if !DFC.iscolin(job.structure) || any(x -> DFC.hasflag(x, :lspinorb) && x[:lspinorb], DFC.inputs(job))
+    	if !DFC.iscolin(job.structure) || any(x -> DFC.hasflag(x, :lspinorb) && x[:lspinorb], job.calculations)
     		return make_noncolin.(readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1])))
     	else
     		return read_colin_hami(read_chk.(chk_files)..., eig_files...)
@@ -712,9 +712,9 @@ function read_chk(filename)
 end
 function read_chk(job::DFJob)
     if DFC.iscolin(job.structure)
-        return map(s -> read_chk(joinpath(job, "$(name(getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, DFC.inputs(job)))).chk")), ["up", "down"])
+        return map(s -> read_chk(joinpath(job, "$(name(getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, job.calculations))).chk")), ["up", "down"])
     else
-        return read_chk(joinpath(job, "$(name(getfirst(x -> DFC.package(x)==Wannier90, DFC.inputs(job)))).chk"))
+        return read_chk(joinpath(job, "$(name(getfirst(x -> DFC.package(x)==Wannier90, job.calculations))).chk"))
     end
 end
 
@@ -1005,9 +1005,9 @@ function fill_k_neighbors!(kpoints::Vector{AbInitioKPoint{T}}, file::AbstractStr
 end
 
 function read_wannier_functions(job)
-    wancalc_ids = findall(x -> DFC.package(x) == Wannier90, DFC.inputs(job))
+    wancalc_ids = findall(x -> DFC.package(x) == Wannier90, job.calculations)
     wanfuncs = Vector{WannierFunction}[]
-    for wancalc in DFC.inputs(job)[wancalc_ids]
+    for wancalc in job.calculations[wancalc_ids]
         t_funcs = WannierFunction[]
         # here we assume that if it's a spinor calculation, and all the upre, upim, downre, downim are there
         if DFC.hasflag(wancalc, :spinors) && wancalc[:spinors]
@@ -1136,17 +1136,17 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
 end
 
 function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int}, args...)
-    if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure) && !any(DFC.issoccalc, job.inputs)
+    if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure) && !any(DFC.issoccalc, job.calculations)
         wfuncs = Vector{WannierFunction}[]
         for (is, s) in enumerate(("up", "down"))
-            wan_calc  = getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, DFC.inputs(job))
+            wan_calc  = getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, job.calculations)
             chk_info  = read_chk(joinpath(job, "$(name(wan_calc)).chk"))
             unk_files = filter(x->occursin(".$is", x), DFC.searchdir(job, "UNK"))
             push!(wfuncs, plot_wannierfunctions(unk_files, chk_info, supercell, args...))
         end
         return (up=wfuncs[1], down=wfuncs[2]) 
     else
-        wan_calc  = getfirst(x -> DFC.package(x)==Wannier90, DFC.inputs(job))
+        wan_calc  = getfirst(x -> DFC.package(x)==Wannier90, job.calculations)
         chk_info  = read_chk(joinpath(job, "$(name(wan_calc)).chk"))
         unk_files = DFC.searchdir(job, "UNK")
         return plot_wannierfunctions(unk_files, chk_info, supercell, args...)
