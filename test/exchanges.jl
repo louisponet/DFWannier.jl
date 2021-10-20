@@ -7,7 +7,7 @@ n_ωv = 50
 ωv = 0.5
 
 
-job = DFW.DFControl.DFJob(assetfile(""))
+job = DFW.DFControl.Job(assetfile(""))
 set_magnetization!(job, :Ni1 => [0.0,0.0,1.0], :Ni => [0.0,0.0,-1.0])
 hami = DFW.readhami(job)
 

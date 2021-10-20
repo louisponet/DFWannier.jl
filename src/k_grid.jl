@@ -92,8 +92,8 @@ end
 AbInitioKGrid(eig_filename::AbstractString, chk_filename::AbstractString, nnkp_filename::AbstractString, mmn_filename::AbstractString, uHu_filename::AbstractString) =
     AbInitioKGrid(Float64, eig_filename, chk_filename, nnkp_filename, mmn_filename, uHu_filename)
 
-function AbInitioKGrid(job::DFJob)
-    wancalc = getfirst(x->x isa DFCalculation{Wannier90}, job.calculations)
+function AbInitioKGrid(job::Job)
+    wancalc = getfirst(x->x isa Calculation{Wannier90}, job.calculations)
     if wancalc === nothing
         error("Coulnd't find a wannier calculation in job $job.")
     end

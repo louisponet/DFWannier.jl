@@ -2,7 +2,7 @@ div1(x, y) = div(x - 1, y) + 1
 
 w_eachindex(m::Matrix) = eachindex(m)
 
-struct TbBlock{T <: AbstractFloat, LT<:Length{T}, M <: AbstractMatrix{Complex{T}}}
+struct TbBlock{T <: AbstractFloat, LT, M <: AbstractMatrix{Complex{T}}}
     R_cryst ::Vec3{Int}
     R_cart  ::Vec3{LT}
     block::M #has contributions from all the ws shifts and divided by the degeneracies 1/(degen * nshifts), use for k-point interpolation
@@ -138,7 +138,7 @@ end
 # end
 
 "Holds all the calculated values from a wannier model."
-@with_kw mutable struct WannierBand{T<:AbstractFloat, VT<:AbstractVector} <: Band
+@with_kw mutable struct WannierBand{T<:AbstractFloat, VT<:AbstractVector} <: DFC.AbstractBand
     kpoints_cryst ::Vector{Vec3{T}}
     eigvals        ::Vector{T}
     eigvec         ::Vector{VT}
@@ -164,7 +164,7 @@ function wannierbands(tbhamis::TbHami{T}, kpoints::Vector{<:Vec3}) where {T}
     end
     return [WannierBand{T, eltype(evecs[1])}(kpoints_cryst = kpoints, eigvals=evals[i], eigvec=evecs[i]) for i =1:nbnd]
 end
-wannierbands(tbhamis, dfbands::Vector{<:DFBand}) =
+wannierbands(tbhamis, dfbands::Vector{<:DFC.AbstractBand}) =
 	wannierbands(tbhamis, dfbands[1].k_points_cryst)
 wannierbands(tbhamis, dfbands::Union{NamedTuple, Tuple}) =
 	wannierbands(tbhamis, dfbands[1][1].k_points_cryst)
@@ -194,7 +194,7 @@ function energy_bins(binfunc::Function, wbands::Vector{<:WannierBand}, E_range, 
     return bins
 end
 
-function character_contribution(wband::WannierBand, atoms::Vector{<:AbstractAtom})
+function character_contribution(wband::WannierBand, atoms::Vector{Atom})
     contributions = zeros(length(wband.kpoints_cryst))
     for (i, v) in enumerate(wband.eigvec)
         for a in atoms
@@ -204,7 +204,7 @@ function character_contribution(wband::WannierBand, atoms::Vector{<:AbstractAtom
     return contributions
 end
 
-function DFControl.pdos(wbands::Vector{<:WannierBand}, atoms::Vector{<:AbstractAtom}, dE = 0.02)
+function DFControl.FileIO.pdos(wbands::Vector{<:WannierBand}, atoms::Vector{Atom}, dE = 0.02)
     Emin = minimum(wbands[1].eigvals)
     Emax = maximum(wbands[end].eigvals)
     E_range = range(Emin, Emax, step=dE)
@@ -219,4 +219,4 @@ function DFControl.pdos(wbands::Vector{<:WannierBand}, atoms::Vector{<:AbstractA
     return (E=E_range, pdos=bins./length(wbands[1].kpoints_cryst))
 end
 
-kpdos(bands::Vector{<:WannierBand}, atoms::Vector{<:AbstractAtom}) = map(x -> character_contribution(x, atoms), bands)
+kpdos(bands::Vector{<:WannierBand}, atoms::Vector{Atom}) = map(x -> character_contribution(x, atoms), bands)

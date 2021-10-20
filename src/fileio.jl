@@ -1,4 +1,5 @@
-import DFControl: searchdir, strip_split
+import DFControl.Utils: searchdir, strip_split, getfirst
+using DFControl.Structures: ismagnetic
 #does this really need the checking for corruption stuff?
 function read_xsf_header(::Type{T}, filename::String) where T
     open(filename) do f
@@ -93,7 +94,7 @@ function write_xsf(filename::String, wfc, structure; value_func=x -> norm(x))
         origin = wfc.points[1,1,1]
         write(f,"# Generated from PhD calculations\n")
         write(f, "CRYSTAL\n")
-        c = ustrip.(cell(structure)')
+        c = ustrip.(structure.cell')
         write(f, "PRIMVEC\n")
         write(f, "$(c[1,1]) $(c[1,2]) $(c[1,3])\n")
         write(f, "$(c[2,1]) $(c[2,2]) $(c[2,3])\n")
@@ -103,10 +104,10 @@ function write_xsf(filename::String, wfc, structure; value_func=x -> norm(x))
         write(f, "$(c[2,1]) $(c[2,2]) $(c[2,3])\n")
         write(f, "$(c[3,1]) $(c[3,2]) $(c[3,3])\n")
         write(f, "PRIMCOORD\n")
-        write(f, "$(length(atoms(structure))) 1\n")
-        for at in atoms(structure)
-            n = element(at).symbol
-            p = ustrip.(position_cart(at))
+        write(f, "$(length(structure.atoms)) 1\n")
+        for at in structure.atoms
+            n = at.element.symbol
+            p = ustrip.(at.position_cart)
             write(f, "$n $(p[1]) $(p[2]) $(p[3])\n")
         end
         write.((f,),["", "BEGIN_BLOCK_DATAGRID_3D\n", "3D_FIELD\n", "BEGIN_DATAGRID_3D_UNKNOWN\n"])
@@ -202,17 +203,17 @@ function read_colin_hami(up_chk, down_chk, up_eig_file::AbstractString, down_eig
 end
 
 """
-    readhami(job::DFJob)
+    readhami(job::Job)
 
 Goes through the job and will attempt to read the hamiltonian files.
 If it finds a colinear calculation in the job it will read the up and down hamiltonians,
 if the job was either nonmagnetic or noncolinear it will read only one hamiltonian file (there should be only one).
 """
-function readhami(job::DFJob)
+function readhami(job::Job)
 
-    @assert any(x -> x isa DFCalculation{Wannier90}, job.calculations) "No wannier90 calculations found in the job."
+    @assert any(x -> x isa Calculation{Wannier90}, job.calculations) "No wannier90 calculations found in the job."
 
-    seedname = getfirst(x -> x isa DFCalculation{Wannier90}, job.calculations).name
+    seedname = getfirst(x -> x isa Calculation{Wannier90}, job.calculations).name
     jld_file = joinpath(job, "hami.jld2")
     if ispath(jld_file)
         return DFC.load(jld_file)["hami"]
@@ -221,8 +222,8 @@ function readhami(job::DFJob)
 	chk_files = reverse(searchdir(job, ".chk"))
 	@assert !isempty(eig_files) "No eig files ($(seedname).eig) found."
 	@assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
-	if DFC.ismagnetic(job.structure)
-    	if !DFC.iscolin(job.structure) || any(x -> DFC.hasflag(x, :lspinorb) && x[:lspinorb], job.calculations)
+	if DFC.Structures.ismagnetic(job.structure)
+    	if !DFC.Structures.iscolin(job.structure) || any(x -> DFC.Calculations.hasflag(x, :lspinorb) && x[:lspinorb], job.calculations)
     		return make_noncolin.(readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1])))
     	else
     		return read_colin_hami(read_chk.(chk_files)..., eig_files...)
@@ -233,13 +234,13 @@ function readhami(job::DFJob)
 end
 
 """
-read_rmn_file(filename::String, structure::AbstractStructure{T})
+read_rmn_file(filename::String, structure::AbstractStructure)
 
 Returns and array of tuples that define the dipoles between the Wannier functions in different unit cells.
 """
-function read_rmn_file(filename::String, structure::AbstractStructure{T}) where T
+function read_rmn_file(filename::String, structure::DFC.Structures.Structure)
     open(filename) do  f
-        out = RmnBlock{T}[]
+        out = RmnBlock{Float64}[]
         readline(f)
         n_wanfun = parse(Int, readline(f))
         readline(f)
@@ -249,10 +250,10 @@ function read_rmn_file(filename::String, structure::AbstractStructure{T}) where 
             block = getfirst(x -> x.R_cryst == R_cryst, out)
 
             if block == nothing
-                block = RmnBlock{T}(cell(structure)' * R_cryst, R_cryst, Matrix{Point3{T}}(I, n_wanfun, n_wanfun))
+                block = RmnBlock{Float64}(cell(structure)' * R_cryst, R_cryst, Matrix{Point3{Float64}}(I, n_wanfun, n_wanfun))
                 push!(out, block)
             end
-            dipole = Point3{T}(parse.(T, l[6:2:10]))
+            dipole = Point3(parse.(Float64, l[6:2:10]))
             block.block[parse.(Int, l[4:5])...] = dipole
         end
         return out
@@ -430,7 +431,6 @@ end
 #     for (ip,p) in enumerate(mesh)
 #         tmp_points[ip] = WfcPoint3{T}(getfield(p[2],direction),p[1])
 #     end
-#     write_xsf_file(filename,Wfc3D(tmp_points,Point3{T}[],Atom()))
 # end
 
 # function write_exchanges(filename::String, structure::Structure)
@@ -710,11 +710,11 @@ function read_chk(filename)
         ws_nshifts = ws_nshifts
     )
 end
-function read_chk(job::DFJob)
+function read_chk(job::Job)
     if DFC.iscolin(job.structure)
-        return map(s -> read_chk(joinpath(job, "$(name(getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, job.calculations))).chk")), ["up", "down"])
+        return map(s -> read_chk(joinpath(job, "$(name(getfirst(x -> eltype(x)==Wannier90&& x[:spin] == s, job.calculations))).chk")), ["up", "down"])
     else
-        return read_chk(joinpath(job, "$(name(getfirst(x -> DFC.package(x)==Wannier90, job.calculations))).chk"))
+        return read_chk(joinpath(job, "$(name(getfirst(x -> eltype(x)==Wannier90, job.calculations))).chk"))
     end
 end
 
@@ -1005,16 +1005,16 @@ function fill_k_neighbors!(kpoints::Vector{AbInitioKPoint{T}}, file::AbstractStr
 end
 
 function read_wannier_functions(job)
-    wancalc_ids = findall(x -> DFC.package(x) == Wannier90, job.calculations)
+    wancalc_ids = findall(x -> eltype(x) == Wannier90, job.calculations)
     wanfuncs = Vector{WannierFunction}[]
     for wancalc in job.calculations[wancalc_ids]
         t_funcs = WannierFunction[]
         # here we assume that if it's a spinor calculation, and all the upre, upim, downre, downim are there
         if DFC.hasflag(wancalc, :spinors) && wancalc[:spinors]
-            upre_files   = filter(x -> occursin(name(wancalc), x), DFC.searchdir(job, "upre"))
-            upim_files   = filter(x -> occursin(name(wancalc), x), DFC.searchdir(job, "upim"))
-            downre_files = filter(x -> occursin(name(wancalc), x), DFC.searchdir(job, "downre"))
-            downim_files = filter(x -> occursin(name(wancalc), x), DFC.searchdir(job, "downim"))
+            upre_files   = filter(x -> occursin(name(wancalc), x), searchdir(job, "upre"))
+            upim_files   = filter(x -> occursin(name(wancalc), x), searchdir(job, "upim"))
+            downre_files = filter(x -> occursin(name(wancalc), x), searchdir(job, "downre"))
+            downim_files = filter(x -> occursin(name(wancalc), x), searchdir(job, "downim"))
             any(isempty.((upre_files, upim_files, downre_files, downim_files))) && continue
             points = read_points_from_xsf(upre_files[1])
 
@@ -1124,31 +1124,33 @@ function plot_wannierfunctions(k_filenames, chk_info, wannier_plot_supercell::NT
         Threads.@threads for i=1:size(wfuncs_all, 1)
             wfuncs_out[i] = WannierFunction{1, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), view(wfuncs_all,i, :, :, :, 1)))
         end
-        return normalize!.(wfuncs_out)
+        @show norm.(wfuncs_out)
+        # return normalize!.(wfuncs_out)
+        return wfuncs_out
     else
         wfuncs_out = Vector{WannierFunction{2, eltype(wfuncs_all).parameters[1]}}(undef, size(wfuncs_all, 1))
         Threads.@threads for i=1:size(wfuncs_all, 1)
             wfuncs_out[i] = WannierFunction{2, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), zip(view(wfuncs_all, i, :, :, :, 1), view(wfuncs_all, i, :, :, :, 2))))
         end
 
-        return normalize!.(wfuncs_out)
+        return wfuncs_out
     end
 end
 
-function generate_wannierfunctions(job::DFJob, supercell::NTuple{3,Int}, args...)
-    if DFC.ismagnetic(job.structure) && DFC.iscolin(job.structure) && !any(DFC.issoccalc, job.calculations)
+function generate_wannierfunctions(job::Job, supercell::NTuple{3,Int}, args...)
+    if ismagnetic(job.structure) && Structures.iscolin(job.structure) && !any(Calculations.issoccalc, job.calculations)
         wfuncs = Vector{WannierFunction}[]
         for (is, s) in enumerate(("up", "down"))
-            wan_calc  = getfirst(x -> DFC.package(x)==Wannier90&& x[:spin] == s, job.calculations)
-            chk_info  = read_chk(joinpath(job, "$(name(wan_calc)).chk"))
-            unk_files = filter(x->occursin(".$is", x), DFC.searchdir(job, "UNK"))
+            wan_calc  = getfirst(x -> eltype(x)==Wannier90&& x[:spin] == s, job.calculations)
+            chk_info  = read_chk(joinpath(job, "$(wan_calc.name).chk"))
+            unk_files = filter(x->occursin(".$is", x), searchdir(job, "UNK"))
             push!(wfuncs, plot_wannierfunctions(unk_files, chk_info, supercell, args...))
         end
         return (up=wfuncs[1], down=wfuncs[2]) 
     else
-        wan_calc  = getfirst(x -> DFC.package(x)==Wannier90, job.calculations)
-        chk_info  = read_chk(joinpath(job, "$(name(wan_calc)).chk"))
-        unk_files = DFC.searchdir(job, "UNK")
+        wan_calc  = getfirst(x -> eltype(x)==Wannier90, job.calculations)
+        chk_info  = read_chk(joinpath(job, "$(wan_calc.name).chk"))
+        unk_files = searchdir(job, "UNK")
         return plot_wannierfunctions(unk_files, chk_info, supercell, args...)
     end
 end
@@ -1244,7 +1246,7 @@ function readspin(spn_file, chk_file)
     return S_R(read_chk(chk_file), Sx_dft, Sy_dft, Sz_dft)
 end
 
-function readspin(job::DFJob)
+function readspin(job::Job)
 	chk_files = reverse(searchdir(job, ".chk"))
 	spn_files = reverse(searchdir(job, ".spn"))
 	isempty(chk_files) && error("No .chk files found in job dir: $(job.local_dir)")
@@ -1255,7 +1257,7 @@ function readspin(job::DFJob)
     return readspin(spn_files[1], chk_files[1])
 end
 
-wan_hash(job::DFJob) = hash(read_chk(job))
+wan_hash(job::Job) = hash(read_chk(job))
 
 function read_nnkp(nnkp_file) #not everything, just what I need for now
     open(nnkp_file, "r") do f

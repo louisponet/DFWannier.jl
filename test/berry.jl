@@ -1,5 +1,5 @@
 using Base.Sys
-using DFControl: searchdir
+using DFControl.Utils: searchdir
 cd(assetfile("Fe/"))
 
 big_files = searchdir(".", "bz2")
@@ -9,7 +9,7 @@ if islinux()
     end
 end
 
-job = DFJob(".")
+job = Job(".")
 abgrid = DFW.AbInitioKGrid(job)
 
 big_files = map(x -> splitext(x)[1], big_files)

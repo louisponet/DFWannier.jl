@@ -10,13 +10,11 @@
     else
         ks = collect(1:length(band.kpoints_cryst))
     end
-    if fermi != 0
-        band = DFControl.apply_fermi_level(band,fermi)
-    end
+    eigvals = band.eigvals .- fermi 
     linewidth --> linewidth
     out = []
     if data==:eigvals
-        out = band.eigvals
+        out =eigvals
         title --> "Eigenvalues"
         yguide -->"energy (eV)"
     else
@@ -185,7 +183,7 @@ end
     end
 end
 
-@recipe function f(dfbands::Array{<:DFBand,1},WannierBands::Array{<:WannierBand,1})
+@recipe function f(dfbands::Array{DFC.Band,1},WannierBands::Array{<:WannierBand,1})
     @series begin
         label--> "DFT Calculation"
         line--> (1,1.0,:blue)
@@ -212,7 +210,7 @@ end
     end
 end
 
-@recipe function f(WannierBands::Array{<:WannierBand,1},dfbands::Array{<:DFBand,1})
+@recipe function f(WannierBands::Array{<:WannierBand,1},dfbands::Array{DFC.Band,1})
     @series begin
         dfbands,WannierBands
     end

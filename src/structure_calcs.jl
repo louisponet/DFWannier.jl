@@ -68,17 +68,17 @@ function hami_dip_from_k(tbhami, tbdip, k::Vec3{T}) where T
     return outham, [outdip_ fill(zero(Point3{T}), matdim);fill(zero(Point3{T}), matdim) outdip_]
 end
 
-function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T
-    outL = Vector{Vec3{T}}[]
-    outS = Vector{Vec3{T}}[]
+function eigangmomspin(eigvecs, atoms::Vector{Atom}, Sx, Sy, Sz)
+    outL = Vector{Vec3{Float64}}[]
+    outS = Vector{Vec3{Float64}}[]
     len = size(eigvecs)[1]
     for (a, at) in enumerate(atoms)
-        L_t    = Vec3{T}[]
-        S_t    = Vec3{T}[]
+        L_t    = Vec3{Float64}[]
+        S_t    = Vec3{Float64}[]
         for i = 1:len
             eigvec = eigvecs[:, i]
-            L = zero(Vec3{Complex{T}})
-            S = zero(Vec3{Complex{T}})
+            L = zero(Vec3{Complex{Float64}})
+            S = zero(Vec3{Complex{Float64}})
             for i1 = 1:len
                 at_index1, blockid1, wfi1 = wfc2atindex(atoms, i1)
                 at_index1 != a && continue
@@ -90,7 +90,7 @@ function eigangmomspin(eigvecs, atoms::Vector{WanAtom{T}}, Sx, Sy, Sz) where T
                     c2 = eigvec[i2]
 
                     if blockid1 == blockid2
-                        L += conj(c1) * c2 * angmom(at)[wfi1, wfi2]::Vec3{Complex{T}}
+                        L += conj(c1) * c2 * angmom(at)[wfi1, wfi2]::Vec3{Complex{Float64}}
                     else
                         S += conj(c1) * c2 * Vec3(Sx[i1, i2], Sy[i1, i2], Sz[i1, i2])
                     end
@@ -119,7 +119,7 @@ function eigcm(dip::AbstractMatrix{Point3{T}}, eigvecs) where T
     return out
 end
 
-function wfc2atindex(atoms::Vector{<:WanAtom}, wfci)
+function wfc2atindex(atoms::Vector{Atom}, wfci)
     wfcounter = 0
     i = 1
     outi = 1

@@ -106,25 +106,25 @@ end
 
 Base.Array(c::NonColinMatrix) = copy(c.data)
    
-function uprange(a::DFC.Projection)
+function uprange(a::DFC.Structures.Projection)
     projrange = range(a)
-    if length(projrange) > a.orb.size 
+    if length(projrange) > a.orbital.size 
         return range(div1(first(projrange), 2), length = div(length(projrange), 2))
     else
         return projrange
     end
 end
-uprange(a::DFC.AbstractAtom) = vcat(uprange.(projections(a))...)
+uprange(a::DFC.Structures.Atom) = vcat(uprange.(a.projections)...)
     
 ## Indexing ##
 for f in (:view, :getindex)
-    @eval function Base.$f(c::ColinMatrix, a1::T, a2::T) where {T <: Union{DFC.Projection,DFC.AbstractAtom}}
+    @eval function Base.$f(c::ColinMatrix, a1::T, a2::T) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}}
         projrange1 = range(a1)
         projrange2 = range(a2)
 
         return ColinMatrix($f(c, projrange1, projrange2), $f(c, projrange1, projrange2 .+ blockdim(c)))
     end
-    @eval function Base.$f(c::NonColinMatrix, a1::T, a2::T) where {T <: Union{DFC.Projection,DFC.AbstractAtom}}
+    @eval function Base.$f(c::NonColinMatrix, a1::T, a2::T) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}}
         up_range1 = uprange(a1)
         up_range2 = uprange(a2)
         d = blockdim(c)
@@ -134,37 +134,37 @@ for f in (:view, :getindex)
                                $f(c, dn_range1, up_range2) $f(c, dn_range1, dn_range2)])
     end
 
-    @eval Base.$f(c::AbstractMagneticMatrix, a1::T) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::AbstractMagneticMatrix, a1::T) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         $f(c, a1, a1)
 
-    @eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Up) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Up) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         $f(c, range(a1), range(a2))
     
-    @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Up) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Up) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         $f(c, uprange(a1), uprange(a2))
 
-    @eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Down) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::ColinMatrix, a1::T, a2::T, ::Down) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         $f(c, range(a1), range(a2) .+ blockdim(c))
         
-    @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Down) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Down) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         $f(c, uprange(a1) .+ blockdim(c), uprange(a2) .+ blockdim(c))
         
-    @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Up, ::Down) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Up, ::Down) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         $f(c, uprange(a1), uprange(a2) .+ blockdim(c))
 
-    @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Down, ::Up) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Down, ::Up) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         $f(c, uprange(a1) .+ blockdim(c), uprange(a2))
         
-    @eval Base.$f(c::NonColinMatrix, ::Up, ::Down) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::NonColinMatrix, ::Up, ::Down) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         (s = size(c,1); $f(c, 1:div(s, 2), div(s, 2)+1:s))
 
-    @eval Base.$f(c::NonColinMatrix, ::Down, ::Up) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::NonColinMatrix, ::Down, ::Up) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         (s = size(c,1); $f(c, div(s, 2)+1:s, 1:div(s, 2)))
         
-    @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Up) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+    @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Up) where {T<:Union{DFC.Structures.Projection, DFC.Structures.Atom}} =
         $f(c, range(a1), range(a2))
 
-    @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Down) where {T<:Union{DFC.Projection, DFC.AbstractAtom}} =
+    @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Down) where {T<:Union{DFC.Structures.Projection, DFC.Structures.Atom}} =
         $f(c, range(a1), range(a2) .+ blockdim(c))
 
     @eval Base.$f(c::AbstractMagneticMatrix, ::Up) =
@@ -311,14 +311,14 @@ end
 
 ## Indexing with atoms and spins ##
 for f in (:view, :getindex)
-    @eval function Base.$f(c::MagneticVector, a1::T) where {T <: Union{DFC.Projection,DFC.AbstractAtom}}
+    @eval function Base.$f(c::MagneticVector, a1::T) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}}
         projrange1 = uprange(a1)
         return MagneticVector([$f(c, projrange1); $f(c, projrange1 .+ div(length(c), 2))])
     end
-    @eval Base.$f(c::MagneticVector, a1::T, ::Up) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::MagneticVector, a1::T, ::Up) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         $f(c, uprange(a1))
     
-    @eval Base.$f(c::MagneticVector, a1::T, ::Down) where {T <: Union{DFC.Projection,DFC.AbstractAtom}} =
+    @eval Base.$f(c::MagneticVector, a1::T, ::Down) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         $f(c, range(a1), uprange(a2) + div(length(c), 2))
         
     @eval Base.$f(c::MagneticVector, ::Up) =

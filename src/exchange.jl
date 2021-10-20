@@ -1,6 +1,7 @@
-import DFControl: Orbital, Structure, orbital, size, orbsize, dfprintln, dfprint
+import DFControl.Structures: Orbital, Structure, orbital, size, orbsize
 
-import DFControl.Crayons: @crayon_str
+import DFControl.Display.Crayons: @crayon_str
+import DFControl.Display: dfprintln, dfprint
 
 setup_ω_grid(ωh, ωv, n_ωh, n_ωv, offset = 0.001) = vcat(range(ωh,             ωh + ωv * 1im,     length = n_ωv)[1:end - 1],
                                                         range(ωh + ωv * 1im,     offset + ωv * 1im, length = n_ωh)[1:end - 1],
@@ -120,12 +121,15 @@ function integrate_Gk!(G_forward::ThreadCache, G_backward::ThreadCache, ω, μ, 
 end
 
 abstract type Exchange{T <: AbstractFloat} end
+Base.eltype(::Exchange{T}) where T = T
+Base.eltype(::Type{Exchange{T}}) where T = T
 
-function (::Type{E})(at1::AbstractAtom{T}, at2::AbstractAtom{T}; site_diagonal::Bool = false) where {E <: Exchange,T}
+function (::Type{E})(at1::Atom, at2::Atom; site_diagonal::Bool = false) where {E <: Exchange}
     l1 = length(uprange(at1))
     l2 = length(uprange(at2))
-    return site_diagonal ? E{T}(zeros(T, l1, l2), at1, at2) : E{T}(zeros(T, l1, l1), at1, at2)
+    return site_diagonal ? E(zeros(Float64, l1, l2), at1, at2) : E(zeros(Float64, l1, l1), at1, at2)
 end
+
 """
     Exchange2ndOrder{T <: AbstractFloat}
 
@@ -135,15 +139,15 @@ It turns out the ordering is first projections, then atom order in the atoms dat
 """
 mutable struct Exchange2ndOrder{T <: AbstractFloat} <: Exchange{T}
     J::Matrix{T}
-    atom1::Atom{T}
-    atom2::Atom{T}
+    atom1::Atom
+    atom2::Atom
 end
 
 function Base.show(io::IO, e::Exchange)
     dfprint(io, crayon"red", "atom1:", crayon"reset")
-    dfprintln(io, "name: $(name(e.atom1)), pos: $(position_cryst(e.atom1))")
+    dfprintln(io, "name: $(e.atom1.name), pos: $(e.atom1.position_cryst)")
     dfprint(io, crayon"red", " atom2:", crayon"reset")
-    dfprintln(io, "name: $(name(e.atom2)), pos: $(position_cryst(e.atom2))")
+    dfprintln(io, "name: $(e.atom2.name), pos: $(e.atom2.position_cryst)")
 
     dfprint(io, crayon"red", " J: ", crayon"reset", "$(tr(e.J))")
 end
@@ -157,8 +161,8 @@ It turns out the ordering is first projections, then atom order in the atoms dat
 """
 mutable struct Exchange4thOrder{T <: AbstractFloat} <: Exchange{T}
     J::Matrix{T}
-    atom1::Atom{T}
-    atom2::Atom{T}
+    atom1::Atom
+    atom2::Atom
 end
 
 function calc_exchanges(hami,  atoms, fermi::T, ::Type{E} = Exchange2ndOrder;
@@ -170,7 +174,7 @@ function calc_exchanges(hami,  atoms, fermi::T, ::Type{E} = Exchange2ndOrder;
                         n_ωv::Int          = 500,
                         temp::T            = T(0.01),
                         site_diagonal      = false) where {T <: AbstractFloat,E <: Exchange}
-
+    R_ = Vec3(R...)
     μ               = fermi
     ω_grid          = setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
     
@@ -180,7 +184,7 @@ function calc_exchanges(hami,  atoms, fermi::T, ::Type{E} = Exchange2ndOrder;
             push!(exchanges, E(at1, at2, site_diagonal = site_diagonal))
         end
     end
-    kpoints = ExchangeKGrid(hami, uniform_shifted_kgrid(nk...), R)
+    kpoints = ExchangeKGrid(hami, uniform_shifted_kgrid(nk...), R_)
 
     D_ = site_diagonal ? site_diagonalize(kpoints.D, atoms) : kpoints.D
     calc_exchanges!(exchanges, μ, ω_grid, kpoints, D_)
@@ -188,7 +192,7 @@ function calc_exchanges(hami,  atoms, fermi::T, ::Type{E} = Exchange2ndOrder;
     return exchanges
 end
 
-function site_diagonalize(D::Matrix{Complex{T}}, ats::Vector{<:DFC.AbstractAtom}) where {T}
+function site_diagonalize(D::Matrix{Complex{T}}, ats::Vector{DFC.Structures.Atom}) where {T}
     Ts = zeros(D)
     Dvals = zeros(T, size(D, 1))
     for at in ats
@@ -260,12 +264,12 @@ end
 
 mutable struct AnisotropicExchange2ndOrder{T <: AbstractFloat} <: Exchange{T}
     J::Matrix{Matrix{T}}
-    atom1::Atom{T}
-    atom2::Atom{T}
+    atom1::Atom
+    atom2::Atom
 end
 
-AnisotropicExchange2ndOrder(at1::AbstractAtom{T}, at2::AbstractAtom{T}) where {T} =
-    AnisotropicExchange2ndOrder{T}([zeros(T, length(range(at1)), length(range(at1))) for i = 1:3,j = 1:3], atom(at1), atom(at2))
+AnisotropicExchange2ndOrder(at1::Atom, at2::Atom) =
+    AnisotropicExchange2ndOrder{Float64}([zeros(length(range(at1)), length(range(at1))) for i = 1:3,j = 1:3], at1, at2)
 
 function calc_anisotropic_exchanges(hami,  atoms, fermi::T;
                              nk::NTuple{3,Int} = (10, 10, 10),
@@ -329,8 +333,8 @@ function calc_anisotropic_exchanges!(exchanges::Vector{AnisotropicExchange2ndOrd
     end 
 end
 
-function setup_anisotropic_exchanges(atoms::Vector{<: AbstractAtom{T}}) where T <: AbstractFloat
-    exchanges = AnisotropicExchange2ndOrder{T}[]
+function setup_anisotropic_exchanges(atoms::Vector{Atom})
+    exchanges = AnisotropicExchange2ndOrder{Float64}[]
     for (i, at1) in enumerate(atoms), at2 in atoms[i:end]
         push!(exchanges, AnisotropicExchange2ndOrder(at1, at2))
     end
@@ -338,13 +342,13 @@ function setup_anisotropic_exchanges(atoms::Vector{<: AbstractAtom{T}}) where T 
 end
 
 @doc raw"""
-    DHvecvals(hami::TbHami{T, Matrix{T}}, k_grid::Vector{Vec3{T}}, atoms::AbstractAtom{T}) where T <: AbstractFloat
+    DHvecvals(hami::TbHami{T, Matrix{T}}, k_grid::Vector{Vec3{T}}, atoms::Atom{T}) where T <: AbstractFloat
 
 
 Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
 `hami` should be the full Hamiltonian containing both spin-diagonal and off-diagonal blocks.
 """
-function DHvecvals(hami, k_grid::AbstractArray{Vec3{T}}, atoms::Vector{WanAtom{T}}) where T <: AbstractFloat
+function DHvecvals(hami, k_grid::AbstractArray{Vec3{T}}, atoms::Vector{Atom}) where T <: AbstractFloat
 
     nk        = length(k_grid)
     Hvecs     = [zeros_block(hami) for i = 1:nk]
@@ -444,7 +448,7 @@ end
 # function AFMmap(structure, Rcryst)
 #     R = cell(structure)' * Rcryst/2
 #     atoms = atoms(structure)
-#     map1 = Dict{AbstractAtom, AbstractAtom}()
+#     map1 = Dict{Atom, Atom}()
 #     for at1 in atoms, at2 in atoms
 #         if bondlength(at2, at1, R) < 1.0e-7
 #             map1[at1] = at2

@@ -1,5 +1,6 @@
-using DFControl: searchdir, Band, DFBand, Point3, Vec3, Point, Mat3
-using DFControl: AbstractAtom, Atom, Element, Projection, element, position, elsym, pseudo, projections, set_pseudo!, atom
+using DFControl: Band, Point3, Vec3, Point, Mat3
+using DFControl.Utils: searchdir
+using DFControl: Atom, Element, Projection, element, position 
 import DFControl: Length
 import Base: getindex, zero, show, -, +, ==, !=, *, /, view
 # Cleanup Do we really need <:abstractfloat, check this!
@@ -71,6 +72,16 @@ function LinearAlgebra.dot(w1::WannierFunction{T}, w2::WannierFunction{T}) where
     return real(s)
 end
 
+function LinearAlgebra.dot(v::Vector, wfs::Vector{<:WannierFunction})
+    res = similar(wfs[1])
+    for ic in 1:length(v)
+        res .+= v[ic] .* wfs[ic]
+    end
+    return res
+end
+LinearAlgebra.dot(wfs::Vector{<:WannierFunction}, v::Vector) =
+    dot(v, wfs)
+
 LinearAlgebra.norm(wfc::WannierFunction) =
 	dot(wfc, wfc)
 
@@ -95,43 +106,33 @@ end
 /(w1::WannierFunction, n::Number) = WannierFunction(w1.points, n ./ w1.values)
 /(n::Number, w1::WannierFunction) = WannierFunction(w1.points, w1.values ./ n)
 
+LinearAlgebra.dot(w1::WannierFunction, n::Number) = w1 * n
+LinearAlgebra.dot(n::Number, w1::WannierFunction) = n * w1
+
 struct OperatorBlock{T <: AbstractFloat}
 	L::Vector{Matrix{Complex{T}}}
 	S::Vector{Matrix{Complex{T}}}
     J::Vector{Matrix{Complex{T}}}
 end
 
-struct WanAtom{T <: AbstractFloat, LT <: Length{T}} <: AbstractAtom{T, LT}
-    atom    ::Atom{T, LT}
-    wandata ::Dict{Symbol, <:Any}
-end
-
-getindex(at::WanAtom, s::Symbol) =
-	getindex(at.wandata, s::Symbol)
-
-# #implementation of the AbstractAtom interface
-DFControl.atom(at::WanAtom) =
-	at.atom
-
-getindex(A::Matrix, a1::T , a2::T) where {T<:Union{AbstractAtom, Projection}} =
+getindex(A::Matrix, a1::T , a2::T) where {T<:Union{Atom, Projection}} =
 	getindex(A, range(a1), range(a2))
 
-getindex(A::Matrix, a::AbstractAtom) =
+getindex(A::Matrix, a::Atom) =
 	getindex(A, a, a)
 
-getindex(A::Vector, a::AbstractAtom) =
+getindex(A::Vector, a::Atom) =
 	getindex(A, range(a))
 
-view(A::Matrix, a1::T, a2::T) where {T<:Union{AbstractAtom, Projection}} =
+view(A::Matrix, a1::T, a2::T) where {T<:Union{Atom, Projection}} =
 	view(A, range(a1), range(a2))
 
-view(A::Matrix, a::Union{AbstractAtom, Projection}) =
+view(A::Matrix, a::Union{Atom, Projection}) =
 	view(A, range(a), range(a))
 
-view(A::Vector, a::Union{AbstractAtom, Projection}) =
+view(A::Vector, a::Union{Atom, Projection}) =
 	view(A, range(a))
 
-import DFControl: searchdir, parse_block, AbstractStructure, getfirst, structure, Structure, wan_read_input
 struct RmnBlock{T<:AbstractFloat}
     R_cart  ::Vec3{T}
     R_cryst ::Vec3{Int}
@@ -145,7 +146,7 @@ struct SiteDiagonalD{T<:AbstractFloat}
 	T      ::Matrix{Complex{T}}
 end
 
-# view(D::SiteDiagonalD, at::AbstractAtom) =
+# view(D::SiteDiagonalD, at::Atom) =
 # 	()
 
 
@@ -210,7 +211,7 @@ end
 #     return WanStructure(structure, new_atoms, tbhamis, tbrmns)
 # end
 
-# function add_wan_data(job::DFJob)
+# function add_wan_data(job::Job)
 #     job.structure = add_wan_data(job.structure, job.local_dir)
 #     return job
 # end
@@ -233,12 +234,12 @@ end
 # end
 
 # """
-#     setsoc!(job::DFJob, socs...)
+#     setsoc!(job::Job, socs...)
 
 # Accepts a varargs list of atom symbols => soc,
 # which will set the soc of the atoms in the job structure to the specified values.
 # """
-# function setsoc!(job::DFJob, socs...)
+# function setsoc!(job::Job, socs...)
 #     setsoc!(job.structure, socs...)
 #     return job
 # end
