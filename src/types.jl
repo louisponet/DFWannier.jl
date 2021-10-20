@@ -73,7 +73,7 @@ function LinearAlgebra.dot(w1::WannierFunction{T}, w2::WannierFunction{T}) where
 end
 
 function LinearAlgebra.dot(v::Vector, wfs::Vector{<:WannierFunction})
-    res = similar(wfs[1])
+    res = WannierFunction(wfs[1].points, zeros(eltype(wfs[1].values), size(wfs[1].values)))
     for ic in 1:length(v)
         res .+= v[ic] .* wfs[ic]
     end
