@@ -19,8 +19,10 @@ module DFWannier
 	using Unitful
 	using ProgressMeter
 	using UnsafeArrays
+	using Requires
 
 	include("linalg.jl")
+	include("wannierfunction.jl")
 	include("types.jl")
 	include("wan_calcs.jl")
 	include("k_grid.jl")
@@ -38,4 +40,7 @@ module DFWannier
 	export generate_wannierfunctions
     export wan_hash
     export write_xsf, read_chk, read_spn, S_R
+    function __init__()
+        @require Glimpse = "f6e19d58-12a4-5927-8606-ac30a9ce9b69" include("glimpse.jl")
+    end
 end
