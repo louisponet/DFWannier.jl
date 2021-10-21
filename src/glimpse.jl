@@ -16,10 +16,14 @@ function Gl.update(::WfInterface, m::AbstractLedger)
         Gl.Gui.SetWindowFontScale(3.3f0)
         curid = Int32(wfman.current)
         Gl.Gui.@c Gl.Gui.InputInt("Id", &curid)
-        if curid > 0 && curid <= length(wfman.entities) && curid != wfman.current
+        if 0 < curid <= length(wfman.entities)
             wfman.current = Int(curid)
+        elseif curid <= 0
+            wfman.current = length(wfman.entities)
+        else
+            wfman.current = 1 
         end
-        Gl.Gui.@c Gl.Gui.InputDouble("Iteration Time", &wfman.dt,0.01,0.01,"%.3f")
+        Gl.Gui.@c Gl.Gui.InputDouble("dt", &wfman.dt,0.01,0.01,"%.3f")
         if wfman.dt <= 0.0
             wfman.dt += 0.01
         end
