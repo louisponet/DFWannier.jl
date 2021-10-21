@@ -20,6 +20,9 @@ function Gl.update(::WfInterface, m::AbstractLedger)
             wfman.current = Int(curid)
         end
         Gl.Gui.@c Gl.Gui.InputDouble("Iteration Time", &wfman.dt,0.01,0.01,"%.3f")
+        if wfman.dt <= 0.0
+            wfman.dt += 0.01
+        end
         if !wfman.iterating
             if Gl.Gui.Button("Iterate")
                 wfman.iterating = true
@@ -76,7 +79,7 @@ function visualize_wfuncs(wfuncs::Vector{<:WannierFunction}, str::Structure;
                           alpha = 0.6,
                           material = Gl.Material(),
                           phase_channel = Up())
-    dio = Diorama(background = RGBAf0(80/255, 80/255, 80/255, 1.0f0))
+    dio = Diorama(background = RGBAf0(60/255, 60/255, 60/255, 1.0f0))
     DFControl.Display.add_structure!(dio, str)
 
     phase_id = length(wfuncs[1].values[1]) > 1 ? (phase_channel == Up() ? 1 : 2) : 1

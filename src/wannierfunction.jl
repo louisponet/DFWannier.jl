@@ -99,6 +99,122 @@ end
 LinearAlgebra.dot(w1::WannierFunction, n::Number) = w1 * n
 LinearAlgebra.dot(n::Number, w1::WannierFunction) = n * w1
 
+function generate_wannierfunctions(k_filenames::Vector{String}, chk_info, wannier_plot_supercell::NTuple{3,Int}, wan_plot_list=1:chk_info.n_wann)
+    num_kpts = length(chk_info.kpoints)
+    U = permutedims(chk_info.U_matrix, (2, 1, 3))
+    U_opt = permutedims(chk_info.U_matrix_opt,(2,1,3))
+    tu = read_unk(k_filenames[1])
+    nrx, nry, nrz = size(tu,1), size(tu,2), size(tu,3)
+    supercell_xrange = -div(wannier_plot_supercell[1],2)*nrx : div(wannier_plot_supercell[1] + 1, 2)*nrx - 1
+    supercell_yrange = -div(wannier_plot_supercell[2],2)*nry : div(wannier_plot_supercell[2] + 1, 2)*nry - 1
+    supercell_zrange = -div(wannier_plot_supercell[3],2)*nrz : div(wannier_plot_supercell[3] + 1, 2)*nrz - 1
+
+    nx, ny, nz = length.((supercell_xrange, supercell_yrange, supercell_zrange))
+
+    nwfun = length(wan_plot_list)
+    wfuncs_all = zeros(eltype(tu), nwfun, (wannier_plot_supercell .* (nrx, nry, nrz))...,size(tu, 5))
+    n_wann = chk_info.n_wann
+    r_wan      = zeros(eltype(tu), chk_info.n_wann, nrx, nry, nrz)
+
+    p = Progress(length(chk_info.kpoints))
+    @inbounds for ik = 1:length(chk_info.kpoints)
+        k = chk_info.kpoints[ik]
+        unk_all = read_unk(k_filenames[ik])
+        for is = 1:size(tu, 5)
+            u = U[wan_plot_list, :, ik]
+            u_opt = U_opt[:, :, ik]
+            inc_ids = findall(!iszero, chk_info.lwindow[:, ik])
+            fill!(r_wan, 0.0)
+            for ib in 1:chk_info.ndimwin[ik]
+                iib = inc_ids[ib]
+                Threads.@threads for nz in 1:nrz
+                    for ny in 1:nry
+                        for nx in 1:nrx
+                            @simd for iw in 1:n_wann
+                                r_wan[iw, nx, ny, nz] += u_opt[iw, ib] * unk_all[nx,ny,nz,iib,is]
+                            end
+                        end
+                    end
+                end
+            end
+            Threads.@threads for iisz in 1:nz
+                isz = supercell_zrange[iisz]
+                iz = mod1(isz, nrz)
+                for iisy in 1:ny
+                    isy = supercell_yrange[iisy]
+                    iy = mod1(isy, nry)
+                    for iisx in 1:nx
+                        isx = supercell_xrange[iisx]
+                        ix = mod1(isx, nrx)
+                        scalfac = exp(2im*π*dot(k, Vec3((isx-1)/nrx, (isy-1)/nry, (isz-1)/nrz)))
+                        for ib in 1:n_wann
+                            rt = r_wan[ib, ix, iy, iz] * scalfac
+                            for iw in 1:nwfun
+                                wfuncs_all[iw, iisx, iisy, iisz, is] += u[iw, ib] * rt
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        next!(p)
+    end
+    wfuncs_all ./= num_kpts
+    if size(tu, 5) == 1
+        Threads.@threads for iw = 1:size(wfuncs_all, 1)
+            tmaxx = 0.0
+            cmod  = 1.0+0.0im
+            for iisx in 1:nx
+                for iisy in 1:ny
+                    for iisz in 1:nz
+                        w = wfuncs_all[iw, iisx, iisy, iisz, 1]
+                        t = abs2(w)
+                        if t > tmaxx
+                            tmaxx = t
+                            cmod = w
+                        end
+                    end
+                end
+            end
+            cmod /= abs(cmod)
+            @views wfuncs_all[:, :, :, iw, 1] ./= cmod
+        end
+    end
+    str_cell = ustrip.(chk_info.cell)
+    points = [str_cell * Point3((x-1)/nrx, (y-1)/nry, (z-1)/nrz) for x in supercell_xrange, y in supercell_yrange, z in supercell_zrange]
+    if size(tu,5) == 1
+        wfuncs_out = Vector{WannierFunction{1, eltype(wfuncs_all).parameters[1]}}(undef, size(wfuncs_all, 1))
+        Threads.@threads for i=1:size(wfuncs_all, 1)
+            wfuncs_out[i] = WannierFunction{1, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), view(wfuncs_all,i, :, :, :, 1)))
+        end
+        return normalize!.(wfuncs_out)
+    else
+        wfuncs_out = Vector{WannierFunction{2, eltype(wfuncs_all).parameters[1]}}(undef, size(wfuncs_all, 1))
+        Threads.@threads for i=1:size(wfuncs_all, 1)
+            wfuncs_out[i] = WannierFunction{2, eltype(wfuncs_all).parameters[1]}(points, map(x -> SVector(x), zip(view(wfuncs_all, i, :, :, :, 1), view(wfuncs_all, i, :, :, :, 2))))
+        end
+
+        return wfuncs_out
+    end
+end
+
+function generate_wannierfunctions(job::Job, supercell::NTuple{3,Int}, args...)
+    if ismagnetic(job.structure) && Structures.iscolin(job.structure) && !any(Calculations.issoccalc, job.calculations)
+        wfuncs = Vector{WannierFunction}[]
+        for (is, s) in enumerate(("up", "down"))
+            wan_calc  = getfirst(x -> eltype(x)==Wannier90&& x[:spin] == s, job.calculations)
+            chk_info  = read_chk(joinpath(job, "$(wan_calc.name).chk"))
+            unk_files = filter(x->occursin(".$is", x), searchdir(job, "UNK"))
+            push!(wfuncs, generate_wannierfunctions(unk_files, chk_info, supercell, args...))
+        end
+        return (up=wfuncs[1], down=wfuncs[2]) 
+    else
+        wan_calc  = getfirst(x -> eltype(x)==Wannier90, job.calculations)
+        chk_info  = read_chk(joinpath(job, "$(wan_calc.name).chk"))
+        unk_files = searchdir(job, "UNK")
+        return generate_wannierfunctions(unk_files, chk_info, supercell, args...)
+    end
+end
 function bloch_sum(wfunc, kpoint)
     cell_boundaries = div.(size(wfunc.points), 3)
     bloch = WannierFunction(wfunc.points, copy(wfunc.values))
