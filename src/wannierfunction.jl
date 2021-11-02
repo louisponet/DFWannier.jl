@@ -222,7 +222,7 @@ function bloch_sum(wfunc, kpoint)
     for i1 in -1:1:1, i2 in -1:1:1, i3 in -1:1:1
         R_cryst = Vec3(i1, i2, i3)
         o1, o2, o3 = cell_boundaries .* R_cryst
-        phase = ℯ^((R_cryst ⋅ kpoint)) 
+        phase = ℯ^(2im*π*(R_cryst ⋅ kpoint)) 
         if i1 + i2 + i3 == 0
             continue
         end
