@@ -78,12 +78,18 @@ The isosurface is determined from the charge, where the coloring signifies the p
 The `iso_ratio` will be used to determine the isosurface values as the ratio w.r.t the maximum value.
 The `phase_channel` denotes whether the phase of the spin up or down channel should be shown in the case of spinor Wannierfunctions. 
 """
-function visualize_wfuncs(wfuncs::Vector{<:WannierFunction}, str::Structure;
+function visualize_wfuncs(wfuncs::Vector{<:WannierFunction}, str::Structure; kwargs...)
+    dio = Diorama(background = RGBAf0(60/255, 60/255, 60/255, 1.0f0))
+    visualize_wfuncs!(dio, wfuncs, str; kwargs...) 
+    return dio
+end
+
+function visualize_wfuncs!(dio::Diorama, wfuncs::Vector{<:WannierFunction}, str::Structure;
                           iso_ratio = 1/4,
                           alpha = 0.6,
                           material = Gl.Material(),
                           phase_channel = Up())
-    dio = Diorama(background = RGBAf0(60/255, 60/255, 60/255, 1.0f0))
+
     DFControl.Display.add_structure!(dio, str)
 
     phase_id = length(wfuncs[1].values[1]) > 1 ? (phase_channel == Up() ? 1 : 2) : 1
