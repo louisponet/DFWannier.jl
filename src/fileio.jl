@@ -222,6 +222,15 @@ function readhami(job::Job)
 	chk_files = reverse(searchdir(job, ".chk"))
 	@assert !isempty(eig_files) "No eig files ($(seedname).eig) found."
 	@assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
+	if !DFC.Jobs.runslocal(job)
+        tdir = mkpath(tempname())
+    	for f in [eig_files; chk_files]
+        	fname = splitpath(f)[end]
+        	DFC.Servers.pull(job, fname, joinpath(tdir, fname))
+    	end
+    	eig_files = reverse(searchdir(tdir, ".eig"))
+    	chk_files = reverse(searchdir(tdir, ".chk"))
+	end
 	if DFC.Structures.ismagnetic(job.structure)
     	if !DFC.Structures.iscolin(job.structure) || any(x -> DFC.Calculations.hasflag(x, :lspinorb) && x[:lspinorb], job.calculations)
     		return make_noncolin.(readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1])))

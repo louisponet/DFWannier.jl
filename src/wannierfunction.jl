@@ -215,32 +215,45 @@ function generate_wannierfunctions(job::Job, supercell::NTuple{3,Int}, args...)
         return generate_wannierfunctions(unk_files, chk_info, supercell, args...)
     end
 end
-function bloch_sum(wfunc, kpoint)
-    cell_boundaries = div.(size(wfunc.points), 3)
-    bloch = WannierFunction(wfunc.points, copy(wfunc.values))
+
+function bloch_sum(wfunc, kpoint; i_pos_offset = (0,0,0), i_neg_offset=(0,0,0))
+    cell_boundaries = div.(size(wfunc.points), 3) .+ 1
+    x = wfunc.points[cell_boundaries[1]+1, 1, 1] .- wfunc.points[1]
+    y = wfunc.points[1, cell_boundaries[2]+1, 1] .- wfunc.points[1]
+    z = wfunc.points[1, 1, cell_boundaries[3]+1] .- wfunc.points[1]
+    bloch = WannierFunction(wfunc.points, zeros(eltype(wfunc.values), size(wfunc.values)))
     dims = size(wfunc.values)
-    for i1 in -1:1:1, i2 in -1:1:1, i3 in -1:1:1
+    for i1 in -3:1:3, i2 in -3:1:3, i3 in -3:1:3
         R_cryst = Vec3(i1, i2, i3)
         o1, o2, o3 = cell_boundaries .* R_cryst
+        shiftvec = x * R_cryst[1] .+ y * R_cryst[2] .+ z*R_cryst[3]
         phase = ℯ^(2im*π*(R_cryst ⋅ kpoint)) 
         if i1 + i2 + i3 == 0
             continue
         end
+        if i1 < 0
+            o1 += i_neg_offset[1]
+        elseif i1 > 0
+            o1 += i_pos_offset[1]
+        end
+        if i2 < 0
+            o2 += i_neg_offset[2]
+        elseif i2 > 0
+            o2 += i_pos_offset[2]
+        end
+        if i3 < 0
+            o3 += i_neg_offset[3]
+        elseif i3 > 0
+            o3 += i_pos_offset[3]
+        end
+            
         for j3 in 1:dims[3]
-            oid3 = j3 - o3
-            if !(0 < oid3 <= dims[3])
-                continue
-            end
+            oid3 = mod1(j3 - o3, dims[3])
             for j2 in 1:dims[2]
-                oid2 = j2 - o2
-                if !(0 < oid2 <= dims[2])
-                    continue
-                end
+                oid2 = mod1(j2 - o2, dims[2])
                 for j1 in 1:dims[1]
-                    oid1 = j1 - o1
-                    if !(0 < oid1 <= dims[1])
-                        continue
-                    end
+                    oid1 = mod1(j1 - o1, dims[1])
+                   
                     bloch.values[j1, j2, j3] += phase * wfunc.values[oid1, oid2, oid3]
                 end
             end
