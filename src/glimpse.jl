@@ -92,6 +92,7 @@ function visualize_wfuncs!(dio::Diorama, wfuncs, str::Structure;
                           alpha = 0.6,
                           material = Gl.Material(),
                           phase_channel = Up())
+
     DFControl.Display.add_structure!(dio, str)
 
     phase_id = length(wfuncs[1].values[1]) > 1 ? (phase_channel == Up() ? 1 : 2) : 1
