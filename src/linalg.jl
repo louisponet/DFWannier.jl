@@ -43,6 +43,8 @@ end
 Base.similar(c::M, args::AbstractUnitRange...) where {M <: AbstractMagneticMatrix} =
     M(similar(c.data), args...)
 
+Base.iterate(c::AbstractMagneticMatrix, args...) = iterate(c.data, args...)
+
 """
     ColinMatrix{T, M <: AbstractMatrix{T}} <: AbstractMagneticMatrix{T}
 
@@ -117,6 +119,7 @@ end
 uprange(a::DFC.Structures.Atom) = vcat(uprange.(a.projections)...)
     
 ## Indexing ##
+Base.IndexStyle(::AbstractMagneticMatrix) = IndexLinear()
 for f in (:view, :getindex)
     @eval function Base.$f(c::ColinMatrix, a1::T, a2::T) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}}
         projrange1 = range(a1)
@@ -169,17 +172,27 @@ for f in (:view, :getindex)
 
     @eval Base.$f(c::AbstractMagneticMatrix, ::Up) =
         (r = 1:blockdim(c); $f(c, r, r))
+    @eval Base.$f(c::AbstractMagneticMatrix, ::Up, ::Up) =
+        (r = 1:blockdim(c); $f(c, r, r))
 
     @eval Base.$f(c::ColinMatrix, ::Down) =
+        (d = blockdim(c); r = 1:d; $f(c, r, r .+ d))
+    @eval Base.$f(c::ColinMatrix, ::Down, ::Down) =
         (d = blockdim(c); r = 1:d; $f(c, r, r .+ d))
         
     @eval Base.$f(c::NonColinMatrix, ::Down) =
         (d = blockdim(c); r = d+1 : 2*d; $f(c, r, r))
+    @eval Base.$f(c::NonColinMatrix, ::Down, ::Down) =
+        (d = blockdim(c); r = d+1 : 2*d; $f(c, r, r))
 
     @eval Base.$f(c::AbstractMatrix, ::Up) =
         (r = 1:blockdim(c); $f(c, r, r))
+    @eval Base.$f(c::AbstractMatrix, ::Up, ::Up) =
+        (r = 1:blockdim(c); $f(c, r, r))
 
     @eval Base.$f(c::AbstractMatrix, ::Down) =
+        (d = blockdim(c); r = d + 1:2 * d; $f(c, r, r))
+    @eval Base.$f(c::AbstractMatrix, ::Down, ::Down) =
         (d = blockdim(c); r = d + 1:2 * d; $f(c, r, r))
     
 end
@@ -192,14 +205,14 @@ for op in (:*, :-, :+, :/)
 end
 
     # BROADCASTING
-Base.BroadcastStyle(::Type{<:AbstractMagneticMatrix}) =
-    Broadcast.ArrayStyle{AbstractMagneticMatrix}()
+Base.BroadcastStyle(::Type{T}) where {T<:AbstractMagneticMatrix} =
+    Broadcast.ArrayStyle{T}()
 
 Base.ndims(::Type{<:AbstractMagneticMatrix}) =
     2
 
-Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{AbstractMagneticMatrix}}, ::Type{ElType}) where {ElType} =
-    Base.similar(AbstractMagneticMatrix{ElType}, axes(bc))
+Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{T}}, ::Type{ElType}) where {T<:AbstractMagneticMatrix,ElType} =
+    Base.similar(T{ElType}, axes(bc))
 
 Base.axes(c::AbstractMagneticMatrix) =
     Base.axes(c.data)
@@ -251,24 +264,9 @@ end
 
 @inline LinearAlgebra.adjoint!(out::NonColinMatrix, in1::NonColinMatrix) =
     adjoint!(out.data, in1.data)
-
-for (elty, relty, cfunc) in zip((:ComplexF32, :ComplexF64), (:Float32, :Float64), (:cheev_, :zheev_))
-# We use Upper Triangular blas for everything! And Eigvals are always all calculated
-    @eval @inline function blas_eig_ccall(A::AbstractMatrix{$elty},
-                                          W::AbstractVector{$relty},
-                                          work::Vector{$elty},
-                                          lwork::BlasInt,
-                                          rwork::Vector{$relty},
-                                          n::Int,
-                                          info::Ref{BlasInt})
-
-    ccall((@blasfunc($cfunc), liblapack), Cvoid,
-           (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
-           Ptr{$relty}, Ptr{$elty}, Ref{BlasInt}, Ptr{$relty}, Ptr{BlasInt}),
-           'V', 'U', n, A, n, W, work, lwork, rwork, info)
-    chklapackerror(info[])
-    end
-end
+    
+@inline LinearAlgebra.tr(c::AbstractMagneticMatrix) =
+    tr(c[Up()]) + tr(c[Down()])
 
 "Vector following the same convention as the in AbstractMagneticMatrix, i.e. first half of the indices contain the up part, second the down part"
 struct MagneticVector{T} <: AbstractVector{T}
@@ -333,8 +331,45 @@ for op in (:*, :-, :+, :/)
         MagneticVector($op(c1.data, c2.data))
 end
 
-struct EigCache{T <: AbstractFloat}
-    work::Vector{Complex{T}}
+for (elty, relty, cfunc) in zip((:ComplexF32, :ComplexF64), (:Float32, :Float64), (:cheev_, :zheev_))
+# We use Upper Triangular blas for everything! And Eigvals are always all calculated
+    @eval @inline function blas_eig_ccall(A::AbstractMatrix{$elty},
+                                          W::AbstractVector{$relty},
+                                          work::Vector{$elty},
+                                          lwork::BlasInt,
+                                          rwork::Vector{$relty},
+                                          n::Int,
+                                          info::Ref{BlasInt})
+
+    ccall((@blasfunc($cfunc), liblapack), Cvoid,
+           (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
+           Ptr{$relty}, Ptr{$elty}, Ref{BlasInt}, Ptr{$relty}, Ptr{BlasInt}),
+           'V', 'U', n, A, n, W, work, lwork, rwork, info)
+    chklapackerror(info[])
+    end
+end
+
+for (elty, cfunc) in zip((:Float32, :Float64), (:ssyev_, :dsyev_))
+# We use Upper Triangular blas for everything! And Eigvals are always all calculated
+    @eval @inline function blas_eig_ccall(A::AbstractMatrix{$elty},
+                                          W::AbstractVector{$elty},
+                                          work::Vector{$elty},
+                                          lwork::BlasInt,
+                                          rwork::Vector{$elty},
+                                          n::Int,
+                                          info::Ref{BlasInt})
+
+    ccall((@blasfunc($cfunc), liblapack), Cvoid,
+           (Ref{UInt8}, Ref{UInt8}, Ref{BlasInt}, Ptr{$elty}, Ref{BlasInt},
+           Ptr{$elty}, Ptr{$elty}, Ref{BlasInt}, Ptr{BlasInt}, Clong, Clong),
+           'V', 'U', n, A, n, W, work, lwork, info, 1, 1)
+    chklapackerror(info[])
+    end
+end
+
+
+struct EigCache{CT<: Number, T <: AbstractFloat}
+    work::Vector{CT}
     lwork::BlasInt
     rwork::Vector{T}
     n::Int
@@ -352,38 +387,52 @@ struct EigCache{T <: AbstractFloat}
         blas_eig_ccall(A, W, work, lwork, rwork, n, info)
         lwork = BlasInt(real(work[1]))
         resize!(work, lwork)
-        return new{relty}(work, lwork, rwork, n, info)
+        return new{elty, relty}(work, lwork, rwork, n, info)
+    end
+    function EigCache(A::AbstractMatrix{relty}) where {relty}
+        chkstride1(A)
+        n = checksquare(A)
+        W     = similar(A, relty, n)
+        work  = Vector{relty}(undef, 1)
+        lwork = BlasInt(-1)
+        rwork = Vector{relty}(undef, max(1, 3n - 2))
+        info  = Ref{BlasInt}()
+
+        blas_eig_ccall(A, W, work, lwork, rwork, n, info)
+        lwork = BlasInt(real(work[1]))
+        resize!(work, lwork)
+        return new{relty, relty}(work, lwork, rwork, n, info)
     end
 end
 EigCache(A::ColinMatrix) = EigCache(up(A))
 EigCache(A::NonColinMatrix) = EigCache(A.data)
 
-@inline function eigen!(vals::AbstractVector{T}, vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
+@inline function eigen!(vals::AbstractVector, vecs::AbstractMatrix, c::EigCache)
     blas_eig_ccall(vecs, vals, c.work, c.lwork, c.rwork, c.n, c.info)
     return Eigen(vals, vecs)
 end
 
-@inline function eigen!(vals::AbstractVector{T}, vecs::ColinMatrix{Complex{T}}, c::EigCache{T}) where {T}
+@inline function eigen!(vals::AbstractVector, vecs::ColinMatrix, c::EigCache)
     eigen!(view(vals.data, 1:c.n), up(vecs), c)
     eigen!(view(vals.data, c.n + 1:2 * c.n), down(vecs), c)
     return Eigen(vals, vecs)
 end
 
-@inline function eigen!(vals::AbstractVector{T}, vecs::NonColinMatrix{Complex{T}}, c::EigCache{T}) where {T}
+@inline function eigen!(vals::AbstractVector, vecs::NonColinMatrix, c::EigCache)
     eigen!(vals.data, vecs.data, c)
     return Eigen(vals, vecs)
 end
 
     
-@inline function eigen(vecs::AbstractMatrix{Complex{T}}, c::EigCache{T}) where {T}
+@inline function eigen(vecs::AbstractMatrix{T}, c::EigCache{T}) where {T}
     out  = copy(vecs)
-    vals = similar(out, T, size(out, 2))
+    vals = similar(out, eltype(T), size(out, 2))
     return eigen!(vals, out, c)
 end
 
-@inline function eigen(vecs::AbstractMagneticMatrix{Complex{T}}, c::EigCache{T}) where {T}
+@inline function eigen(vecs::AbstractMagneticMatrix{T}, c::EigCache{T}) where {T}
     out  = copy(vecs)
-    vals = MagneticVector(similar(out, T, size(out, 2)))
+    vals = MagneticVector(similar(out, eltype(T), size(out, 2)))
     return eigen!(vals, out, c)
 end
 
@@ -396,7 +445,7 @@ end
     return eigen(h, EigCache(h))
 end
     # Very unoptimized
-function Base.Array(e::Eigen{Complex{T},T,<:ColinMatrix{Complex{T}}}) where {T}
+function Base.Array(e::Eigen{CT,T,<:ColinMatrix{CT}}) where {CT, T}
     d = size(e.vectors, 1)
     return [e.vectors[1:d, 1:d] * diagm(0 => e.values[1:d]) * e.vectors[1:d, 1:d]' e.vectors[1:d, d + 1:2d] * diagm(0 => e.values[d + 1:2d]) * e.vectors[1:d, d + 1:2d]']
 end
