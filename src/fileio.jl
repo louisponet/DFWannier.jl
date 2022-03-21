@@ -216,7 +216,7 @@ function readhami(job::Job)
     seedname = getfirst(x -> x isa Calculation{Wannier90}, job.calculations).name
     jld_file = joinpath(job, "hami.jld2")
     if ispath(jld_file)
-        return DFC.load(jld_file)["hami"]
+        return JLD2.load(jld_file)["hami"]
     end
 	eig_files = reverse(searchdir(job, ".eig"))
 	chk_files = reverse(searchdir(job, ".chk"))

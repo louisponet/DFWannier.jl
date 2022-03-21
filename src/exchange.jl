@@ -165,7 +165,7 @@ mutable struct Exchange4thOrder{T <: AbstractFloat} <: Exchange{T}
     atom2::Atom
 end
 
-function calc_exchanges(hami,  atoms, fermi::T, ::Type{E} = Exchange2ndOrder;
+function calc_exchanges(hami,  atoms::Vector{<:Atom}, fermi::T, ::Type{E} = Exchange2ndOrder;
                         nk::NTuple{3,Int} = (10, 10, 10),
                         R                  = Vec3(0, 0, 0),
                         ωh::T              = T(-30.), # starting energy

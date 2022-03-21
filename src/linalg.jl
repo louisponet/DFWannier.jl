@@ -269,8 +269,8 @@ end
     tr(c[Up()]) + tr(c[Down()])
 
 "Vector following the same convention as the in AbstractMagneticMatrix, i.e. first half of the indices contain the up part, second the down part"
-struct MagneticVector{T} <: AbstractVector{T}
-    data::Vector{T}
+struct MagneticVector{T, VT<:AbstractVector{T}} <: AbstractVector{T}
+    data::VT
 end
 
 for f in (:length, :size, :setindex!, :elsize)
@@ -445,7 +445,9 @@ end
     return eigen(h, EigCache(h))
 end
     # Very unoptimized
-function Base.Array(e::Eigen{CT,T,<:ColinMatrix{CT}}) where {CT, T}
+function Base.Matrix(e::Eigen{CT,T,<:ColinMatrix{CT}}) where {CT, T}
     d = size(e.vectors, 1)
-    return [e.vectors[1:d, 1:d] * diagm(0 => e.values[1:d]) * e.vectors[1:d, 1:d]' e.vectors[1:d, d + 1:2d] * diagm(0 => e.values[d + 1:2d]) * e.vectors[1:d, d + 1:2d]']
+    return ColinMatrix([e.vectors[1:d, 1:d] * diagm(0 => e.values[1:d]) * e.vectors[1:d, 1:d]' e.vectors[1:d, d + 1:2d] * diagm(0 => e.values[d + 1:2d]) * e.vectors[1:d, d + 1:2d]'])
 end
+
+Base.Array(e::Eigen{CT,T,<:ColinMatrix{CT}}) where {CT, T} = Matrix(e)
