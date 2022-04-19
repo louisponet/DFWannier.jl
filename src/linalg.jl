@@ -212,7 +212,7 @@ Base.ndims(::Type{<:AbstractMagneticMatrix}) =
     2
 
 Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{T}}, ::Type{ElType}) where {T<:AbstractMagneticMatrix,ElType} =
-    Base.similar(T{ElType}, axes(bc))
+    Base.similar(T, axes(bc))
 
 Base.axes(c::AbstractMagneticMatrix) =
     Base.axes(c.data)

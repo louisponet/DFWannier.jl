@@ -199,19 +199,31 @@ function generate_wannierfunctions(k_filenames::Vector{String}, chk_info, wannie
 end
 
 function generate_wannierfunctions(job::Job, supercell::NTuple{3,Int}, args...)
-    if ismagnetic(job.structure) && Structures.iscolin(job.structure) && !any(Calculations.issoccalc, job.calculations)
+    tdir = job.dir
+	unk_files = reverse(searchdir(job, "UNK"))
+	chk_files = reverse(searchdir(job, ".chk"))
+	if !DFC.Jobs.runslocal(job)
+        tdir = mkpath(tempname())
+    	for f in [unk_files; chk_files]
+        	fname = splitpath(f)[end]
+        	DFC.Servers.pull(job, fname, joinpath(tdir, fname))
+    	end
+    	unk_files = reverse(searchdir(tdir, "UNK"))
+    	chk_files = reverse(searchdir(tdir, ".chk"))
+	end
+    if ismagnetic(job.structure) && Structures.iscolin(job.structure) && !any(Calculations.issoc, job.calculations)
         wfuncs = Vector{WannierFunction}[]
         for (is, s) in enumerate(("up", "down"))
-            wan_calc  = getfirst(x -> eltype(x)==Wannier90&& x[:spin] == s, job.calculations)
-            chk_info  = read_chk(joinpath(job, "$(wan_calc.name).chk"))
-            unk_files = filter(x->occursin(".$is", x), searchdir(job, "UNK"))
+            wan_calc  = getfirst(x -> eltype(x) == Wannier90&& x[:spin] == s, job.calculations)
+            chk_info  = read_chk(joinpath(tdir, "$(wan_calc.name).chk"))
+            unk_files = filter(x->occursin(".$is", x), searchdir(tdir, "UNK"))
             push!(wfuncs, generate_wannierfunctions(unk_files, chk_info, supercell, args...))
         end
         return (up=wfuncs[1], down=wfuncs[2]) 
     else
         wan_calc  = getfirst(x -> eltype(x)==Wannier90, job.calculations)
-        chk_info  = read_chk(joinpath(job, "$(wan_calc.name).chk"))
-        unk_files = searchdir(job, "UNK")
+        chk_info  = read_chk(joinpath(tdir, "$(wan_calc.name).chk"))
+        unk_files = searchdir(tdir, "UNK")
         return generate_wannierfunctions(unk_files, chk_info, supercell, args...)
     end
 end
