@@ -1,59 +1,59 @@
 import Base: getindex, zero, show, -, +, ==, !=, *, /, view
 
 struct WannierFunction{N, T<:AbstractFloat} <: AbstractArray{SVector{N, Complex{T}}, 3}
-	points::Array{Point{3, T}, 3}
-	values::Array{SVector{N, Complex{T}}, 3}
+    points::Array{Point{3, T}, 3}
+    values::Array{SVector{N, Complex{T}}, 3}
 end
 
 function WannierFunction(filename::AbstractString, points::Array{Point3{T}, 3}=read_points_from_xsf(filename)) where {T <: AbstractFloat}
-	re = read_values_from_xsf(T, filename)
-	values = [SVector(complex(a)) for a in re]
-	return normalize(WannierFunction(points, values))
+    re = read_values_from_xsf(T, filename)
+    values = [SVector(complex(a)) for a in re]
+    return normalize(WannierFunction(points, values))
 end
 
 function WannierFunction(filename_re::String, filename_im::String, points::Array{Point3{T}, 3} = read_points_from_xsf(filename_re)) where {T <: AbstractFloat}
-	re, im = read_values_from_xsf.(T, (filename_re, filename_im))
-	values = [SVector(Complex(a, b)) for (a, b) in zip(re, im)]
-	return normalize(WannierFunction(points, values))
+    re, im = read_values_from_xsf.(T, (filename_re, filename_im))
+    values = [SVector(Complex(a, b)) for (a, b) in zip(re, im)]
+    return normalize(WannierFunction(points, values))
 end
 
 function WannierFunction(filename_up_re::String, filename_up_im::String, filename_down_re::String, filename_down_im::String, points::Array{Point3{T}, 3} = read_points_from_xsf(filename_up_re)) where {T <: AbstractFloat}
-	up_re, up_im, down_re, down_im =
-		read_values_from_xsf.(T, (filename_up_re, filename_up_im, filename_down_re, filename_down_im))
-	values = [SVector(Complex(a, b), Complex(c, d)) for (a, b, c, d) in zip(up_re, up_im, down_re, down_im)]
-	return normalize(WannierFunction(points, values))
+    up_re, up_im, down_re, down_im =
+        read_values_from_xsf.(T, (filename_up_re, filename_up_im, filename_down_re, filename_down_im))
+    values = [SVector(Complex(a, b), Complex(c, d)) for (a, b, c, d) in zip(up_re, up_im, down_re, down_im)]
+    return normalize(WannierFunction(points, values))
 end
 
 WannierFunction(point_func::Function,  points::Array) =
     normalize(WannierFunction(points, point_func.(points)))
 
 for f in (:size, :getindex, :setindex!)
-	@eval @inline @propagate_inbounds Base.$f(x::WannierFunction, i...) =
-		Base.$f(x.values, i...)
+    @eval @inline @propagate_inbounds Base.$f(x::WannierFunction, i...) =
+        Base.$f(x.values, i...)
 end
 
 for f in (:length, :stride, :ndims, :axes, :strides)
-	@eval @inline Base.$f(w::WannierFunction) = Base.$f(w.values)
+    @eval @inline Base.$f(w::WannierFunction) = Base.$f(w.values)
 end
 
 Base.similar(x::WannierFunction,::Type{S}) where S = 
   WannierFunction(x.points, similar(x.values, S))
 
 Base.unsafe_convert(T::Type{<:Ptr}, x::WannierFunction) =
-	unsafe_convert(T, x.values)
+    unsafe_convert(T, x.values)
 
 
 Base.Broadcast.broadcastable(w::WannierFunction) =
-	w.values
+    w.values
 
 #### LinearAlgebra overloads
 function LinearAlgebra.adjoint(w::WannierFunction)
-	out = WannierFunction(w.points, similar(w.values))
-	adjoint!(out, w)
+    out = WannierFunction(w.points, similar(w.values))
+    adjoint!(out, w)
 end
 
 LinearAlgebra.adjoint!(w1::WannierFunction, w2::WannierFunction) =
-	w1 .= adjoint.(w2)
+    w1 .= adjoint.(w2)
 
 function LinearAlgebra.dot(w1::WannierFunction{T}, w2::WannierFunction{T}) where {T}
     s = zero(T)
@@ -74,17 +74,17 @@ LinearAlgebra.dot(wfs::Vector{<:WannierFunction}, v::Vector) =
     dot(v, wfs)
 
 LinearAlgebra.norm(wfc::WannierFunction) =
-	dot(wfc, wfc)
+    dot(wfc, wfc)
 
 LinearAlgebra.normalize!(wfc::WannierFunction) =
-	wfc ./= sqrt(norm(wfc))
+    wfc ./= sqrt(norm(wfc))
 
 same_grid(w1::WannierFunction, w2::WannierFunction) =
-	w1.points === w2.points
+    w1.points === w2.points
 
 function wan_op(op::Function, w1::W, w2::W) where {W <: WannierFunction}
-	@assert same_grid(w1, w2) "Wannier functions are not defined on the same grid"
-	return WannierFunction(w1.points, op(w1.values, w2.values))
+    @assert same_grid(w1, w2) "Wannier functions are not defined on the same grid"
+    return WannierFunction(w1.points, op(w1.values, w2.values))
 end
 
 +(w1::WannierFunction, w2::WannierFunction) = wan_op(+, w1, w2)
@@ -200,17 +200,17 @@ end
 
 function generate_wannierfunctions(job::Job, supercell::NTuple{3,Int}, args...)
     tdir = job.dir
-	unk_files = reverse(searchdir(job, "UNK"))
-	chk_files = reverse(searchdir(job, ".chk"))
-	if !DFC.Jobs.runslocal(job)
+    unk_files = reverse(searchdir(job, "UNK"))
+    chk_files = reverse(searchdir(job, ".chk"))
+    if !DFC.Jobs.runslocal(job)
         tdir = mkpath(tempname())
-    	for f in [unk_files; chk_files]
-        	fname = splitpath(f)[end]
-        	DFC.Servers.pull(job, fname, joinpath(tdir, fname))
-    	end
-    	unk_files = reverse(searchdir(tdir, "UNK"))
-    	chk_files = reverse(searchdir(tdir, ".chk"))
-	end
+        for f in [unk_files; chk_files]
+            fname = splitpath(f)[end]
+            DFC.Servers.pull(job, fname, joinpath(tdir, fname))
+        end
+        unk_files = reverse(searchdir(tdir, "UNK"))
+        chk_files = reverse(searchdir(tdir, ".chk"))
+    end
     if ismagnetic(job.structure) && Structures.iscolin(job.structure) && !any(Calculations.issoc, job.calculations)
         wfuncs = Vector{WannierFunction}[]
         for (is, s) in enumerate(("up", "down"))
@@ -219,13 +219,17 @@ function generate_wannierfunctions(job::Job, supercell::NTuple{3,Int}, args...)
             unk_files = filter(x->occursin(".$is", x), searchdir(tdir, "UNK"))
             push!(wfuncs, generate_wannierfunctions(unk_files, chk_info, supercell, args...))
         end
-        return (up=wfuncs[1], down=wfuncs[2]) 
+        wfuncs = (up=wfuncs[1], down=wfuncs[2])
     else
         wan_calc  = getfirst(x -> eltype(x)==Wannier90, job.calculations)
         chk_info  = read_chk(joinpath(tdir, "$(wan_calc.name).chk"))
         unk_files = searchdir(tdir, "UNK")
-        return generate_wannierfunctions(unk_files, chk_info, supercell, args...)
+        wfuncs = generate_wannierfunctions(unk_files, chk_info, supercell, args...)
     end
+    if !DFC.Jobs.runslocal(job)
+        rm(tdir, recursive=true)
+    end
+    return wfuncs
 end
 
 function bloch_sum(wfunc, kpoint; i_pos_offset = (0,0,0), i_neg_offset=(0,0,0))

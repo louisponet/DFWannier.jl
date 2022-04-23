@@ -63,16 +63,16 @@ function read_values_from_xsf(::Type{T}, filename::String) where {T <: AbstractF
 
             if line == " DATAGRID_3D_DENSITY" || occursin("DATAGRID_3D_UNKNOWN", line)
                 nx, ny, nz = parse.(Int, split(readline(f)))
-	            for i = 1:4
-		            readline(f)
-	            end
+                for i = 1:4
+                    readline(f)
+                end
                 out     = Array{T}(undef, nx, ny, nz)
                 line    = readline(f)
-				counter = 1
+                counter = 1
                 while line != "END_DATAGRID_3D"
                     for t in parse.(T, split(line))
-	                    out[counter] = t
-	                    counter += 1
+                        out[counter] = t
+                        counter += 1
                     end
                     line = readline(f)
                 end
@@ -125,7 +125,7 @@ function write_xsf(filename::String, wfc, structure; value_func=x -> norm(x))
 end
 
 @doc raw"""
-	readhami(chk, eig_file::AbstractString)
+    readhami(chk, eig_file::AbstractString)
 
 Reads `eig_file` and uses the w90 checkpoint info in `chk` to return a vector of TbBlocks with the hopping parameters of the Wannier Tight Binding Hamiltonian.
 """
@@ -174,32 +174,32 @@ end
 #super not optimized
 #TODO Test: new wigner seitz shift stuff
 @doc raw"""
-	read_colin_hami(up_chk, down_chk, up_eig_file::AbstractString, down_eig_file::AbstractString)
+    read_colin_hami(up_chk, down_chk, up_eig_file::AbstractString, down_eig_file::AbstractString)
 
 Returns the colinear TbHami representing the up-down blocks of the Wannier Tight Binding Hamiltonian.
 """
 function read_colin_hami(up_chk, down_chk, up_eig_file::AbstractString, down_eig_file::AbstractString)
-	uphami   = readhami(up_chk, up_eig_file)
-	downhami = readhami(down_chk, down_eig_file)
-	dim = blocksize(uphami)
-	@assert dim == blocksize(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
+    uphami   = readhami(up_chk, up_eig_file)
+    downhami = readhami(down_chk, down_eig_file)
+    dim = blocksize(uphami)
+    @assert dim == blocksize(downhami) "Specified files contain Hamiltonians with different dimensions of the Wannier basis."
 
-	u1 = uphami[1]
-	d1 = downhami[u1.R_cryst]
-	
-	first = TbBlock(u1.R_cryst,
-	                u1.R_cart,
-	                ColinMatrix(block(u1), block(d1)),
-	                ColinMatrix(u1.tb_block, d1.tb_block))
+    u1 = uphami[1]
+    d1 = downhami[u1.R_cryst]
+    
+    first = TbBlock(u1.R_cryst,
+                    u1.R_cart,
+                    ColinMatrix(block(u1), block(d1)),
+                    ColinMatrix(u1.tb_block, d1.tb_block))
 
-	outhami  = [first]
-	for u in uphami[2:end]
-    	d = downhami[u.R_cryst]
-    	if d !== nothing
-    		push!(outhami, TbBlock(u.R_cryst, u.R_cart, ColinMatrix(block(u), block(d)), ColinMatrix(u.tb_block, d.tb_block)))
-		end
-	end
-	return outhami
+    outhami  = [first]
+    for u in uphami[2:end]
+        d = downhami[u.R_cryst]
+        if d !== nothing
+            push!(outhami, TbBlock(u.R_cryst, u.R_cart, ColinMatrix(block(u), block(d)), ColinMatrix(u.tb_block, d.tb_block)))
+        end
+    end
+    return outhami
 end
 
 """
@@ -218,28 +218,33 @@ function readhami(job::Job)
     if ispath(jld_file)
         return JLD2.load(jld_file)["hami"]
     end
-	eig_files = reverse(searchdir(job, ".eig"))
-	chk_files = reverse(searchdir(job, ".chk"))
-	@assert !isempty(eig_files) "No eig files ($(seedname).eig) found."
-	@assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
-	if !DFC.Jobs.runslocal(job)
+    eig_files = reverse(searchdir(job, ".eig"))
+    chk_files = reverse(searchdir(job, ".chk"))
+    @assert !isempty(eig_files) "No eig files ($(seedname).eig) found."
+    @assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
+    if !DFC.Jobs.runslocal(job)
         tdir = mkpath(tempname())
-    	for f in [eig_files; chk_files]
-        	fname = splitpath(f)[end]
-        	DFC.Servers.pull(job, fname, joinpath(tdir, fname))
-    	end
-    	eig_files = reverse(searchdir(tdir, ".eig"))
-    	chk_files = reverse(searchdir(tdir, ".chk"))
-	end
-	if DFC.Structures.ismagnetic(job.structure)
-    	if !DFC.Structures.iscolin(job.structure) || any(x -> DFC.Calculations.hasflag(x, :lspinorb) && x[:lspinorb], job.calculations)
-    		return make_noncolin.(readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1])))
-    	else
-    		return read_colin_hami(read_chk.(chk_files)..., eig_files...)
-    	end
-	else
-		return readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1]))
-	end
+        for f in [eig_files; chk_files]
+            fname = splitpath(f)[end]
+            DFC.Servers.pull(job, fname, joinpath(tdir, fname))
+        end
+        eig_files = reverse(searchdir(tdir, ".eig"))
+        chk_files = reverse(searchdir(tdir, ".chk"))
+    end
+    if DFC.Structures.ismagnetic(job.structure)
+        if !DFC.Structures.iscolin(job.structure) || any(x -> DFC.Calculations.hasflag(x, :lspinorb) && x[:lspinorb], job.calculations)
+            hami = make_noncolin.(readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1])))
+        else
+            hami = read_colin_hami(read_chk.(chk_files)..., eig_files...)
+        end
+    else
+        hami = readhami(read_chk(chk_files[1]), joinpath(job, eig_files[1]))
+    end
+    if !DFC.Jobs.runslocal(job)
+        dir = splitdir(eig_files[1])[1]
+        rm(dir, recursive=true)
+    end
+    return hami
 end
 
 """
@@ -1138,12 +1143,12 @@ function readspin(spn_file, chk_file)
 end
 
 function readspin(job::Job)
-	chk_files = reverse(searchdir(job, ".chk"))
-	spn_files = reverse(searchdir(job, ".spn"))
-	isempty(chk_files) && error("No .chk files found in job dir: $(job.local_dir)")
-	isempty(spn_files) && error("No .spn files found in job dir: $(job.local_dir)")
-	if length(chk_files) > 1
-    	error("Not implemented for collinear spin-polarized calculations")
+    chk_files = reverse(searchdir(job, ".chk"))
+    spn_files = reverse(searchdir(job, ".spn"))
+    isempty(chk_files) && error("No .chk files found in job dir: $(job.local_dir)")
+    isempty(spn_files) && error("No .spn files found in job dir: $(job.local_dir)")
+    if length(chk_files) > 1
+        error("Not implemented for collinear spin-polarized calculations")
     end
     return readspin(spn_files[1], chk_files[1])
 end
