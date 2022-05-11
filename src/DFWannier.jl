@@ -20,6 +20,7 @@ module DFWannier
 	using ProgressMeter
 	using UnsafeArrays
 	using Requires
+	using JLD2
 
 	include("linalg.jl")
 	include("wannierfunction.jl")
