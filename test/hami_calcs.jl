@@ -6,7 +6,6 @@ n_ωv = 50
 ωh = -30.0
 ωv = 0.5
 
-i, structure = DFW.DFControl.wan_read_input(assetfile("wanup.win"))
 hami = readhami(DFW.read_chk(assetfile("wanup.chk")), assetfile("wanup.eig"))
 
 wbands = wannierbands(hami, uniform_kgrid(nk...))

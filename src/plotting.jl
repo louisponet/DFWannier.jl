@@ -1,5 +1,6 @@
 
-@recipe function f(band::WannierBand, data=:eigvals; ks=nothing, fermi=0, linewidth=2)
+@recipe function f(band::WannierBand, data = :eigvals; ks = nothing, fermi = 0,
+                   linewidth = 2)
     if ks == :relative
         ks = []
         k_m = band.kpoints_cryst[div(size(band.kpoints)[1] + 1, 2)]
@@ -10,167 +11,168 @@
     else
         ks = collect(1:length(band.kpoints_cryst))
     end
-    eigvals = band.eigvals .- fermi 
+    eigvals = band.eigvals .- fermi
     linewidth --> linewidth
     out = []
-    if data==:eigvals
-        out =eigvals
+    if data == :eigvals
+        out = eigvals
         title --> "Eigenvalues"
-        yguide -->"energy (eV)"
+        yguide --> "energy (eV)"
     else
-        if data==:cm_x
+        if data == :cm_x
             title --> "Center of Mass (X)"
             yguide --> "Rx (Angström)"
             for cm in band.cms
-                push!(out,cm[1])
+                push!(out, cm[1])
             end
-        elseif data==:cm_y
+        elseif data == :cm_y
             title --> "Center of Mass (Y)"
             yguide --> "Ry (Angström)"
             for cm in band.cms
-                push!(out,cm[2])
+                push!(out, cm[2])
             end
-        elseif data==:cm_z
+        elseif data == :cm_z
             title --> "Center of Mass (Z)"
-            yguide --> L"R_z"*" ("*L"\AA"*")"
+            yguide --> L"R_z" * " (" * L"\AA" * ")"
             for cm in band.cms
-                push!(out,cm[3])
+                push!(out, cm[3])
             end
-        elseif data==:angmom_x
+        elseif data == :angmom_x
             title --> "Orbital Angular Momentum (X)"
             yguide --> L"L_x (arb. units)"
             for angmom in band.angmoms
-                push!(out,angmom[1][1]+angmom[2][1])
+                push!(out, angmom[1][1] + angmom[2][1])
             end
-        elseif data==:angmom_y
+        elseif data == :angmom_y
             title --> "Orbital Angular Momentum (Y)"
             yguide --> L"L_y (arb. units)"
             for angmom in band.angmoms
-                push!(out,angmom[1][2]+angmom[2][2])
+                push!(out, angmom[1][2] + angmom[2][2])
             end
-        elseif data==:angmom_z
+        elseif data == :angmom_z
             title --> "Orbital Angular Momentum (Z)"
             yguide --> "Lz (arb. units)"
             for angmom in band.angmoms
-                push!(out,angmom[1][3]+angmom[2][3])
+                push!(out, angmom[1][3] + angmom[2][3])
             end
-        elseif data==:angmom1_x
+        elseif data == :angmom1_x
             title --> "Orbital Angular Momentum (X)"
             yguide --> "Lx (arb. units)"
             label --> "OAM around Ge"
             for angmom in band.angmoms
-                push!(out,angmom[1][1])
+                push!(out, angmom[1][1])
             end
-        elseif data==:angmom1_y
+        elseif data == :angmom1_y
             title --> "Orbital Angular Momentum (Y)"
             yguide --> "Ly (arb. units)"
             label --> "OAM around Ge"
             for angmom in band.angmoms
-                push!(out,angmom[1][2])
+                push!(out, angmom[1][2])
             end
-        elseif data==:angmom1_z
+        elseif data == :angmom1_z
             title --> "Orbital Angular Momentum (Z)"
             yguide --> "Lz (arb. units)"
             label --> "OAM around Ge"
             for angmom in band.angmoms
-                push!(out,angmom[1][3])
+                push!(out, angmom[1][3])
             end
-        elseif data==:angmom2_x
+        elseif data == :angmom2_x
             title --> "Orbital Angular Momentum (X)"
-            yguide --> L"L_x"*" (arb. units)"
+            yguide --> L"L_x" * " (arb. units)"
             label --> "OAM around Te"
             for angmom in band.angmoms
-                push!(out,angmom[2][1])
+                push!(out, angmom[2][1])
             end
-        elseif data==:angmom2_y
+        elseif data == :angmom2_y
             title --> "Orbital Angular Momentum (Y)"
-            yguide --> L"L_y"*" (arb. units)"
+            yguide --> L"L_y" * " (arb. units)"
             label --> "OAM around Ge"
             for angmom in band.angmoms
-                push!(out,angmom[2][2])
+                push!(out, angmom[2][2])
             end
-        elseif data==:angmom2_z
+        elseif data == :angmom2_z
             title --> "Orbital Angular Momentum (Z)"
             yguide --> "Lz (arb. units)"
             label --> "OAM around Ge"
             for angmom in band.angmoms
-                push!(out,angmom[2][3])
+                push!(out, angmom[2][3])
             end
-        elseif data==:angmom2_xy
+        elseif data == :angmom2_xy
             title --> "Orbital Angular Momentum (XY)"
             yguide --> "norm(Lx)+norm(Ly)"
             label --> "Total angmom"
-            for (spin,angmom) in zip(band.spins,band.angmoms)
-                push!(out,sqrt((angmom[2][1]+spin[2][1])^2+(angmom[2][2]+spin[2][2])^2))
+            for (spin, angmom) in zip(band.spins, band.angmoms)
+                push!(out,
+                      sqrt((angmom[2][1] + spin[2][1])^2 + (angmom[2][2] + spin[2][2])^2))
             end
-        elseif data==:spin1_x
+        elseif data == :spin1_x
             title --> "Spin Angular Momentum (X)"
             yguide --> "Sx (arb. units)"
             label --> "SAM around Ge"
             for spin in band.spins
-                push!(out,spin[1][1])
+                push!(out, spin[1][1])
             end
-        elseif data==:spin1_y
+        elseif data == :spin1_y
             title --> "Spin Angular Momentum (Y)"
             yguide --> "Sy (arb. units)"
             label --> "SAM around Ge"
             for spin in band.spins
-                push!(out,spin[1][2])
+                push!(out, spin[1][2])
             end
-        elseif data==:spin1_z
+        elseif data == :spin1_z
             title --> "Spin Angular Momentum (Z)"
             yguide --> "Sz (arb. units)"
             label --> "SAM around Ge"
             for spin in band.spins
-                push!(out,spin[1][3])
+                push!(out, spin[1][3])
             end
-        elseif data==:spin2_x
+        elseif data == :spin2_x
             title --> "Spin Angular Momentum (X)"
-            yguide --> L"S_x"*" (arb. units)"
+            yguide --> L"S_x" * " (arb. units)"
             label --> "SAM around Te"
             for spin in band.spins
-                push!(out,spin[2][1])
+                push!(out, spin[2][1])
             end
-        elseif data==:spin2_y
+        elseif data == :spin2_y
             title --> "Spin Angular Momentum (Y)"
-            yguide --> L"S_y"*" (arb. units)"
+            yguide --> L"S_y" * " (arb. units)"
             label --> "SAM around Te"
             for spin in band.spins
-                push!(out,spin[2][2])
+                push!(out, spin[2][2])
             end
-        elseif data==:spin2_z
+        elseif data == :spin2_z
             title --> "Spin Angular Momentum (Z)"
             yguide --> "Sz (arb. units)"
             label --> "SAM around Te"
             for spin in band.spins
-                push!(out,spin[2][3])
+                push!(out, spin[2][3])
             end
-        elseif data==:epot
+        elseif data == :epot
             title --> "Electrostatic Potential"
             yguide --> "E (arb. units)"
             for epot in band.epots
-                push!(out,epot)
+                push!(out, epot)
             end
         end
     end
     legend --> false
-    ks,out
+    return ks, out
 end
 
-@recipe function f(bands::Array{<:WannierBand,1},data::Array{Symbol,1})
+@recipe function f(bands::Array{<:WannierBand,1}, data::Array{Symbol,1})
     layout := length(data)
-    for (i,dat) in enumerate(data)
+    for (i, dat) in enumerate(data)
         @series begin
             subplot := i
-            bands,data[i]
+            bands, data[i]
         end
     end
 end
 
-@recipe function f(bands::Array{<:WannierBand,1},data::Symbol)
+@recipe function f(bands::Array{<:WannierBand,1}, data::Symbol)
     for band in bands
         @series begin
-            band,data
+            band, data
         end
     end
 end
@@ -183,35 +185,35 @@ end
     end
 end
 
-@recipe function f(dfbands::Array{DFC.Band,1},WannierBands::Array{<:WannierBand,1})
+@recipe function f(dfbands::Array{DFC.Band,1}, WannierBands::Array{<:WannierBand,1})
     @series begin
-        label--> "DFT Calculation"
-        line--> (1,1.0,:blue)
+        label --> "DFT Calculation"
+        line --> (1, 1.0, :blue)
         dfbands[1]
     end
     @series begin
-        label--> "Wannier Interpolation"
-        line--> (2,:dot,1.0,:red)
-        WannierBands[1],:eigvals
+        label --> "Wannier Interpolation"
+        line --> (2, :dot, 1.0, :red)
+        WannierBands[1], :eigvals
     end
     for band in dfbands[2:end]
         @series begin
-            label--> ""
-            line--> (1,1.0,:blue)
+            label --> ""
+            line --> (1, 1.0, :blue)
             band
         end
     end
     for band in WannierBands[2:end]
         @series begin
-            label--> ""
-            line--> (2,:dot,1.0,:red)
-            band,:eigvals
+            label --> ""
+            line --> (2, :dot, 1.0, :red)
+            band, :eigvals
         end
     end
 end
 
-@recipe function f(WannierBands::Array{<:WannierBand,1},dfbands::Array{DFC.Band,1})
+@recipe function f(WannierBands::Array{<:WannierBand,1}, dfbands::Array{DFC.Band,1})
     @series begin
-        dfbands,WannierBands
+        dfbands, WannierBands
     end
 end

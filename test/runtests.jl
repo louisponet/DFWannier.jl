@@ -1,9 +1,8 @@
 using DFWannier
 using Test
 using LinearAlgebra
-const DFW = DFWannier
 
-assetfile(f) = joinpath("assets", f)
+assetfile(f) = joinpath(@__DIR__, "assets", f)
 
 
 @time @testset "linalg" begin include("linalg.jl") end

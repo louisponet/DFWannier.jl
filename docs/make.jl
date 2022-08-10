@@ -1,3 +1,3 @@
 using Documenter, DFWannier
 
-makedocs(sitename="DFWannier")
+makedocs(; sitename = "DFWannier")

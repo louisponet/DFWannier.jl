@@ -24,9 +24,9 @@ function Gl.update(::WfInterface, m::AbstractLedger)
         elseif curid <= 0
             wfman.current = length(wfman.entities)
         else
-            wfman.current = 1 
+            wfman.current = 1
         end
-        Gl.Gui.@c Gl.Gui.InputDouble("dt", &wfman.dt,0.01,0.01,"%.3f")
+        Gl.Gui.@c Gl.Gui.InputDouble("dt", &wfman.dt, 0.01, 0.01, "%.3f")
         if wfman.dt <= 0.0
             wfman.dt += 0.01
         end
@@ -48,7 +48,7 @@ function Gl.update(::WfInterface, m::AbstractLedger)
         if wfman.current_t >= wfman.dt
             wfman.current += 1
             if wfman.current >= length(wfman.entities)
-                wfman.current= 1
+                wfman.current = 1
             end
             wfman.current_t = 0.0
         end
@@ -82,22 +82,21 @@ The `iso_ratio` will be used to determine the isosurface values as the ratio w.r
 The `phase_channel` denotes whether the phase of the spin up or down channel should be shown in the case of spinor Wannierfunctions. 
 """
 function visualize_wfuncs(wfuncs::Vector{<:WannierFunction}, str::Structure; kwargs...)
-    dio = Diorama(background = RGBAf0(60/255, 60/255, 60/255, 1.0f0))
+    dio = Diorama(; background = RGBAf0(60 / 255, 60 / 255, 60 / 255, 1.0f0))
     visualize_wfuncs!(dio, wfuncs, str; kwargs...)
     return dio
 end
 
-function visualize_wfuncs!(dio::Diorama, wfuncs, str::Structure; 
-                          iso_ratio = 1/4,
-                          alpha = 0.6,
-                          material = Gl.Material(),
-                          phase_channel = Up())
-
+function visualize_wfuncs!(dio::Diorama, wfuncs, str::Structure;
+                           iso_ratio = 1 / 4,
+                           alpha = 0.6,
+                           material = Gl.Material(),
+                           phase_channel = Up())
     DFControl.Display.add_structure!(dio, str)
 
     phase_id = length(wfuncs[1].values[1]) > 1 ? (phase_channel == Up() ? 1 : 2) : 1
-    colfunc(x) = RGBf0(get(ColorSchemes.rainbow, (angle(x[phase_id]) .+ π)/2π))
-    
+    colfunc(x) = RGBf0(get(ColorSchemes.rainbow, (angle(x[phase_id]) .+ π) / 2π))
+
     wfentities = fill(Entity(0), length(wfuncs))
     grid = Gl.Grid([Point3f0(w...) for w in wfuncs[1].points])
 
@@ -106,12 +105,12 @@ function visualize_wfuncs!(dio::Diorama, wfuncs, str::Structure;
         geom = Gl.DensityGeometry(d, iso_ratio * maximum(d))
         color = Gl.DensityColor(colfunc.(w.values))
 
-        wfentities[i] =  Entity(dio, Gl.Spatial(), grid, geom, color, material, Gl.Alpha(alpha))
-        
+        wfentities[i] = Entity(dio, Gl.Spatial(), grid, geom, color, material,
+                               Gl.Alpha(alpha))
     end
-    
-    man = Entity(dio, WfManager(entities=wfentities, wfuncs=wfuncs))
+
+    man = Entity(dio, WfManager(; entities = wfentities, wfuncs = wfuncs))
     insert!(dio, 4, Stage(:wannier, [WfInterface()]))
     update(WfInterface(), dio)
     return dio
-end                          
+end

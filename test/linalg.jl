@@ -1,27 +1,30 @@
 for F in (Float32, Float64)
-	orig_up = Hermitian(rand(Complex{F}, 25, 25))
-	orig_dn = Hermitian(rand(Complex{F}, 25, 25))
-	colin = DFW.ColinMatrix(orig_up, orig_dn)
-	normal_eig1, normal_eig2 = eigen(orig_up), eigen(orig_dn)
-	cache      = DFW.EigCache(colin)
-	cached_eig = eigen(colin, cache)
-	@test sum(normal_eig1.values) + sum(normal_eig2.values) ≈ sum(cached_eig.values)
-	@test Array(normal_eig1) ≈ Array(cached_eig)[1:25, 1:25] ≈ DFW.up(colin)
-	@test Array(normal_eig2) ≈ Array(cached_eig)[1:25, 26:50] ≈ DFW.down(colin)
+    n = 3
+    tup = rand(Complex{F}, n, n)
+    tdown = rand(Complex{F}, n, n)
+    orig_up = Hermitian((tup + tup')/2)
+    orig_dn = Hermitian((tdown + tdown')/2)
+    colin = DFW.ColinMatrix(orig_up, orig_dn)
+    normal_eig1, normal_eig2 = eigen(orig_up), eigen(orig_dn)
+    cache      = DFW.HermitianEigenWs(colin)
+    cached_eig = eigen(colin, cache)
+    @test sum(normal_eig1.values) + sum(normal_eig2.values) ≈ sum(cached_eig.values)
+    @test Array(normal_eig1) ≈ Array(cached_eig)[1:n, 1:n] ≈ DFW.up(colin)
+    @test Array(normal_eig2) ≈ Array(cached_eig)[1:n, n+1:end] ≈ DFW.down(colin)
 end
 
 for F in (Float32, Float64)
-	t = rand(Complex{F}, 50, 50)
-	orig       = (t + t')/2
-	normal_eig = eigen(orig)
-	cache      = DFW.EigCache(orig)
-	cached_eig = eigen(orig, cache)
-	@test sum(normal_eig.values) ≈ sum(cached_eig.values) 
-	@test Array(normal_eig) ≈ Array(cached_eig) ≈ orig
+    t = rand(Complex{F}, 50, 50)
+    orig       = (t + t')/2
+    normal_eig = eigen(orig)
+    cache      = DFW.HermitianEigenWs(orig)
+    cached_eig = eigen(orig, cache)
+    @test sum(normal_eig.values) ≈ sum(cached_eig.values) 
+    @test Array(normal_eig) ≈ Array(cached_eig) ≈ orig
 end
 
 mat = rand(20, 20)
-ats = [DFControl.Atom(:Fe, DFControl.element(:Fe), DFControl.Point3(0.0, 0.0,0.0).*DFControl.angstrom, DFControl.Point3(0.0,0.0,0.0), projections=[DFControl.Projection(DFControl.orbital(:d), 1, 10)]), DFControl.Atom(:Fe, DFControl.element(:Fe), DFControl.Point3(1.0, 0.0,0.0).*DFControl.angstrom, DFControl.Point3(1.0,0.0,0.0), projections=[DFControl.Projection(DFControl.orbital(:d), 11, 20)])] 
+ats = [DFControl.Atom(name=:Fe, element=DFControl.element(:Fe), position_cart=DFControl.Point3(0.0, 0.0,0.0).*DFControl.angstrom, position_cryst=DFControl.Point3(0.0,0.0,0.0), projections=[DFControl.Projection(Structures.orbital("d"), 1, 10)]), DFControl.Atom(name=:Fe, element=DFControl.element(:Fe), position_cart=DFControl.Point3(1.0, 0.0,0.0).*DFControl.angstrom, position_cryst=DFControl.Point3(1.0,0.0,0.0), projections=[DFControl.Projection(Structures.orbital("d"), 11, 20)])] 
 noncolinmat = convert(DFW.NonColinMatrix, mat)
 
 @test mat[1] == noncolinmat[1]
