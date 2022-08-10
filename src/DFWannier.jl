@@ -3,23 +3,15 @@ module DFWannier
 using Reexport
 
 @reexport using DFControl
-using DFControl: load
-using StaticArrays
 using RecipesBase
 using LaTeXStrings
-using InplaceOps
 using LinearAlgebra
 using Base.Threads
-using Documenter
-using Parameters
-using StructArrays
 using FortranFiles
 using DelimitedFiles
 using Unitful
 using ProgressMeter
-using UnsafeArrays
 using Requires
-using JLD2
 import Base: @propagate_inbounds
 using FastLapackInterface
 import LinearAlgebra.BLAS: libblas
@@ -27,7 +19,6 @@ import LinearAlgebra: eigen, eigen!
 
 const DFW = DFWannier
 export DFW
-
 
 include("utils.jl")
 include("tight_binding.jl")

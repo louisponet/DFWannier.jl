@@ -49,7 +49,7 @@ struct KBond{T<:AbstractFloat} # All matrices/operators are in wannier gauge, i.
     vr    :: Vec3{K_CART_TYPE{T}}
 end
 
-@with_kw mutable struct AbInitioKPoint{T} <: KPoint{T}
+Base.@kwdef mutable struct AbInitioKPoint{T} <: KPoint{T}
     k_cryst                              :: Vec3{T}
     k_cart                               :: Vec3{K_CART_TYPE{T}}
     eigvals                              :: Vector{T}         #original eigenvalues, in hamiltonian gauge

@@ -60,7 +60,7 @@ function Gl.update(::WfInterface, m::AbstractLedger)
     end
 end
 
-@component @with_kw mutable struct WfManager
+@component Base.@kwdef mutable struct WfManager
     entities::Vector{Entity}
     wfuncs::Vector{<:WannierFunction}
     current::Int = 1
