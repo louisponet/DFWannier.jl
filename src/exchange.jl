@@ -25,7 +25,7 @@ core_kgrid(x::ExchangeKGrid) = core_kgrid(x.hamiltonian_kgrid)
 eigvecs(x::ExchangeKGrid) = eigvecs(x.hamiltonian_kgrid)
 eigvals(x::ExchangeKGrid) = eigvals(x.hamiltonian_kgrid)
 
-function ExchangeKGrid(hami::TbHami, kpoints::Vector{Vec3{T}}, R = zero(Vec3{T})) where {T}
+function ExchangeKGrid(hami::TBHamiltonian, kpoints::Vector{Vec3{T}}, R = zero(Vec3{T})) where {T}
     D = ThreadCache(zeros_block(hami))
     hami_kpoints = HamiltonianKGrid(hami, kpoints, x -> D .+= x)
     nk = length(hami_kpoints)
@@ -358,7 +358,7 @@ function setup_anisotropic_exchanges(atoms::Vector{Atom})
 end
 
 @doc raw"""
-    DHvecvals(hami::TbHami{T, Matrix{T}}, k_grid::Vector{Vec3{T}}, atoms::Atom{T}) where T <: AbstractFloat
+    DHvecvals(hami::TBHamiltonian{T, Matrix{T}}, k_grid::Vector{Vec3{T}}, atoms::Atom{T}) where T <: AbstractFloat
 
 Calculates $D(k) = [H(k), J]$, $P(k)$ and $L(k)$ where $H(k) = P(k) L(k) P^{-1}(k)$.
 `hami` should be the full Hamiltonian containing both spin-diagonal and off-diagonal blocks.

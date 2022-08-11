@@ -6,7 +6,7 @@ n_ωv = 50
 ωh = -30.0
 ωv = 0.5
 
-hami = readhami(DFW.read_chk(assetfile("wanup.chk")), assetfile("wanup.eig"))
+hami = read_hamiltonian(assetfile("wanup.chk"), assetfile("wanup.eig"))
 
 wbands = wannierbands(hami, uniform_kgrid(nk...))
 @test isapprox(sum(wbands[3].eigvals), 26.24675680998617)

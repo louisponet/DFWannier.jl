@@ -145,13 +145,13 @@ function HamiltonianKGrid(kpoints::Vector{<:Vec3}, args...)
 end
 
 @doc raw"""
-	HamiltonianKGrid(hami::TbHami{T}, nk, H_function_k::Function = x -> nothing) where T
-	HamiltonianKGrid(hami::TbHami{T}, k_grid, H_function_k::Function = x -> nothing) where T
+	HamiltonianKGrid(hami::TBHamiltonian{T}, nk, H_function_k::Function = x -> nothing) where T
+	HamiltonianKGrid(hami::TBHamiltonian{T}, k_grid, H_function_k::Function = x -> nothing) where T
 
 Takes a k grid, calculates Hk for each of them and diagonalizes. Only the eigenvectors and eigenvalues of Hk are stored,
 the H_function_k function is called on the intermediate Hk. 
 """
-function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3},
+function HamiltonianKGrid(hami::TBHamiltonian{T}, kpoints::Vector{<:Vec3},
                           Hk_function::Function = x -> nothing) where {T}
     # kpoints = [KPoint(k, blocksize(hami), R, zeros_block(hami)) for k in k_grid]
     n_eigvals = max(blocksize(hami)...)
@@ -174,14 +174,14 @@ function HamiltonianKGrid(hami::TbHami{T}, kpoints::Vector{<:Vec3},
     return kgrid
 end
 
-function Hk!(out::AbstractMatrix, tbhami::TbHami, kpoint::Vec3)
+function Hk!(out::AbstractMatrix, tbhami::TBHamiltonian, kpoint::Vec3)
     fill!(out, zero(eltype(out)))
     fourier_transform(tbhami, kpoint) do i, iR, R_cart, b, fac
         @inbounds out[i] += fac * b.block[i]
     end
 end
 
-function Hk(tbhami::TbHami, kpoint::Vec3)
+function Hk(tbhami::TBHamiltonian, kpoint::Vec3)
     out = similar(tbhami[1].block)
     Hk!(out, tbhami, kpoint)
     return out
@@ -192,7 +192,7 @@ eigvecs(g::HamiltonianKGrid) = g.eigvecs
 eigvals(g::HamiltonianKGrid) = g.eigvals
 
 "Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
-function fourier_transform(R_function::Function, tb_hami::TbHami{T}, kpoint::Vec3) where {T}
+function fourier_transform(R_function::Function, tb_hami::TBHamiltonian{T}, kpoint::Vec3) where {T}
     for (iR, b) in enumerate(tb_hami)
         fac = ℯ^(2im * π * (b.R_cryst ⋅ kpoint))
         for i in eachindex(block(b))
@@ -233,7 +233,7 @@ end
 
 DFControl.eigvals(b::WannierBand) = b.eigvals
 
-function wannierbands(tbhamis::TbHami{T}, kpoints::Vector{<:Vec3}) where {T}
+function wannierbands(tbhamis::TBHamiltonian{T}, kpoints::Vector{<:Vec3}) where {T}
     matdim = blocksize(tbhamis, 2)
     kgrid  = HamiltonianKGrid(tbhamis, kpoints)
     nbnd   = size(tbhamis[1].block, 2)

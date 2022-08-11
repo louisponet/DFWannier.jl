@@ -1,5 +1,5 @@
 struct BerryRGrid{T,LT,MT,MT1}
-    hami::TbHami{T,LT,MT}
+    hami::TBHamiltonian{T,LT,MT}
     A::Vector{Vec3{MT}} #A_a(R) = <0|r_a|R> is the Fourier transform of the Berrry connection A_a(k) = i<u|del_a u> (a=x,y,z)the berry connection 
     B::Vector{Vec3{MT}} #B_a(R)=<0n|H(r-R)|Rm> is the Fourier transform of B_a(k) = i<u|H|del_a u> (a=x,y,z)
     C::Vector{MT1} #CC_ab(R) = <0|r_a.H.(r-R)_b|R> is the Fourier transform of CC_ab(k) = <del_a u|H|del_b u> (a,b=x,y,z)}
@@ -7,7 +7,7 @@ end
 
 #A_a(R) = <0|r_a|R> is the Fourier transform of the Berrry connection A_a(k) = i<u|del_a u> (a=x,y,z)the berry connection
 #B_a(R)=<0n|H(r-R)|Rm> is the Fourier transform of B_a(k) = i<u|H|del_a u> (a=x,y,z)
-function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TbHami, chk) where {T}
+function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TBHamiltonian, chk) where {T}
     irvec = map(x -> x.R_cryst, hami)
 
     n_wann = n_wannier_functions(ab_initio_grid)

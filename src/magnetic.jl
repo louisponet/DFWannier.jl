@@ -350,7 +350,7 @@ end
 #! format: off
 for s in (:σx, :σy, :σz)
     @eval @inline $s(m::AbstractArray{T}) where {T} = $s(T, size(m, 1))
-    @eval $s(m::TbHami) = $s(block(m[1]))
+    @eval $s(m::TBHamiltonian) = $s(block(m[1]))
 end
 #! format: on
 σx(m::ColinMatrix{T}) where {T} = zeros(m)
@@ -379,14 +379,14 @@ function calc_onsite_spin(kpoints::AbstractArray{<:KPoint{T}}, atom, fermi = 0.0
     return S_out ./ length(kpoints)
 end
 
-function make_noncolin(tb::TbBlock)
-    return TbBlock(tb.R_cryst, tb.R_cart, convert(NonColinMatrix, tb.block),
+function make_noncolin(tb::TBBlock)
+    return TBBlock(tb.R_cryst, tb.R_cart, convert(NonColinMatrix, tb.block),
                    convert(NonColinMatrix, tb.tb_block))
 end
 
-function make_noncolin(tb::TbBlock{T,LT,ColinMatrix{Complex{T},Matrix{Complex{T}}}}) where {T<:AbstractFloat,
+function make_noncolin(tb::TBBlock{T,LT,ColinMatrix{Complex{T},Matrix{Complex{T}}}}) where {T<:AbstractFloat,
                                                                                             LT<:Length{T}}
-    return TbBlock(tb.R_cryst, tb.R_cart, NonColinMatrix(tb.block[Up()], tb.block[Down()]),
+    return TBBlock(tb.R_cryst, tb.R_cart, NonColinMatrix(tb.block[Up()], tb.block[Down()]),
                    NonColinMatrix(tb.tb_block[Up()], tb.tb_block[Down()]))
 end
 

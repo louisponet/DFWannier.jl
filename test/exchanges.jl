@@ -9,7 +9,7 @@ n_ωv = 50
 
 job = DFControl.load(Job(assetfile("")))
 
-hami = DFW.readhami(job)
+hami = DFW.read_hamiltonian(job)
 
 ω_grid = DFW.setup_ω_grid(ωh, ωv, n_ωh, n_ωv)
 kpoints = DFW.ExchangeKGrid(hami, DFW.uniform_kgrid(nk...), R)
