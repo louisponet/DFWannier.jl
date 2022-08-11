@@ -1,0 +1,3 @@
+var documenterSearchIndex = {"docs":
+[{"location":"#DFWannier-Documentation","page":"Home","title":"DFWannier Documentation","text":"","category":"section"},{"location":"","page":"Home","title":"Home","text":"This package is meant to be used as a post processing tool with Wannier90 output. Mainly to calculate various model properties such as Heisenberg exchanges.","category":"page"},{"location":"#Exchanges","page":"Home","title":"Exchanges","text":"","category":"section"},{"location":"","page":"Home","title":"Home","text":"CurrentModule = DFWannier","category":"page"},{"location":"","page":"Home","title":"Home","text":"DHvecvals","category":"page"}]
+}
