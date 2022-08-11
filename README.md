@@ -2,6 +2,7 @@
 | **Documentation**                                                                   | **Build Status**                                |
 |:----------------------------------------------------------------------------------- |:----------------------------------------------- |
 | [![][docs-img]][docs-url] [![][ddocs-img]][ddocs-url] | [![][ci-img]][ci-url] [![][ccov-img]][ccov-url] |
+
 [ddocs-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [ddocs-url]: https://louisponet.github.io/DFWannier.jl/dev
 
