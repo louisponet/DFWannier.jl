@@ -9,8 +9,8 @@
 [docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-url]: https://louisponet.github.io/DFWannier.jl/stable
 
-[ccov-img]: https://codecov.io/gh/JuliaMolSim/DFTK.jl/branch/master/graph/badge.svg?token=A23M0VZ8PQ
-[ccov-url]: https://codecov.io/gh/JuliaMolSim/DFTK.jl
+[ccov-img]: https://codecov.io/gh/louisponet/DFWannier.jl/branch/master/graph/badge.svg?token=OJumiSp7H1
+[ccov-url]: https://codecov.io/gh/louisponet/DFWannier.jl
 
 [ci-img]: https://github.com/louisponet/DFWannier.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/louisponet/DFWannier.jl/actions
