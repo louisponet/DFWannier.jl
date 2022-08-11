@@ -6,9 +6,6 @@ n_ωv = 50
 ωh = -30.0
 ωv = 0.5
 
-
-job = DFControl.load(Job(assetfile("")))
-
 hami = DFW.read_colin_hami(DFW.read_chk(assetfile("wanup.chk")),
                            DFW.read_chk(assetfile("wandn.chk")),
                            DFW.read_eig(assetfile("wanup.eig")),
