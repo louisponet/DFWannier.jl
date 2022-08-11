@@ -21,11 +21,6 @@ jobs:
           - macOS-latest
         arch:
           - x64
-        exclude:
-          # Remove some configurations from the build matrix to reduce CI time.
-          # See https://github.com/marketplace/actions/setup-julia-environment
-          # MacOS not available on x86
-          # Don't test on all versions
     steps:
       - uses: actions/checkout@v1
       - uses: julia-actions/setup-julia@latest
