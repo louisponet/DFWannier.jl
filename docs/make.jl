@@ -92,7 +92,7 @@ for file in literate_files
 end
 
 # Generate the docs in BUILDPATH
-makedocs(; modules = [Wannier],
+makedocs(; modules = [DFWannier],
          format = Documenter.HTML(
                                   # Use clean URLs, unless built as a "local" build
                                   ; prettyurls = CONTINUOUS_INTEGRATION,
