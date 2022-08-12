@@ -70,8 +70,8 @@ version = "0.5.1"
 
 [[deps.DFWannier]]
 deps = ["DFControl", "DelimitedFiles", "FastLapackInterface", "FortranFiles", "LaTeXStrings", "LinearAlgebra", "ProgressMeter", "RecipesBase", "Reexport", "Requires", "Unitful"]
-git-tree-sha1 = "af96cd56dd5a493a5bdec8c239a41f51b3db453d"
-repo-rev = "f6f0f0aa20bfe604417832b49960fb020560f019"
+git-tree-sha1 = "99e669434c6ae979f863d33e6fac80387c84abb2"
+repo-rev = "f2a63179d362a3d5ea53c34a7a4e9eda3ec18314"
 repo-url = "https://github.com/louisponet/DFWannier.jl.git"
 uuid = "5e267647-ebb4-5b7d-bc28-1d3eda37ab19"
 version = "0.1.0"
