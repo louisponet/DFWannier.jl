@@ -20,6 +20,7 @@ end
 Alias for a `Vector` of [`TBBlocks`](@ref TBBlock). Indexing with `NTuple{3,Int}` or `Vec3`
 is supported which allows for easily retrieving the [`TBBlock`](@ref) that corresponds
 to the shifted unit cell.
+Aliases: `TBHamiltonian`, `TBSpin`
 """
 const TBOperator{T,LT,M} = Vector{TBBlock{T,LT,M}}
 const TBHamiltonian = TBOperator

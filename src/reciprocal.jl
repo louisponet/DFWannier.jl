@@ -131,8 +131,6 @@ n_nearest_neighbors(grid::AbInitioKGrid) = length(grid.kpoints.neighbors[1])
 
 Base.length(grid::AbInitioKGrid) = length(grid.kpoints)
 
-
-
 struct HamiltonianKGrid{T,MT<:AbstractMatrix{Complex{T}},VT<:AbstractVector{T}} <:
        AbstractKGrid{T}
     core::CoreKGrid{T}
@@ -181,6 +179,12 @@ function Hk!(out::AbstractMatrix, tbhami::TBHamiltonian, kpoint::Vec3)
     end
 end
 
+"""
+    Hk(hamiltonian::TBHamiltonian, kpoint::Vec3)
+    Hk!(hk::AbstractMatrix, hamiltonian::TBHamiltonian, kpoint::Vec3)
+
+Constructs the reciprocal Hamiltonian at a given _k_-point.  
+"""
 function Hk(tbhami::TBHamiltonian, kpoint::Vec3)
     out = similar(tbhami[1].block)
     Hk!(out, tbhami, kpoint)
@@ -201,30 +205,11 @@ function fourier_transform(R_function::Function, tb_hami::TBHamiltonian{T}, kpoi
     end
 end
 
-# "Constructs the total spin-orbit-coupled Hamiltonian out of supplied angular momentums between the Wannier functions and uses the l_soc of the atoms."
-# function construct_soc_hami(hami, structure::WanStructure{T})::Matrix{Complex{T}} where T
-#     dim = getwandim(structure)
-#     Lx_soc = zeros(Complex{T}, dim, dim)
-#     Ly_soc = zeros(Complex{T}, dim, dim)
-#     Lz_soc = zeros(Complex{T}, dim, dim)
-#     i = 1
-#     for at in atoms(structure)
-#         soc = lsoc(at)
-#         mom = angmom(at)
-#         len = length(wfcs(at))-1
-#         Lx_soc[i:i+len, i:i+len] = 0.5 * soc * getindex.(mom, 1)
-#         Ly_soc[i:i+len, i:i+len] = 0.5 * soc * getindex.(mom, 2)
-#         Lz_soc[i:i+len, i:i+len] = 0.5 * soc * getindex.(mom, 3)
-#         i += len + 1
-#     end
-#     Lx_soc = (Lx_soc+Lx_soc')/2
-#     Ly_soc = (Ly_soc+Ly_soc')/2
-#     Lz_soc = (Lz_soc+Lz_soc')/2
-#     out = [hami+Lz_soc Lx_soc-1im*Ly_soc;Lx_soc+1im*Ly_soc hami-Lz_soc]
-#     return out
-# end
-
-"Holds all the calculated values from a wannier model."
+"""
+    WannierBand
+    
+Represents a Wannier interpolated band. See also [`wannierbands`](@ref). 
+""" 
 mutable struct WannierBand{T<:AbstractFloat,VT<:AbstractVector} <: DFC.AbstractBand
     kpoints_cryst::Vector{Vec3{T}}
     eigvals      ::Vector{T}
@@ -233,6 +218,12 @@ end
 
 DFControl.eigvals(b::WannierBand) = b.eigvals
 
+"""
+    wannierbands(hamiltonian::TBHamiltonian, kpoints::Vector{Vec3})
+    wannierbands(hamiltonian::TBHamiltonian, bands::Vector{DFControl.AbstractBand}
+    
+Constructs the whole bandstructure for a given set of _k_-points and [`TBHamiltonian`](@ref TBOperator).
+"""
 function wannierbands(tbhamis::TBHamiltonian{T}, kpoints::Vector{<:Vec3}) where {T}
     matdim = blocksize(tbhamis, 2)
     kgrid  = HamiltonianKGrid(tbhamis, kpoints)

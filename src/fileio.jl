@@ -242,7 +242,7 @@ end
 """
     read_hamiltonian(chk::NamedTuple, eigvals::Matrix)
 
-Uses the Wannier90 chkpoint info in `chk` and DFT `eigenvals` read with [`read_eig`] to construct the [`TBHamiltonian`](@ref).
+Uses the Wannier90 chkpoint info in `chk` and DFT `eigenvals` read with [`read_eig`] to construct the [`TBHamiltonian`](@ref TBOperator).
 """
 function read_hamiltonian(chk::NamedTuple, eigvals::Matrix)
     v_mat = chk.V_matrix
@@ -530,7 +530,7 @@ end
 """
     S_R(chk, Sx, Sy, Sz)
 
-Takes the DFT `Sx`, `Sy`, `Sz` spin matrices and constructs the `TBSpin` from them.
+Takes the DFT `Sx`, `Sy`, `Sz` spin matrices and constructs the [`TBSpin`](@ref TBOperator) from them.
 Using the Wannier90 checkpoint information in `chk`. 
 """
 function S_R(chk, Sx, Sy, Sz)
@@ -574,7 +574,7 @@ end
     read_spin(chk_file, spn_file)
     read_spin(job::Job)
 
-Reads the .spn and .chk files to generate a [`TBSpin`](@ref) tight-binding spin operator.
+Reads the .spn and .chk files to generate a [`TBSpin`](@ref TBOperator) tight-binding spin operator.
 """
 function read_spin(chk_file, spn_file)
     Sx_dft, Sy_dft, Sz_dft = read_spn(spn_file)
