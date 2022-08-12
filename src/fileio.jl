@@ -626,7 +626,7 @@ end
 """
     r_R(chk, kbonds)
 
-Constructs the _r_ [`TBOperator`] from the Wannier90 checkpoint info `chk` and the `kbond` information that
+Constructs the _r_ [`TBOperator`](@ref) from the Wannier90 checkpoint info `chk` and the `kbond` information that
 can be read with [`read_nnkp`](@ref).
 """
 function r_R(chk, kbonds)

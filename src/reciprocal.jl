@@ -147,7 +147,7 @@ end
 	HamiltonianKGrid(hami::TBHamiltonian{T}, k_grid, H_function_k::Function = x -> nothing) where T
 
 Takes a k grid, calculates Hk for each of them and diagonalizes. Only the eigenvectors and eigenvalues of Hk are stored,
-the H_function_k function is called on the intermediate Hk. 
+the `H_function_k` function is called on the intermediate Hk. 
 """
 function HamiltonianKGrid(hami::TBHamiltonian{T}, kpoints::Vector{<:Vec3},
                           Hk_function::Function = x -> nothing) where {T}
