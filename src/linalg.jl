@@ -72,7 +72,7 @@ end
 
 @inline function eigen(vecs::AbstractMagneticMatrix{T}, c::HermitianEigenWs{T}) where {T}
     out  = copy(vecs)
-    vals = MagneticVector(similar(out, T.parameters[1], size(out, 2)))
+    vals = MagneticVector(similar(out, T <: AbstractFloat ? T : T.parameters[1], size(out, 2)))
     return eigen!(vals, out, c)
 end
 
