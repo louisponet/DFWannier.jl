@@ -308,8 +308,8 @@ function read_hamiltonian(job::Job)
 
     wcalc = getfirst(x -> x isa Calculation{Wannier90}, job.calculations)
     seedname = wcalc.name
-    eig_files = reverse(searchdir(job, ".eig"))
-    chk_files = reverse(searchdir(job, ".chk"))
+    eig_files = filter(x -> any(y -> occursin(y.name, x), job.calculations), reverse(searchdir(job, ".eig")))
+    chk_files = filter(x -> any(y -> occursin(y.name, x), job.calculations), reverse(searchdir(job, ".chk")))
     @assert !isempty(eig_files) "No eig files ($(seedname).eig) found."
     @assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
     if !DFC.Jobs.runslocal(job)
