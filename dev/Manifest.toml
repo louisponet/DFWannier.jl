@@ -75,11 +75,11 @@ version = "0.5.6"
 
 [[deps.DFWannier]]
 deps = ["DFControl", "DelimitedFiles", "FastLapackInterface", "FortranFiles", "LaTeXStrings", "LinearAlgebra", "ProgressMeter", "RecipesBase", "Reexport", "Requires", "Unitful"]
-git-tree-sha1 = "b3e0b0435573a211c08086984340225c3e81871e"
-repo-rev = "cb6fc05e7bbcd7ca5760fb82e8b7440c02099a59"
+git-tree-sha1 = "274b9cca629561541fdd7e9c25439429af92f43d"
+repo-rev = "41a262fa2b0d95381ef1f74063e7d2f3fe462812"
 repo-url = "https://github.com/louisponet/DFWannier.jl.git"
 uuid = "5e267647-ebb4-5b7d-bc28-1d3eda37ab19"
-version = "0.2.1"
+version = "0.2.0"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -331,14 +331,14 @@ uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "StaticArraysCore", "Statistics"]
-git-tree-sha1 = "efa8acd030667776248eabb054b1836ac81d92f0"
+git-tree-sha1 = "2189eb2c1f25cb3f43e5807f26aa864052e50c17"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.5.7"
+version = "1.5.8"
 
 [[deps.StaticArraysCore]]
-git-tree-sha1 = "ec2bd695e905a3c755b33026954b119ea17f2d22"
+git-tree-sha1 = "6b7ba252635a5eff6a0b0664a41ee140a1c9e72a"
 uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
-version = "1.3.0"
+version = "1.4.0"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
