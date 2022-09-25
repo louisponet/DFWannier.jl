@@ -2,7 +2,7 @@ name = "DFWannier"
 uuid = "5e267647-ebb4-5b7d-bc28-1d3eda37ab19"
 authors = ["Louis Ponet <louisponet@gmail.com>"]
 repo = "https://github.com/louisponet/DFWannier.jl.git"
-version = "0.2.1"
+version = "0.2.0"
 
 [deps]
 DFControl = "1e31e15d-4957-550d-a244-318eced754ae"
