@@ -64,21 +64,7 @@ for (dir, directories, files) in walkdir(SRCPATH)
         end
     end
 end
-if !isempty(literate_files)
-    
-    s = Server(name=gethostname(), port=8080, domain = "localhost", scheduler = Servers.Bash(), uuid = string(uuid4()), julia_exec=Sys.BINDIR * "/julia")
-    if !exists(s)
-        Servers.initialize_config_dir(s)
-        save(s)
-    else
-        s = Servers.local_server()
-    end
-    if !isalive(s)
-        @info "Starting server here"
-        Servers.initialize_config_dir(s)
-        @async DFC.Resource.run()
-    end
-end
+
 # Run Literate on them all
 for file in literate_files
     # preprocess = file.example ? add_badges : identity

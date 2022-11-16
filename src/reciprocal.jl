@@ -218,6 +218,18 @@ end
 
 DFControl.eigvals(b::WannierBand) = b.eigvals
 
+function Base.show(io::IO, band::WannierBand)
+    summary(io, band)
+    string = """
+    
+    $(length(band.kpoints_cryst)) k_points: $(band.kpoints_cryst[1]) -> $(band.kpoints_cryst[end])
+    mean energy: $(sum(band.eigvals)/length(band.eigvals)) eV 
+    """
+    println(io, string)
+    return
+end
+    
+
 """
     wannierbands(hamiltonian::TBHamiltonian, kpoints::Vector{Vec3})
     wannierbands(hamiltonian::TBHamiltonian, bands::Vector{DFControl.AbstractBand}

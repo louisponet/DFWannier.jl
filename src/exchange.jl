@@ -62,16 +62,16 @@ function integrate_Gk!(G::AbstractMatrix, ω, μ, kpoints, caches)
         end
         # Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
 
-        mul!(cache2, eigvecs(kpoints)[ik], cache1)
+        mul!(cache2,     eigvecs(kpoints)[ik], cache1)
         adjoint!(cache3, eigvecs(kpoints)[ik])
-        mul!(cache1, cache2, cache3)
+        mul!(cache1,     cache2, cache3)
         t = kpoints.phases[ik]
         tp = t'
         for i in 1:dim, j in 1:dim
-            G[i, j] += cache1[i, j] * t
+            G[i, j]         += cache1[i, j] * t
             G[i+dim, j+dim] += cache1[i+dim, j+dim] * tp
-            G[i+dim, j] = cache1[i+dim, j]
-            G[i, j+dim] = cache1[i, j+dim]
+            G[i+dim, j]      = cache1[i+dim, j]
+            G[i, j+dim]      = cache1[i, j+dim]
         end
     end
     return G ./= length(kpoints)
@@ -85,7 +85,7 @@ function integrate_Gk!(G::ColinMatrix, ω, μ, kpoints, caches)
         # Fill here needs to be done because cache1 gets reused for the final result too
         fill!(cache1, zero(eltype(cache1)))
         for x in 1:dim
-            cache1[x, x] = 1.0 / (μ + ω - kpoints.hamiltonian_kgrid.eigvals[ik][x])
+            cache1[x, x]     = 1.0 / (μ + ω - kpoints.hamiltonian_kgrid.eigvals[ik][x])
             cache1[x, x+dim] = 1.0 / (μ + ω - kpoints.hamiltonian_kgrid.eigvals[ik][x+dim])
         end
         # Basically Hvecs[ik] * 1/(ω - eigvals[ik]) * Hvecs[ik]'
@@ -96,7 +96,7 @@ function integrate_Gk!(G::ColinMatrix, ω, μ, kpoints, caches)
         t = kpoints.phases[ik]
         tp = t'
         for i in 1:dim, j in 1:dim
-            G[i, j] += cache1[i, j] * t
+            G[i, j]     += cache1[i, j] * t
             G[i, j+dim] += cache1[i, j+dim] * tp
         end
     end
@@ -118,7 +118,8 @@ function integrate_Gk!(G_forward::ThreadCache, G_backward::ThreadCache, ω, μ, 
         mul!(cache2, Hvecs[ik], cache1)
         adjoint!(cache3, Hvecs[ik])
         mul!(cache1, cache2, cache3)
-        t          = exp(2im * π * dot(R, kgrid[ik]))
+        t = exp(2im * π * dot(R, kgrid[ik]))
+        
         G_forward  .+= cache1 .* t
         G_backward .+= cache1 .* t'
     end
@@ -218,8 +219,8 @@ function site_diagonalize(D::Matrix{Complex{T}}, ats::Vector{DFC.Structures.Atom
     Ts = zeros(D)
     Dvals = zeros(T, size(D, 1))
     for at in ats
-        t_vals, t_vecs = eigen(Hermitian(D[at]))
-        Ts[at] .= t_vecs
+        t_vals, t_vecs    = eigen(Hermitian(D[at]))
+        Ts[at]           .= t_vecs
         Dvals[range(at)] .= real.(t_vals)
     end
     return SiteDiagonalD(Dvals, Ts)
@@ -281,11 +282,14 @@ end
     s2         = spin_sign(D.values[exch.atom2])
     t          = zeros(exch.J)
     G_forward  = D.T[exch.atom1]' * G[exch.atom1, exch.atom2, Down()] * D.T[exch.atom2]
-    G_backward = D.T[exch.atom2]' * G[exch.atom2, exch.atom1, Up()] * D.T[exch.atom1]
+    G_backward = D.T[exch.atom2]' * G[exch.atom2, exch.atom1, Up()]   * D.T[exch.atom1]
     for j in 1:size(t, 2), i in 1:size(t, 1)
         t[i, j] = s1 * s2 *
-                  imag(D.values[exch.atom1][i] * G_forward[i, j] * D.values[exch.atom2][j] *
-                       G_backward[j, i] * dω)
+                  imag(D.values[exch.atom1][i] *
+                       G_forward[i, j] *
+                       D.values[exch.atom2][j] *
+                       G_backward[j, i] *
+                       dω)
     end
     return t
 end
@@ -396,7 +400,7 @@ function DHvecvals(hami, k_grid::AbstractArray{Vec3{T}},
         for (δh, at) in zip(δH_onsite, atoms)
             rat = range(at)
             lr  = length(rat)
-            δh  .+= commutator.((view(Hvecs[i], rat, rat),), at[:operator_block].J) # in reality this should be just range(at)
+            δh .+= commutator.((view(Hvecs[i], rat, rat),), at[:operator_block].J) # in reality this should be just range(at)
             # δh .+= commutator.(([Hvecs[i][rat, rat] zeros(Complex{T},lr, lr); zeros(Complex{T}, lr, lr) Hvecs[i][div(blocksize(hami, 1), 2) .+ rat, div(blocksize(hami, 1), 2) .+ rat]],), at[:operator_block].J) #in reality this should be just range(at)
         end
         eigen!(Hvals[i], Hvecs[i], calc_caches[tid])

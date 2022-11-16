@@ -263,6 +263,8 @@ function read_hamiltonian(chk::NamedTuple, eigvals::Matrix)
     return generate_TBBlocks(chk, Hr_t)
 end
 read_hamiltonian(chk_file::AbstractString, eig_file::AbstractString) = read_hamiltonian(read_chk(chk_file), read_eig(eig_file))
+read_hamiltonian(up_chk_file::AbstractString, dn_chk_file::AbstractString, up_eig_file::AbstractString, dn_eig_file::AbstractString) =
+    read_colin_hami(read_chk(up_chk_file), read_chk(dn_chk_file), read_eig(up_eig_file), read_eig(dn_eig_file))
 #super not optimized
 #TODO Test: new wigner seitz shift stuff
 """
@@ -781,3 +783,6 @@ function write_xsf(filename::String, wfc::WannierFunction, structure::Structure;
     end
 end
 
+function read_w90_input(file)
+    return DFControl.FileIO.wan_parse_calculation(file)
+end

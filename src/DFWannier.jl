@@ -34,12 +34,12 @@ include("fileio.jl")
 include("berry.jl")
 export HamiltonianKGrid
 
-export wannierbands, read_hamiltonian, calc_exchanges, read_colin_hami, 
+export wannierbands, read_hamiltonian, calc_exchanges, read_w90_input,
        kpdos, energy_bins
 export uniform_kgrid
 export Up, Down, WannierFunction, calc_greens_functions, ExchangeKGrid, HamiltonianKGrid
 export generate_wannierfunctions
-export write_xsf, read_chk, read_spn, S_R
+export write_xsf, read_chk, read_spn
 function __init__()
     @require Glimpse = "f6e19d58-12a4-5927-8606-ac30a9ce9b69" include("glimpse.jl")
 end
