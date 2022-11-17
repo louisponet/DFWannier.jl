@@ -97,6 +97,8 @@ makedocs(; modules = [DFWannier],
                   #                          "Advanced Tutorial"=>"guide/advanced_tutorial.md"],
                   "Exchanges" => "exchanges.md",
                   "Berry" => "berry.md",
+                  "Tutorials" => Any["Band Interpolation" => "generate_bandstructure.md",
+                                     "Calculate Magnetic Exchanges" => "calculate_exchanges.md"]
                   # "Examples" => EXAMPLES,
                   # "api.md"
                   # "publications.md",
