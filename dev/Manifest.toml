@@ -105,8 +105,8 @@ version = "0.5.13"
 
 [[deps.DFWannier]]
 deps = ["ColorSchemes", "DFControl", "DelimitedFiles", "FastLapackInterface", "FortranFiles", "LaTeXStrings", "LinearAlgebra", "ProgressMeter", "RecipesBase", "Reexport", "Requires", "Unitful"]
-git-tree-sha1 = "a2844d01d67e67bc326bebe964442ddf269dc055"
-repo-rev = "d464108e03257cc0dcddd1abd0d7aee034770d61"
+git-tree-sha1 = "e2ff8af4bcae12b67f76c3867f833c23db2daace"
+repo-rev = "f0336f2af638a59cfb188543c3ac19a3424c5372"
 repo-url = "https://github.com/louisponet/DFWannier.jl.git"
 uuid = "5e267647-ebb4-5b7d-bc28-1d3eda37ab19"
 version = "0.2.1"
@@ -377,9 +377,9 @@ version = "1.2.2"
 
 [[deps.RemoteHPC]]
 deps = ["Dates", "HTTP", "JSON3", "LoggingExtras", "OpenSSH_jll", "ProgressMeter", "REPL", "SnoopPrecompile", "Sockets", "StructTypes", "TOML", "ThreadPools", "UUIDs"]
-git-tree-sha1 = "0b74f0963ccc5ef4ce916f37d19cb4b6dd58e728"
+git-tree-sha1 = "b77dd6dae27b082c693dc126472fb003fc97d703"
 uuid = "c4f2a1c4-7655-40d8-82ee-c6ae0a8b7409"
-version = "0.2.2"
+version = "0.2.3"
 
 [[deps.Requires]]
 deps = ["UUIDs"]
