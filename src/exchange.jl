@@ -1,7 +1,6 @@
 import DFControl.Structures: Orbital, Structure, orbital, size
 
 import DFControl.Display.Crayons: @crayon_str
-import DFControl.Display: dfprintln, dfprint
 
 struct SiteDiagonalD{T<:AbstractFloat}
 	values ::Vector{T}
@@ -152,12 +151,12 @@ mutable struct Exchange2ndOrder{T<:AbstractFloat} <: Exchange{T}
 end
 
 function Base.show(io::IO, e::Exchange)
-    dfprint(io, crayon"red", "atom1:", crayon"reset")
-    dfprintln(io, "name: $(e.atom1.name), pos: $(e.atom1.position_cryst)")
-    dfprint(io, crayon"red", " atom2:", crayon"reset")
-    dfprintln(io, "name: $(e.atom2.name), pos: $(e.atom2.position_cryst)")
+    print(io, crayon"red", "atom1:", crayon"reset")
+    println(io, "name: $(e.atom1.name), pos: $(e.atom1.position_cryst)")
+    print(io, crayon"red", " atom2:", crayon"reset")
+    println(io, "name: $(e.atom2.name), pos: $(e.atom2.position_cryst)")
 
-    return dfprint(io, crayon"red", " J: ", crayon"reset", "$(tr(e.J))")
+    return print(io, crayon"red", " J: ", crayon"reset", "$(tr(e.J))")
 end
 
 """
@@ -408,7 +407,7 @@ function DHvecvals(hami, k_grid::AbstractArray{Vec3{T}},
     return Hvecs, Hvals, reduce(+, δH_onsite) ./ nk
 end
 
-commutator(A1, A2) where {T} = A1 * A2 - A2 * A1
+commutator(A1, A2) = A1 * A2 - A2 * A1
 
 function totocc(Hvals, fermi::T, temp::T) where {T}
     totocc = zero(Complex{T})

@@ -153,10 +153,10 @@ for f in (:view, :getindex)
     @eval Base.$f(c::NonColinMatrix, a1::T, a2::T, ::Down, ::Up) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
         $f(c, uprange(a1) .+ blockdim(c), uprange(a2))
         
-    @eval Base.$f(c::NonColinMatrix, ::Up, ::Down) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
+    @eval Base.$f(c::NonColinMatrix, ::Up, ::Down) =
         (s = size(c,1); $f(c, 1:div(s, 2), div(s, 2)+1:s))
 
-    @eval Base.$f(c::NonColinMatrix, ::Down, ::Up) where {T <: Union{DFC.Structures.Projection,DFC.Structures.Atom}} =
+    @eval Base.$f(c::NonColinMatrix, ::Down, ::Up) =
         (s = size(c,1); $f(c, div(s, 2)+1:s, 1:div(s, 2)))
         
     @eval Base.$f(c::AbstractMatrix, a1::T, a2::T, ::Up) where {T<:Union{DFC.Structures.Projection, DFC.Structures.Atom}} =
