@@ -619,7 +619,7 @@ function read_nnkp(nnkp_file) #not everything, just what I need for now
             ik, ik2 = parse.(Int, sline[1:2])
 
             vr = (recip_cell * parse(Vec3{Int}, sline[3:5]) + kpoints[ik2]) - kpoints[ik]
-            return KBond(ik, ik2, vr)
+            return KBond(ik, ik2, Vec3(vr...))
         end
         return (recip_cell = recip_cell, kpoints = kpoints, kbonds = k_bonds)
     end
