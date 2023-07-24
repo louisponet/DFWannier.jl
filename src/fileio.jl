@@ -614,7 +614,7 @@ function read_nnkp(nnkp_file) #not everything, just what I need for now
         end
         
         n_nearest_neighbors = parse(Int, blocks[:nnkpts][1])
-        k_bonds = map(view(blocks[:nnkpts], 2:length(bocks[:nnkpts]))) do line
+        k_bonds = map(view(blocks[:nnkpts], 2:length(blocks[:nnkpts]))) do line
             sline = strip_split(line)
             ik, ik2 = parse.(Int, sline[1:2])
 
