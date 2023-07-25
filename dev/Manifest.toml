@@ -72,9 +72,9 @@ version = "0.12.10"
 
 [[deps.Compat]]
 deps = ["Dates", "LinearAlgebra", "UUIDs"]
-git-tree-sha1 = "4e88377ae7ebeaf29a047aa1ee40826e0b708a5d"
+git-tree-sha1 = "5ce999a19f4ca23ea484e92a1774a61b8ca4cf8e"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "4.7.0"
+version = "4.8.0"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -105,8 +105,8 @@ version = "0.5.31"
 
 [[deps.DFWannier]]
 deps = ["ColorSchemes", "DFControl", "DelimitedFiles", "FastLapackInterface", "FortranFiles", "LaTeXStrings", "LinearAlgebra", "ProgressMeter", "RecipesBase", "Reexport", "Requires", "Unitful"]
-git-tree-sha1 = "8b20c23bd85d69ff62e5676ac93ae81d3daba99c"
-repo-rev = "b9fca5e2d5f7c4dd1b8971dcf92582a01ec4456a"
+git-tree-sha1 = "73cc83ed444429d2a75e39d7d4951d0204223548"
+repo-rev = "15737491405383b8441bc33781b199783f9b25d6"
 repo-url = "https://github.com/louisponet/DFWannier.jl.git"
 uuid = "5e267647-ebb4-5b7d-bc28-1d3eda37ab19"
 version = "0.2.2"
