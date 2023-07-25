@@ -129,11 +129,11 @@ version = "0.5.31"
 
 [[deps.DFWannier]]
 deps = ["ColorSchemes", "DFControl", "DelimitedFiles", "FastLapackInterface", "FortranFiles", "LaTeXStrings", "LinearAlgebra", "ProgressMeter", "RecipesBase", "Reexport", "Requires", "SpecialFunctions", "SpecialPolynomials", "Unitful"]
-git-tree-sha1 = "4827634b7d949d8ba24df27a9b93784d9e6a1df2"
-repo-rev = "52127dc48120a1a43570b66e310c24c240867f01"
+git-tree-sha1 = "cec6d39f9abd18a08bb8e2b3e9ae9a2e826635c7"
+repo-rev = "2e0488da1b3d375e3db3e1c3e9d2fc891e40e05c"
 repo-url = "https://github.com/louisponet/DFWannier.jl.git"
 uuid = "5e267647-ebb4-5b7d-bc28-1d3eda37ab19"
-version = "0.2.2"
+version = "0.2.3"
 
 [[deps.DSP]]
 deps = ["Compat", "FFTW", "IterTools", "LinearAlgebra", "Polynomials", "Random", "Reexport", "SpecialFunctions", "Statistics"]
