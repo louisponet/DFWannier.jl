@@ -14,3 +14,4 @@
 
 [ci-img]: https://github.com/louisponet/DFWannier.jl/workflows/CI/badge.svg?branch=master&event=push
 [ci-url]: https://github.com/louisponet/DFWannier.jl/actions
+[![Package Downloads](https://shields.io/endpoint?url=https://pkgs.genieframework.com/api/v1/badge/DFWannier)](https://pkgs.genieframework.com?packages=DFWannier)

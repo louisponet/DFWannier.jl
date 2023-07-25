@@ -44,6 +44,7 @@ function generate_TBBlocks(chk::NamedTuple, O_R::Vector)
     for (h, R, shifts, nshifts, d) in zip(O_R, R_cryst, ws_shifts, ws_nshifts, degens)
         for i in eachindex(h)
             ns = nshifts[i]
+            
             frac = 1 / (ns * d)
             for is in 1:ns
                 rcryst = R + shifts[i][is]
@@ -57,8 +58,18 @@ function generate_TBBlocks(chk::NamedTuple, O_R::Vector)
                 h1.block[i] += h[i] * frac
                 h1.tb_block[i] = h[i]
             end
+            
         end
     end
+    # this doesn't do much
+    for o in out
+        other = out[-o.R_cryst]
+        other.block .= (o.block' .+ other.block)./2
+        o.block .= (other.block' .+ o.block)./2
+        other.tb_block .= (o.tb_block' .+ other.tb_block)./2
+        o.tb_block .= (other.tb_block' .+ o.tb_block)./2
+    end
+    
     return out
 end
 

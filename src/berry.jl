@@ -23,6 +23,7 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TBHamiltonian, chk) 
 
     n_nearest = n_nearest_neighbors(ab_initio_grid)
     neighbor_weights = ab_initio_grid.neighbor_weights
+    
     Threads.@threads for i in 1:n_kpoints
         kpoint = ab_initio_grid.kpoints[i]
         for n in 1:n_nearest
@@ -47,6 +48,7 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TBHamiltonian, chk) 
                 end
             end
         end
+        
         for v in 1:3
             A_q[i][v] .= (A_q[i][v] + A_q[i][v]') / 2
             for v2 in 1:v
@@ -54,9 +56,11 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TBHamiltonian, chk) 
             end
         end
     end
+    
     A_R = [berry_vec() for k in 1:length(irvec)]
     B_R = [berry_vec() for k in 1:length(irvec)]
     C_R = [berry_mat() for k in 1:length(irvec)]
+    
     fourier_q_to_R(ab_initio_grid.kpoints, irvec) do iR, ik, phase
         for v in 1:3
             A_R[iR][v] .+= phase .* A_q[ik][v]
@@ -66,6 +70,7 @@ function BerryRGrid(ab_initio_grid::AbInitioKGrid{T}, hami::TBHamiltonian, chk) 
             end
         end
     end
+    
     ws_shifts, ws_nshifts = chk.ws_shifts_cryst, chk.ws_nshifts
     points, degens = chk.ws_R_cryst, chk.ws_degens
     A_R_out = [berry_vec() for k in 1:length(irvec)]
@@ -114,6 +119,7 @@ struct BerryKGrid{T,MT,MT1} <: AbstractKGrid{T}
     f::Vector{MT}
     g::Vector{MT}
 end
+
 function BerryKGrid(berry_R_grid::BerryRGrid, kpoints::Vector{<:Vec3}, fermi::AbstractFloat)
     tb_hami = berry_R_grid.hami
     hamiltonian_kgrid = HamiltonianKGrid(tb_hami, kpoints)

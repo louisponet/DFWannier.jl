@@ -4,21 +4,32 @@ const K_CART_TYPE{T} = Quantity{T,Unitful.𝐋^-1,
 phases(kpoints::Vector{<:Vec3}, R::Vec3) = exp.(-2im * π .* dot.(kpoints, (R,)))
 
 function uniform_shifted_kgrid(::Type{T}, nkx::Integer, nky::Integer,
-                               nkz::Integer) where {T}
-    return reshape([Vec3{T}(kx, ky, kz)
-                    for kx in 0.5/nkx:1/nkx:1, ky in 0.5/nky:1/nky:1, kz in 0.5/nkz:1/nkz:1],
-                   nkx * nky * nkz)
+                               nkz::Integer, gamma_center = false) where {T}
+
+    t = [Vec3{T}(kx, ky, kz) for kx in 0:nkx-1, ky in 0:nky-1, kz in 0:nkz-1]
+    s = Vec3(nkx, nky, nkz)
+    t = map(t) do x
+        (x .+ 0.5) ./ s .- 0.5
+    end
+    if gamma_center
+        shift = 0.5 .* ((s.+ 1) .% 2)./s
+        t = map(t) do x
+            x .+ shift
+        end
+    end
+                               
+    return reshape(t, nkx * nky * nkz)
 end
 
-function uniform_shifted_kgrid(nkx::Integer, nky::Integer, nkz::Integer)
-    return uniform_shifted_kgrid(Float64, nkx, nky, nkz)
+function uniform_shifted_kgrid(nkx::Integer, nky::Integer, nkz::Integer, gamma_center=false)
+    return uniform_shifted_kgrid(Float64, nkx, nky, nkz, gamma_center)
 end
 
 function uniform_kgrid(nkx::Integer, nky::Integer, nkz::Integer)
     return reshape([Vec3{Float64}(kx, ky, kz)
-                    for kz in range(0, 1 - 1 / nkz; length = nkz),
-                        ky in range(0, 1 - 1 / nky; length = nky),
-                        kx in range(0, 1 - 1 / nkx; length = nkx)], nkx * nky * nkz)
+                    for kz in range(0, (1 - 1 / nkz); length = nkz),
+                        ky in range(0, (1 - 1 / nky); length = nky),
+                        kx in range(0, (1 - 1 / nkx); length = nkx)], nkx * nky * nkz)
 end
 
 abstract type AbstractKGrid{T} end
@@ -133,7 +144,9 @@ Base.length(grid::AbInitioKGrid) = length(grid.kpoints)
 
 struct HamiltonianKGrid{T,MT<:AbstractMatrix{Complex{T}},VT<:AbstractVector{T}} <:
        AbstractKGrid{T}
+       
     core::CoreKGrid{T}
+    
     Hk::Vector{MT}
     eigvals::Vector{VT}
     eigvecs::Vector{MT}
@@ -151,32 +164,40 @@ the `H_function_k` function is called on the intermediate Hk.
 """
 function HamiltonianKGrid(hami::TBHamiltonian{T}, kpoints::Vector{<:Vec3},
                           Hk_function::Function = x -> nothing) where {T}
+
     # kpoints = [KPoint(k, blocksize(hami), R, zeros_block(hami)) for k in k_grid]
     n_eigvals = max(blocksize(hami)...)
     eigvals = hami[1].block isa AbstractMagneticMatrix ?
               [MagneticVector(zeros(T, n_eigvals)) for k in kpoints] :
               [zeros(T, n_eigvals) for k in kpoints]
+              
     kgrid = HamiltonianKGrid(kpoints, [zeros_block(hami) for k in kpoints], eigvals,
                              [zeros_block(hami) for k in kpoints])
     nk = length(kpoints)
     calc_caches = [HermitianEigenWs(block(hami[1])) for i in 1:nthreads()]
     p = Progress(nk, 1, "Calculating H(k)...")
+    
     @threads for i in 1:nk
         tid = threadid()
+        
         Hk!(kgrid.eigvecs[i], hami, k_cryst(kgrid)[i])
+        
         copy!(kgrid.Hk[i], copy(kgrid.eigvecs[i]))
         Hk_function(kgrid.Hk[i])
         eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[tid])
         next!(p)
     end
+    
     return kgrid
 end
 
 function Hk!(out::AbstractMatrix, tbhami::TBHamiltonian, kpoint::Vec3)
     fill!(out, zero(eltype(out)))
+    
     fourier_transform(tbhami, kpoint) do i, iR, R_cart, b, fac
         @inbounds out[i] += fac * b.block[i]
     end
+    
 end
 
 """
@@ -197,6 +218,7 @@ eigvals(g::HamiltonianKGrid) = g.eigvals
 
 "Fourier transforms the tight binding hamiltonian and calls the R_function with the current index and the phase."
 function fourier_transform(R_function::Function, tb_hami::TBHamiltonian{T}, kpoint::Vec3) where {T}
+    
     for (iR, b) in enumerate(tb_hami)
         fac = ℯ^(2im * π * (b.R_cryst ⋅ kpoint))
         for i in eachindex(block(b))

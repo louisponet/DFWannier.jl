@@ -106,6 +106,7 @@ function read_chk(job::Job)
     end
 end
 
+# TODO: decide whether we keep NearestNeighbors or look at this here
 metrics(chk) = metrics(ustrip.(chk.cell), ustrip.(chk.recip_cell))
 function metrics(cell, recip_cell)
     real  = zeros(3, 3)
@@ -238,7 +239,6 @@ function read_eig(filename)
     return Hk
 end
 
-
 """
     read_hamiltonian(chk::NamedTuple, eigvals::Matrix)
 
@@ -247,24 +247,35 @@ Uses the Wannier90 chkpoint info in `chk` and DFT `eigenvals` read with [`read_e
 function read_hamiltonian(chk::NamedTuple, eigvals::Matrix)
     v_mat = chk.V_matrix
     R_cryst = chk.ws_R_cryst
+
     Hq = map(1:length(chk.kpoints)) do ik
         v = v_mat[1:num_states(chk, ik), 1:chk.n_wann, ik]
-
         return v' * diagm(eigvals[disentanglement_range(chk, ik), ik]) * v
     end
+
     c = chk.cell'
+
     Hr_t = [zeros(ComplexF64, chk.n_wann, chk.n_wann) for R in R_cryst]
+
     fourier_q_to_R(chk.kpoints, R_cryst) do iR, ik, phase
         @inbounds Hr_t[iR] .+= phase .* Hq[ik]
     end
+
     for o in Hr_t
         o ./= length(chk.kpoints)
     end
+
     return generate_TBBlocks(chk, Hr_t)
 end
-read_hamiltonian(chk_file::AbstractString, eig_file::AbstractString) = read_hamiltonian(read_chk(chk_file), read_eig(eig_file))
-read_hamiltonian(up_chk_file::AbstractString, dn_chk_file::AbstractString, up_eig_file::AbstractString, dn_eig_file::AbstractString) =
-    read_colin_hami(read_chk(up_chk_file), read_chk(dn_chk_file), read_eig(up_eig_file), read_eig(dn_eig_file))
+
+function read_hamiltonian(chk_file::AbstractString, eig_file::AbstractString)
+    return read_hamiltonian(read_chk(chk_file), read_eig(eig_file))
+end
+function read_hamiltonian(up_chk_file::AbstractString, dn_chk_file::AbstractString,
+                          up_eig_file::AbstractString, dn_eig_file::AbstractString)
+    return read_colin_hami(read_chk(up_chk_file), read_chk(dn_chk_file),
+                           read_eig(up_eig_file), read_eig(dn_eig_file))
+end
 #super not optimized
 #TODO Test: new wigner seitz shift stuff
 """
@@ -310,8 +321,10 @@ function read_hamiltonian(job::Job)
 
     wcalc = getfirst(x -> x isa Calculation{Wannier90}, job.calculations)
     seedname = wcalc.name
-    eig_files = filter(x -> any(y -> occursin(y.name, x), job.calculations), reverse(searchdir(job, ".eig")))
-    chk_files = filter(x -> any(y -> occursin(y.name, x), job.calculations), reverse(searchdir(job, ".chk")))
+    eig_files = filter(x -> any(y -> occursin(y.name, x), job.calculations),
+                       reverse(searchdir(job, ".eig")))
+    chk_files = filter(x -> any(y -> occursin(y.name, x), job.calculations),
+                       reverse(searchdir(job, ".chk")))
     @assert !isempty(eig_files) "No eig files ($(seedname).eig) found."
     @assert !isempty(chk_files) "No chk files ($(seedname).chk) found."
     if !DFC.Jobs.runslocal(job)
@@ -325,11 +338,12 @@ function read_hamiltonian(job::Job)
     end
     if haskey(wcalc, :spin)
         hami = read_colin_hami(read_chk.(chk_files)..., read_eig.(eig_files)...)
-    elseif haskey(wcalc, :spinors) 
+    elseif haskey(wcalc, :spinors)
         hami = make_noncolin.(read_hamiltonian(read_chk(chk_files[1]),
-                                       read_eig(joinpath(job, eig_files[1]))))
+                                               read_eig(joinpath(job, eig_files[1]))))
     else
-        hami = read_hamiltonian(read_chk(chk_files[1]), read_eig(joinpath(job, eig_files[1])))
+        hami = read_hamiltonian(read_chk(chk_files[1]),
+                                read_eig(joinpath(job, eig_files[1])))
     end
     if !DFC.Jobs.runslocal(job)
         dir = splitdir(eig_files[1])[1]
@@ -337,21 +351,22 @@ function read_hamiltonian(job::Job)
     end
     return hami
 end
-#TODO: speedup, we don't need all of them if things were disentangled
 
-mutable struct ReciprocalOverlaps{T}
-    k_id            :: Int
-    neighbor_ids    :: Vector{Int}
-    b_vectors_cryst :: Vector{Vec3{Int}} #connecting vector in crystalline coordinates
-    overlaps        :: Vector{Matrix{Complex{T}}}
-end
+# not used
 
-function ReciprocalOverlaps{T}(k_id::Int, n_nearest_neighbors::Int, nbands::Int) where {T}
-    overlap_matrices = [Matrix{Complex{T}}(undef, nbands, nbands)
-                        for i in 1:n_nearest_neighbors]
-    return ReciprocalOverlaps{T}(k_id, zeros(Int, n_nearest_neighbors),
-                                 zeros(Vec3{Int}, n_nearest_neighbors), overlap_matrices)
-end
+# mutable struct ReciprocalOverlaps{T}
+#     k_id            :: Int
+#     neighbor_ids    :: Vector{Int}
+#     b_vectors_cryst :: Vector{Vec3{Int}} #connecting vector in crystalline coordinates
+#     overlaps        :: Vector{Matrix{Complex{T}}}
+# end
+
+# function ReciprocalOverlaps{T}(k_id::Int, n_nearest_neighbors::Int, nbands::Int) where {T}
+#     overlap_matrices = [Matrix{Complex{T}}(undef, nbands, nbands)
+#                         for i in 1:n_nearest_neighbors]
+#     return ReciprocalOverlaps{T}(k_id, zeros(Int, n_nearest_neighbors),
+#                                  zeros(Vec3{Int}, n_nearest_neighbors), overlap_matrices)
+# end
 
 function read_uHu(file)
     try
@@ -411,6 +426,7 @@ function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractS
 
             vmat_ik = wannier_chk_params.V_matrix[:, :, ik]
             vmat_ik2 = wannier_chk_params.V_matrix[:, :, ik2]
+            
             first_band_id_ik = findfirst(wannier_chk_params.lwindow[:, ik])
             first_band_id_ik2 = findfirst(wannier_chk_params.lwindow[:, ik2])
 
@@ -668,74 +684,52 @@ end
     read_r(chk_file::AbstractString, nnkp_file::AbstractString)
     read_r(job::Job)
     
-Constructs the _r_ [`TBOperator`] from the Wannier90 .chk and .nnkp files.
-This requires that the `k_neighbor_weights` is written into the .chk file and might
-need a patched Wannier90 version.
-"""
-read_r(chk_file::AbstractString, nnkp_file::AbstractString) =
-    r_R(read_chk(chk_file), read_nnkp(nnkp_file).kbonds)
+# Constructs the _r_ [`TBOperator`] from the Wannier90 .chk and .nnkp files.
+# This requires that the `k_neighbor_weights` is written into the .chk file and might
+# need a patched Wannier90 version.
+# """
+# function read_r(chk_file::AbstractString, nnkp_file::AbstractString)
+#     return r_R(read_chk(chk_file), read_nnkp(nnkp_file).kbonds)
+# end
 
-function read_r(job::Job)
-    chk_files = reverse(searchdir(job, ".chk"))
-    nnkp_files = reverse(searchdir(job, ".nnkp"))
-    isempty(chk_files) && error("No .chk files found in job dir: $(job.local_dir)")
-    isempty(nnkp_files) && error("No .spn files found in job dir: $(job.local_dir)")
-    if length(chk_files) > 1
-        error("Not implemented for collinear spin-polarized calculations")
-    end
-    return read_r(chk_files[1], nnkp_files[1])
-end
+# function read_r(job::Job)
+#     chk_files = reverse(searchdir(job, ".chk"))
+#     nnkp_files = reverse(searchdir(job, ".nnkp"))
+#     isempty(chk_files) && error("No .chk files found in job dir: $(job.local_dir)")
+#     isempty(nnkp_files) && error("No .spn files found in job dir: $(job.local_dir)")
+#     if length(chk_files) > 1
+#         error("Not implemented for collinear spin-polarized calculations")
+#     end
+#     return read_r(chk_files[1], nnkp_files[1])
+# end
 
-"""
-    read_wannier_blocks(f)
+# """
+#     read_rmn_file(filename::String, structure::Structure)
 
-Reads a Wannier90 file such as .nnkp and separates each begin end block into an entry in the ouput `Dict`. 
-"""
-function read_wannier_blocks(f)
-    out = Dict{Symbol,Any}()
-    while !eof(f)
-        l = readline(f)
-        if occursin("begin", l)
-            s = Symbol(split(l)[2])
-            lines = AbstractString[]
-            l = readline(f)
-            while !occursin("end", l)
-                push!(lines, l)
-                l = readline(f)
-            end
-            out[s] = lines
-        end
-    end
-    return out
-end
+# Returns the [`TBRmn`](@ref) operator that defines the _r_ matrix elements between the Wannier functions in different unit cells.
+# """
+# function read_rmn_file(filename::String, structure::Structure)
+#     open(filename) do f
+#         out = RmnBlock{Float64}[]
+#         readline(f)
+#         n_wanfun = parse(Int, readline(f))
+#         readline(f)
+#         while !eof(f)
+#             l = split(readline(f))
+#             R_cryst = Vec3(parse.(Int, l[1:3]))
+#             block = getfirst(x -> x.R_cryst == R_cryst, out)
 
-"""
-    read_rmn_file(filename::String, structure::Structure)
-
-Returns the [`TBRmn`](@ref) operator that defines the _r_ matrix elements between the Wannier functions in different unit cells.
-"""
-function read_rmn_file(filename::String, structure::Structure)
-    open(filename) do f
-        out = RmnBlock{Float64}[]
-        readline(f)
-        n_wanfun = parse(Int, readline(f))
-        readline(f)
-        while !eof(f)
-            l = split(readline(f))
-            R_cryst = Vec3(parse.(Int, l[1:3]))
-            block = getfirst(x -> x.R_cryst == R_cryst, out)
-
-            if block == nothing
-                block = RmnBlock{Float64}(cell(structure)' * R_cryst, R_cryst,
-                                          Matrix{Point3{Float64}}(I, n_wanfun, n_wanfun))
-                push!(out, block)
-            end
-            dipole = Point3(parse.(Float64, l[6:2:10]))
-            block.block[parse.(Int, l[4:5])...] = dipole
-        end
-        return out
-    end
-end
+#             if block == nothing
+#                 block = RmnBlock{Float64}(cell(structure)' * R_cryst, R_cryst,
+#                                           Matrix{Point3{Float64}}(I, n_wanfun, n_wanfun))
+#                 push!(out, block)
+#             end
+#             dipole = Point3(parse.(Float64, l[6:2:10]))
+#             block.block[parse.(Int, l[4:5])...] = dipole
+#         end
+#         return out
+#     end
+# end
 
 """
     write_xsf(filename::String, wfc::WannierFunction, str::Structure; value_func=x->norm(x))
@@ -743,7 +737,8 @@ end
 Writes a [`WannierFunction`](@ref) and [`Structure`](https://louisponet.github.io/DFControl.jl/stable/guide/structure/) to an xsf file that is readable by XCrysden or VESTA.
 The values that are written can be controlled by `value_func` that gets used on each entry of `wfc.values` and should output a single `Number`. 
 """
-function write_xsf(filename::String, wfc::WannierFunction, structure::Structure; value_func = x -> norm(x))
+function write_xsf(filename::String, wfc::WannierFunction, structure::Structure;
+                   value_func = x -> norm(x))
     open(filename, "w") do f
         origin = wfc.points[1, 1, 1]
         write(f, "# Generated from PhD calculations\n")
