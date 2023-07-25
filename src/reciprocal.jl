@@ -177,14 +177,12 @@ function HamiltonianKGrid(hami::TBHamiltonian{T}, kpoints::Vector{<:Vec3},
     calc_caches = [HermitianEigenWs(block(hami[1])) for i in 1:nthreads()]
     p = Progress(nk, 1, "Calculating H(k)...")
     
-    @threads for i in 1:nk
-        tid = threadid()
-        
+    @inbounds @threads for i in 1:nk
         Hk!(kgrid.eigvecs[i], hami, k_cryst(kgrid)[i])
         
-        copy!(kgrid.Hk[i], copy(kgrid.eigvecs[i]))
+        copy!(kgrid.Hk[i], kgrid.eigvecs[i])
         Hk_function(kgrid.Hk[i])
-        eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[tid])
+        eigen!(kgrid.eigvals[i], kgrid.eigvecs[i], calc_caches[threadid()])
         next!(p)
     end
     

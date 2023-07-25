@@ -172,11 +172,10 @@ abstract type Exchange{T<:AbstractFloat} end
 Base.eltype(::Exchange{T}) where {T} = T
 Base.eltype(::Type{Exchange{T}}) where {T} = T
 
-function (::Type{E})(at1::Atom, at2::Atom; site_diagonal::Bool = false) where {E<:Exchange}
+function (::Type{E})(at1::Atom, at2::Atom) where {E<:Exchange}
     l1 = length(uprange(at1))
     l2 = length(uprange(at2))
-    return site_diagonal ? E(zeros(Float64, l1, l2), at1, at2) :
-           E(zeros(Float64, l1, l1), at1, at2)
+    return E(zeros(Float64, l1, l2), at1, at2)
 end
 
 """
@@ -199,7 +198,7 @@ function Base.show(io::IO, e::Exchange)
     println(io, "name: $(e.atom2.name), pos: $(e.atom2.position_cryst)")
     println(io, crayon"red","dist:",crayon"reset", "$(norm(e.atom2.position_cart))")
 
-    return print(io, crayon"red", " J: ", crayon"reset", "$(tr(e.J))")
+    return print(io, crayon"red", " J: ", crayon"reset", "$(sum(e.J))")
 end
 
 """
@@ -230,56 +229,36 @@ returned exchange matrices hold the exchanges between well-defined orbitals. If 
 the exchange matrices entries don't mean anything on themselves and a trace should be performed to
 find the exchange between the spins on sites `i` and `j`.
 """ 
-function calc_exchanges(hami, atoms::Vector{<:Atom}, fermi::T, ::Type{E} = Exchange2ndOrder;
+function calc_exchanges(hami, structure::DFControl.Structures.Structure, atsyms::Vector{Symbol}, fermi::T, ::Type{E} = Exchange2ndOrder;
                         nk::NTuple{3,Int} = (10, 10, 10),
                         R = Vec3(0, 0, 0),
                         ωh::T = T(-30.0), # starting energy
-                        ωv::T = T(0.15), # height of vertical contour
-                        n_ωh::Int = 3000,
-                        n_ωv::Int = 500,
-                        temp::T = T(0.01),
-                        cell=nothing,
-                        site_diagonal = false) where {T<:AbstractFloat,E<:Exchange}
+                        n_ωh::Int = 100,
+                        emax::T = T(0.001)) where {T<:AbstractFloat,E<:Exchange}
     R_     = Vec3(R...)
     μ      = fermi
-    ω_grid = setup_ω_grid_legendre(ωh, n_ωh)
+    ω_grid = setup_ω_grid_legendre(ωh, n_ωh, emax)
 
     exchanges = E{T}[]
-    for at1 in atoms
-        for at2 in atoms
-            if cell === nothing
-                push!(exchanges, E(at1, at2; site_diagonal = site_diagonal))
-            else
-                at2_ = deepcopy(at2)
-                at2_.position_cart =  at2_.position_cart .+ cell * Vec3(R...)
-                push!(exchanges, E(at1, at2_; site_diagonal = site_diagonal))
-            end
+    for at1 in Iterators.flatten(map(x->structure[element(x)], atsyms))
+        for at2 in Iterators.flatten(map(x->structure[element(x)], atsyms))
+            at2_ = deepcopy(at2)
+            at2_.position_cart =  at2_.position_cart .+ structure.cell * Vec3(R...)
+            push!(exchanges, E(at1, at2_))
         end
     end
     kpoints = ExchangeKGrid(hami, uniform_shifted_kgrid(nk...), R_)
 
-    D_ = site_diagonal ? site_diagonalize(kpoints.D, atoms) : kpoints.D
-    calc_exchanges!(exchanges, μ, ω_grid, kpoints, D_)
+    calc_exchanges!(exchanges, μ, ω_grid, kpoints, kpoints.D)
 
     return exchanges
-end
-
-function site_diagonalize(D::Matrix{Complex{T}}, ats::Vector{DFC.Structures.Atom}) where {T}
-    Ts = zeros(D)
-    Dvals = zeros(T, size(D, 1))
-    for at in ats
-        t_vals, t_vecs    = eigen(Hermitian(D[at]))
-        Ts[at]           .= t_vecs
-        Dvals[range(at)] .= real.(t_vals)
-    end
-    return SiteDiagonalD(Dvals, Ts)
 end
 
 function calc_exchanges!(exchanges::Vector{<:Exchange{T}},
                          μ::T,
                          ω_grid::AbstractArray{Complex{T}},
                          kpoints,
-                         D::Union{Matrix{Complex{T}},SiteDiagonalD{T}}) where {T<:AbstractFloat}
+                         D::Matrix{Complex{T}}) where {T<:AbstractFloat}
     dim = size(kpoints.hamiltonian_kgrid.eigvecs[1])
     d2 = div(dim[1], 2)
     J_caches = [ThreadCache(zeros(T, size(e.J))) for e in exchanges]
@@ -288,21 +267,12 @@ function calc_exchanges!(exchanges::Vector{<:Exchange{T}},
         J_caches[j] .+= imag.(integrate_simpson(i -> Jω(exchanges[j], D, Gs[i]), ω_grid))
     end
     for (eid, exch) in enumerate(exchanges)
-        exch.J = -1e3 / 2π * reduce(+, J_caches[eid])
+        exch.J = -1e3 / 4π * reduce(+, J_caches[eid])
     end
 end
 
 spin_sign(D) = -sign(real(tr(D))) # up = +1, down = -1. If D_upup > D_dndn, onsite spin will be down and the tr(D) will be positive. Thus explaining the - in front of this.
 spin_sign(D::Vector) = sign(real(sum(D))) # up = +1, down = -1
-
-function perturbation_bubble(::Exchange2ndOrder, D_site1, G_forward, D_site2, G_backward)
-    return D_site1 * G_forward * D_site2 * G_backward
-end
-
-function perturbation_bubble(::Exchange4thOrder, D_site1, G_forward, D_site2, G_backward)
-    return D_site1 * G_forward * D_site2 * G_backward * D_site1 * G_forward * D_site2 *
-           G_backward
-end
 
 @inline function Jω(exch, D, G)
     if size(D, 1) < size(G, 1)
@@ -314,27 +284,16 @@ end
     end
     D_site1    = view(D, ra1, ra1)
     D_site2    = view(D, ra2, ra2)
+    s1         = spin_sign(D_site1)
+    s2         = spin_sign(D_site2)
+    t          = zeros(ComplexF64, size(exch.J))
     G_forward  = view(G, exch.atom1, exch.atom2, Up())
     G_backward = view(G, exch.atom2, exch.atom1, Down())
-    return spin_sign(D_site1) .* spin_sign(D_site2) .*
-           perturbation_bubble(exch,
-                                     D_site1,
-                                     G_forward,
-                                     D_site2,
-                                     G_backward)
-end
-
-@inline function Jω(exch, D::SiteDiagonalD, G)
-    s1         = spin_sign(D.values[exch.atom1])
-    s2         = spin_sign(D.values[exch.atom2])
-    t          = zeros(ComplexF64, size(exch.J))
-    G_forward  = D.T[exch.atom1]' * G[exch.atom1, exch.atom2, Down()] * D.T[exch.atom2]
-    G_backward = D.T[exch.atom2]' * G[exch.atom2, exch.atom1, Up()]   * D.T[exch.atom1]
     for j in 1:size(t, 2), i in 1:size(t, 1)
         t[i, j] = s1 * s2 *
-                  D.values[exch.atom1][i] *
+                  D_site1[i,i] *
                        G_forward[i, j] *
-                       D.values[exch.atom2][j] *
+                       D_site2[j, j] *
                        G_backward[j, i]
     end
     return t

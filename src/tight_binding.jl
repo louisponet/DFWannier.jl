@@ -61,7 +61,8 @@ function generate_TBBlocks(chk::NamedTuple, O_R::Vector)
             
         end
     end
-    # this doesn't do much
+    
+    # this doesn't do much but it should make things more hermitian
     for o in out
         other = out[-o.R_cryst]
         other.block .= (o.block' .+ other.block)./2
