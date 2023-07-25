@@ -5,3 +5,4 @@
 test/test_linux\.jl
 
 Manifest\.toml
+docs/build
