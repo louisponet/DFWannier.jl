@@ -390,7 +390,7 @@ function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractS
     read(uHu_file, (Int32, 3))
 
     open(mmn_filename, "r") do f
-        readline(f) #header
+        readline(f) #header 
         nbands, nkpoints, n_nearest_neighbors = parse.(Int, strip_split(readline(f)))
         #pre setup uHu
         for k in grid
@@ -425,7 +425,7 @@ function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractS
             S12 = overlap_ab_initio_gauge[disentanglement_range_k1,
                                           disentanglement_range_k2]
 
-            kpoint = grid[ik]
+            kpoint = grid[ik] 
 
             vr = (wannier_chk_params.recip_cell * parse(Vec3{Int}, sline[3:5]) +
                   grid[ik2].k_cart) - kpoint.k_cart
@@ -454,7 +454,7 @@ function fill_overlaps!(grid::Vector{AbInitioKPoint{T}}, mmn_filename::AbstractS
         return grid
     end
 end
-
+ 
 function fill_k_neighbors!(kpoints::Vector{AbInitioKPoint{T}}, file::AbstractString,
                            recip_cell::Mat3) where {T}
     kbonds = read_nnkp(file).kbonds
@@ -480,7 +480,7 @@ function read_unk_collinear(file)
     for i in 1:nbnd
         record = FortranFiles.Record(f)
         read!(record, view(Uk, :, :, :, i, 1))
-        close(record)
+        close(record) 
     end
     return Uk
 end
@@ -609,7 +609,7 @@ function read_nnkp(nnkp_file) #not everything, just what I need for now
         recip_cell[:, 3] = parse.(Float64, split(blocks[:recip_lattice][3])) .* 1 / 1DFControl.angstrom
         
         nkpoints = parse(Int, blocks[:kpoints][1])
-        kpoints = map(view(blocks[:kpoints], 2:nkpoints)) do l
+        kpoints = map(view(blocks[:kpoints], 2:nkpoints+1)) do l
             return recip_cell * Vec3(parse.(Float64, split(l)))
         end
         
