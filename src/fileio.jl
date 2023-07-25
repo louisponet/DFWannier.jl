@@ -684,24 +684,24 @@ end
     read_r(chk_file::AbstractString, nnkp_file::AbstractString)
     read_r(job::Job)
     
-# Constructs the _r_ [`TBOperator`] from the Wannier90 .chk and .nnkp files.
-# This requires that the `k_neighbor_weights` is written into the .chk file and might
-# need a patched Wannier90 version.
-# """
-# function read_r(chk_file::AbstractString, nnkp_file::AbstractString)
-#     return r_R(read_chk(chk_file), read_nnkp(nnkp_file).kbonds)
-# end
+Constructs the _r_ [`TBOperator`] from the Wannier90 .chk and .nnkp files.
+This requires that the `k_neighbor_weights` is written into the .chk file and might
+need a patched Wannier90 version.
+"""
+function read_r(chk_file::AbstractString, nnkp_file::AbstractString)
+     return r_R(read_chk(chk_file), read_nnkp(nnkp_file).kbonds)
+end
 
-# function read_r(job::Job)
-#     chk_files = reverse(searchdir(job, ".chk"))
-#     nnkp_files = reverse(searchdir(job, ".nnkp"))
-#     isempty(chk_files) && error("No .chk files found in job dir: $(job.local_dir)")
-#     isempty(nnkp_files) && error("No .spn files found in job dir: $(job.local_dir)")
-#     if length(chk_files) > 1
-#         error("Not implemented for collinear spin-polarized calculations")
-#     end
-#     return read_r(chk_files[1], nnkp_files[1])
-# end
+function read_r(job::Job)
+    chk_files = reverse(searchdir(job, ".chk"))
+    nnkp_files = reverse(searchdir(job, ".nnkp"))
+    isempty(chk_files) && error("No .chk files found in job dir: $(job.local_dir)")
+    isempty(nnkp_files) && error("No .spn files found in job dir: $(job.local_dir)")
+    if length(chk_files) > 1
+        error("Not implemented for collinear spin-polarized calculations")
+    end
+    return read_r(chk_files[1], nnkp_files[1])
+end
 
 # """
 #     read_rmn_file(filename::String, structure::Structure)
