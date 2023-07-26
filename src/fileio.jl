@@ -611,6 +611,28 @@ function read_spin(job::Job)
 end
 
 """
+    read_wannier_blocks(f)
+Reads a Wannier90 file such as .nnkp and separates each begin end block into an entry in the ouput `Dict`. 
+"""
+function read_wannier_blocks(f)
+    out = Dict{Symbol,Any}()
+    while !eof(f)
+        l = readline(f)
+        if occursin("begin", l)
+            s = Symbol(split(l)[2])
+            lines = AbstractString[]
+            l = readline(f)
+            while !occursin("end", l)
+                push!(lines, l)
+                l = readline(f)
+            end
+            out[s] = lines
+        end
+    end
+    return out
+end
+
+"""
     read_nnkp(nnkp_file)
 
 Reads a Wannier90 .nnkp file and returns `(recip_cell, kpoints, kbonds)`. 
