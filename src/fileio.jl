@@ -676,7 +676,7 @@ function r_R(chk, kbonds)
     nwann = chk.n_wann
     nntot = chk.n_nearest_neighbors
 
-    bshells = search_shells(chk.kpoints, DFControl.Unitful.ustrip.(chk.recip_cell))
+    bshells = search_shells(chk.kpoints, Unitful.ustrip.(chk.recip_cell))
     
     wb = chk.neighbor_weights
     r_R = [zeros(Vec3{ComplexF64}, nwann, nwann) for i in 1:nR]
