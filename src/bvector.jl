@@ -5,6 +5,58 @@ import NearestNeighbors as NN
 export get_bvectors
 
 """
+    make_supercell(kpoints, replica)
+
+Make a supercell of kpoints by translating it along 3 directions.
+
+On output there are `(2*replica + 1)^3` cells, in fractional coordinates.
+
+# Arguments
+- `kpoints`: `3 * n_kpts`, in fractional coordinates
+- `replica`: `3`, number of repetitions along ±x, ±y, ±z directions
+"""
+function make_supercell(
+    kpoints::Vector{Vec3{T}}, replica::AbstractVector{<:AbstractRange}
+) where {T}
+    n_kpts = length(kpoints)
+
+    rep_x, rep_y, rep_z = replica
+    n_cell = length(rep_x) * length(rep_y) * length(rep_z)
+
+    supercell = Vector{Vec3{T}}(undef, n_cell * n_kpts)
+    translations = zeros(Vec3{Int}, n_cell * n_kpts)
+
+    counter = 1
+    for ix in rep_x
+        for iy in rep_y
+            for iz in rep_z
+                for ik in 1:n_kpts
+                    supercell[counter] = kpoints[ik] + Vec3(ix, iy, iz)
+                    translations[counter] = Vec3(ix, iy, iz)
+                    counter += 1
+                end
+            end
+        end
+    end
+
+    return supercell, translations
+end
+
+"""
+    make_supercell(kpoints, replica=5)
+
+Make a supercell of kpoints by translating it along 3 directions.
+
+# Arguments
+- `replica`: integer, number of repetitions along ±x, ±y, ±z directions
+"""
+function make_supercell(kpoints::Vector{<:Vec3}, replica::Integer=5)
+    return make_supercell(
+        kpoints, [(-replica):replica, (-replica):replica, (-replica):replica]
+    )
+end
+
+"""
     BVectorShells
 
 Shells of bvectors.
