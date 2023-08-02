@@ -30,6 +30,7 @@ include("linalg.jl")
 
 include("plotting.jl")
 include("exchange.jl")
+include("bvector.jl")
 include("fileio.jl")
 include("berry.jl")
 export HamiltonianKGrid

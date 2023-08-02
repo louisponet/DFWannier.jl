@@ -23,7 +23,7 @@ function read_chk(filename)
     n_kpoints = read(f, Int32)
     mp_grid = Vec3(Int.(read(f, (Int32, 3)))...)
     kpt_lattice_t = read(f, (Float64, 3, n_kpoints))
-    kpt_lattice = [Vec3(kpt_lattice_t[:, i]...) for i in 1:size(kpt_lattice_t)[2]]
+    kpt_lattice = [Vec3(kpt_lattice_t[:, i]...) for i in 1:size(kpt_lattice_t,2)]
     k_nearest_neighbors = read(f, Int32)
 
     n_wann = read(f, Int32)
@@ -675,12 +675,16 @@ function r_R(chk, kbonds)
     nR = length(R_cryst)
     nwann = chk.n_wann
     nntot = chk.n_nearest_neighbors
+
+    bshells = search_shells(chk.kpoints, chk.recip_cell)
+    
     wb = chk.neighbor_weights
     r_R = [zeros(Vec3{ComplexF64}, nwann, nwann) for i in 1:nR]
-    @inbounds fourier_q_to_R(chk.kpoints, R_cryst) do iR, ik, phase
+    @inbounds fourier_q_to_R(bshells.kpoints, R_cryst) do iR, ik, phase
         r_R_t = r_R[iR]
         for nn in 1:nntot
-            w = wb[nn]
+            w = bshells.weights[nn]
+            # TODO: can be all from bshells
             kb = ustrip.(kbonds[ik][nn].vr)
             for m in 1:nwann
                 for n in 1:nwann
