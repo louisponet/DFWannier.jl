@@ -2,7 +2,7 @@ name = "DFWannier"
 uuid = "5e267647-ebb4-5b7d-bc28-1d3eda37ab19"
 authors = ["Louis Ponet <louisponet@gmail.com>"]
 repo = "https://github.com/louisponet/DFWannier.jl.git"
-version = "0.2.3"
+version = "0.2.4"
 
 [deps]
 ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
@@ -24,7 +24,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [compat]
 ColorSchemes = "3.19.0"
-DFControl = "^0.5.1"
+DFControl = "^0.6.0"
 FastLapackInterface = "^1.2.2"
 FortranFiles = "^0.6.0"
 LaTeXStrings = "^1"
